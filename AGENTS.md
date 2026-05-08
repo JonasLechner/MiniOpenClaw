@@ -14,6 +14,8 @@ Minimal TypeScript project.
 - Build: `npm run build`
 - Run: `npm start`
 - Watch: `npm run dev`
+- Lint: `npm run lint`
+- Lint + fix: `npm run lint:fix`
 
 ## Conventions
 - Keep the project minimal unless asked otherwise.
@@ -23,22 +25,11 @@ Minimal TypeScript project.
 
 ## Collaboration / Git workflow
 - This repository is collaboratively maintained.
-- Make minimal, focused changes only.
-- Do not modify unrelated files.
-- Preserve existing work and avoid overwriting teammate changes.
 - Do not create or switch branches unless explicitly asked.
 - Do not force-push or rewrite git history.
-- Only create commits when explicitly requested.
 - Before committing, ask the user to review the changes.
 - Use clear, descriptive commit messages with meaningful explanations.
 - Remind the user to switch branches if they are on `master`.
 - Always use feature branches for larger changes.
 - Check the working tree before making changes and mention potential conflicts.
-- Do not commit `node_modules/`.
-- Only commit build output like `dist/` if explicitly requested.
 - Summarize all changed files after completing work.
-
-## Notes for coding agents
-- Read this file before making changes.
-- Preserve the minimal setup.
-- Make focused edits only.

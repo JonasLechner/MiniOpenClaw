@@ -2,15 +2,26 @@
   "name": "miniopenclaw",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/src/index.js",
+    "start": "node dist/gateway/index.js",
+    "start:gateway": "node dist/gateway/index.js",
+    "start:agent": "node dist/agent/index.js",
     "dev": "tsc --watch",
-    "test": "npm run build && node --test dist/test/read.test.js dist/test/write.test.js dist/test/edit.test.js",
-    "test:manual": "npm run build && node dist/test/manual.js"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
-    "@types/node": "^24.12.3",
-    "typescript": "^5.9.3"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.3.0",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.2"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.74.0",
+    "fastify": "^5.8.5"
   }
 }
