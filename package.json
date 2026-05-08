@@ -10,7 +10,9 @@
     "start:agent": "node dist/agent/index.js",
     "dev": "tsc --watch",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "npm run build && node --test dist/test/read.test.js dist/test/write.test.js dist/test/edit.test.js",
+    "test:manual": "npm run build && node dist/test/manual.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
