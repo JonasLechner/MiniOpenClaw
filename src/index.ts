@@ -1,15 +1,5 @@
-import { readTool } from "./tools";
-
-async function main(): Promise<void> {
-  const content = await readTool.run({
-    path: "examples/hello.txt",
-    startLine: 2,
-    endLine: 4,
-  });
-  console.log(content);
+function main(): void {
+  console.log("Hello from MiniOpenClaw");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+main();

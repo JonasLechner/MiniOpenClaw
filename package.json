@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "start": "node dist/src/index.js",
+    "dev": "tsc --watch",
+    "test": "npm run build && node --test dist/test/read.test.js dist/test/write.test.js",
+    "test:manual": "npm run build && node dist/test/manual.js"
   },
   "devDependencies": {
     "@types/node": "^24.12.3",
