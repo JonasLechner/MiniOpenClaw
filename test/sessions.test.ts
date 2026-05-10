@@ -1,0 +1,149 @@
+import { mkdtempSync, readFileSync, rmSync, utimesSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { afterEach, describe, expect, it } from "vitest";
+import { createAgentContext, DEFAULT_SYSTEM_PROMPT } from "../src/lib/agent-context.js";
+import type { RuntimePaths } from "../src/lib/config.js";
+import {
+  appendAssistantMessageEvent,
+  appendErrorEvent,
+  appendUserMessageEvent,
+  createNewSession,
+  ensureCurrentSession,
+  getSessionById,
+  listSessions,
+  SESSION_FORMAT_VERSION,
+} from "../src/lib/sessions.js";
+
+function createRuntimePaths(): RuntimePaths {
+  const root = mkdtempSync(join(tmpdir(), "miniopenclaw-test-"));
+  return {
+    home: root,
+    configFile: join(root, "config.json"),
+    authFile: join(root, "auth.json"),
+    sessions: join(root, "sessions"),
+    workspace: join(root, "workspace"),
+    memory: join(root, "workspace", "memory"),
+  };
+}
+
+function createAssistantMessage(): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "first thought" },
+      { type: "text", text: "hello" },
+      { type: "thinking", thinking: "second thought" },
+      { type: "text", text: "world" },
+    ],
+    api: "openai-responses",
+    provider: "openai",
+    model: "gpt-test",
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0,
+      },
+    },
+    stopReason: "stop",
+    timestamp: Date.now(),
+  };
+}
+
+const tempRoots: string[] = [];
+
+afterEach(() => {
+  for (const root of tempRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+describe("sessions", () => {
+  it("creates a first-use session as append-only JSONL", async () => {
+    const paths = createRuntimePaths();
+    tempRoots.push(paths.home);
+
+    const session = await ensureCurrentSession(paths);
+    const lines = readFileSync(session.path, "utf8").trim().split("\n");
+
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[0])).toMatchObject({
+      type: "session",
+      version: SESSION_FORMAT_VERSION,
+      sessionId: session.header.sessionId,
+    });
+    expect(JSON.parse(lines[1])).toMatchObject({
+      type: "system",
+      sessionId: session.header.sessionId,
+      name: "session_created",
+      details: { reason: "first_use" },
+    });
+  });
+
+  it("records user, assistant, and error events and keeps context messages ready", async () => {
+    const paths = createRuntimePaths();
+    tempRoots.push(paths.home);
+    const session = await ensureCurrentSession(paths);
+
+    await appendUserMessageEvent(session, "hello");
+    await appendAssistantMessageEvent(session, createAssistantMessage());
+    await appendErrorEvent(session, "boom", { code: "E_TEST" });
+
+    const persisted = await getSessionById(paths, session.header.sessionId);
+    expect(persisted).toBeDefined();
+    expect(persisted?.events.map((event) => event.type)).toEqual([
+      "system",
+      "user_message",
+      "assistant_message",
+      "error",
+    ]);
+
+    const assistantEvent = persisted?.events.find((event) => event.type === "assistant_message");
+    expect(assistantEvent).toMatchObject({
+      type: "assistant_message",
+      visibleText: "hello\nworld",
+      thinking: ["first thought", "second thought"],
+    });
+
+    const context = createAgentContext(persisted!.messages);
+    expect(context.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT);
+    expect(context.messages).toHaveLength(2);
+    expect(context.messages[0]).toMatchObject({ role: "user", content: "hello" });
+    expect(context.messages[1]).toMatchObject({ role: "assistant", stopReason: "stop" });
+  });
+
+  it("uses the most recently updated session as current and lists sessions in that order", async () => {
+    const paths = createRuntimePaths();
+    tempRoots.push(paths.home);
+
+    const first = await createNewSession(paths);
+    await appendUserMessageEvent(first, "older");
+
+    const second = await createNewSession(paths);
+    await appendUserMessageEvent(second, "newer");
+
+    const olderTime = new Date("2024-01-01T00:00:00.000Z");
+    const newerTime = new Date("2024-01-01T00:00:01.000Z");
+    utimesSync(first.path, olderTime, olderTime);
+    utimesSync(second.path, newerTime, newerTime);
+
+    const current = await ensureCurrentSession(paths);
+    expect(current.header.sessionId).toBe(second.header.sessionId);
+
+    const sessions = await listSessions(paths);
+    expect(sessions.map((session) => session.sessionId)).toEqual([
+      second.header.sessionId,
+      first.header.sessionId,
+    ]);
+    expect(sessions[0]?.preview).toBe("newer");
+  });
+});

@@ -25,6 +25,7 @@ No `.env` file is used.
 - `npm run dev` — TypeScript watch mode
 - `npm run lint` — run ESLint
 - `npm run lint:fix` — fix ESLint issues
+- `npm test` — run Vitest
 
 ## Config
 
@@ -49,6 +50,13 @@ No `.env` file is used.
 Endpoints:
 
 - `GET /health`
+- `GET /sessions`
+- `GET /sessions/current`
+- `POST /sessions/new`
+- `GET /sessions/:sessionId/events`
+
+Sessions are stored as append-only JSONL files in `~/.mini-openclaw/sessions/`.
+The current session is inferred as the most recently updated session file.
 
 ## Agent
 

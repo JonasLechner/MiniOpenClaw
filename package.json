@@ -10,7 +10,8 @@
     "start:agent": "node dist/agent/index.js",
     "dev": "tsc --watch",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -18,7 +19,8 @@
     "eslint": "^10.3.0",
     "globals": "^17.6.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.59.2"
+    "typescript-eslint": "^8.59.2",
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.74.0",
