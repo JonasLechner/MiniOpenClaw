@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/gateway/index.js",
     "start:gateway": "node dist/gateway/index.js",
-    "start:agent": "node dist/agent/index.js",
+    "start:agent": "node dist/agent/cli.js",
     "dev": "tsc --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

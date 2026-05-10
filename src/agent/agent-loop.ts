@@ -1,5 +1,6 @@
-import { stream, type AssistantMessage, type Context, type Message } from "@earendil-works/pi-ai";
+import { stream, type AssistantMessage, type Context, type Message, validateToolCall } from "@earendil-works/pi-ai";
 import { createAgentContext, DEFAULT_SYSTEM_PROMPT } from "../lib/agent-context.js";
+import { exposedTools, toolMap } from "./tools/index.js";
 import type { AgentEvent, AgentTurnResult } from "./events.js";
 
 export type AgentEventSink = (event: AgentEvent) => void | Promise<void>;
@@ -34,6 +35,7 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
     const llmContext: Context = {
       ...createAgentContext(context.messages),
       systemPrompt: context.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
+      tools: exposedTools,
     };
 
     const eventStream = stream(context.model as Parameters<typeof stream>[0], llmContext, { apiKey: context.apiKey });
@@ -53,6 +55,8 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
     }
 
     const message = await eventStream.result();
+    context.messages.push(message);
+
     const result: AgentTurnResult = {
       text: getVisibleText(message),
       stopReason: message.stopReason,
@@ -61,10 +65,43 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
 
     await emit({ type: "message_end", sessionId: context.sessionId, message, text: result.text });
 
-    // Mock future loop shape: if the assistant had tool calls here,
-    // we would append tool results and continue the while-loop.
-    await emit({ type: "turn_end", sessionId: context.sessionId, result });
-    await emit({ type: "agent_end", sessionId: context.sessionId, result });
-    return { message, result };
+    if (message.stopReason !== "toolUse") {
+      await emit({ type: "turn_end", sessionId: context.sessionId, result });
+      await emit({ type: "agent_end", sessionId: context.sessionId, result });
+      return { message, result };
+    }
+
+    const toolCalls = message.content.filter((block) => block.type === "toolCall");
+
+    for (const call of toolCalls) {
+      try {
+        const args = validateToolCall(exposedTools, call);
+        const tool = toolMap[call.name as keyof typeof toolMap];
+
+        if (!tool) {
+          throw new Error(`Unknown tool: ${call.name}`);
+        }
+
+        const toolResult = await tool.run(args as never);
+
+        context.messages.push({
+          role: "toolResult",
+          toolCallId: call.id,
+          toolName: call.name,
+          content: [{ type: "text", text: JSON.stringify(toolResult) }],
+          isError: false,
+          timestamp: Date.now(),
+        });
+      } catch (error) {
+        context.messages.push({
+          role: "toolResult",
+          toolCallId: call.id,
+          toolName: call.name,
+          content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+          timestamp: Date.now(),
+        });
+      }
+    }
   }
 }
