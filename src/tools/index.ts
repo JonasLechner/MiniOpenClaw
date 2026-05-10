@@ -1,3 +1,3 @@
-export { editTool } from "./edit";
-export { readTool } from "./read";
-export { writeTool } from "./write";
+export { editTool } from "./edit.js";
+export { readTool } from "./read.js";
+export { writeTool } from "./write.js";

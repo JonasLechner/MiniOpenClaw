@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { Tool } from "./types";
+import type { Tool } from "./types.js";
 
 export interface EditInput {
   path: string;
@@ -15,7 +15,7 @@ export interface EditOutput {
 
 export const editTool: Tool<EditInput, EditOutput> = {
   name: "edit",
-  async run(input) {
+  async run(input: EditInput) {
     if (input.startLine < 1 || input.endLine < 1) {
       throw new Error("line numbers must be greater than 0");
     }

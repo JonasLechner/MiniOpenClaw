@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { Tool } from "./types";
+import type { Tool } from "./types.js";
 
 export interface ReadInput {
   path: string;
@@ -9,7 +9,7 @@ export interface ReadInput {
 
 export const readTool: Tool<ReadInput, string> = {
   name: "read",
-  async run(input) {
+  async run(input: ReadInput) {
     const content = await fs.readFile(input.path, "utf8");
 
     if (input.startLine === undefined && input.endLine === undefined) {

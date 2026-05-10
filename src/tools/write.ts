@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { Tool } from "./types";
+import type { Tool } from "./types.js";
 
 export interface WriteInput {
   path: string;
@@ -13,7 +13,7 @@ export interface WriteOutput {
 
 export const writeTool: Tool<WriteInput, WriteOutput> = {
   name: "write",
-  async run(input) {
+  async run(input: WriteInput) {
     await fs.writeFile(input.path, input.content, "utf8");
 
     return {

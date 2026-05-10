@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import test from "node:test";
-import { editTool } from "../src/tools";
+import { editTool } from "../src/tools/index.js";
 
 test("editTool replaces a single line", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-edit-"));

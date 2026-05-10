@@ -1,4 +1,4 @@
-import { readTool, writeTool } from "../src/tools";
+import { readTool, writeTool } from "../src/tools/index.js";
 
 async function main(): Promise<void> {
   const writeResult = await writeTool.run({
