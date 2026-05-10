@@ -5,7 +5,7 @@ import {
   getOAuthProvider,
   type OAuthCredentials,
 } from "@earendil-works/pi-ai/oauth";
-import { initializeRuntime } from "../lib/runtime.js";
+import type { RuntimeState } from "../lib/runtime.js";
 
 export type AgentModelSelection = {
   provider: string;
@@ -30,14 +30,14 @@ type AuthEntry = ApiKeyCredentials | OAuthAuthEntry;
 
 type AuthFile = Record<string, AuthEntry>;
 
-export function pickProviderAndModel(): AgentModelSelection {
-  const runtime = initializeRuntime();
+export class AgentAuthError extends Error {}
+
+export function pickProviderAndModel(runtime: RuntimeState): AgentModelSelection {
   const provider = runtime.config.agent?.provider;
   const modelId = runtime.config.agent?.modelId;
 
   if (!provider || !modelId) {
-    console.error(`Set agent.provider and agent.modelId in ${runtime.paths.configFile}.`);
-    process.exit(1);
+    throw new AgentAuthError(`Set agent.provider and agent.modelId in ${runtime.paths.configFile}.`);
   }
 
   return { provider, modelId };
@@ -96,23 +96,21 @@ async function resolveApiKey(provider: string, authPath: string): Promise<string
   return oauth.apiKey;
 }
 
-export async function resolveAgentAuth(): Promise<AgentAuth> {
-  const runtime = initializeRuntime();
-  const { provider, modelId } = pickProviderAndModel();
+export async function resolveAgentAuth(runtime: RuntimeState): Promise<AgentAuth> {
+  const { provider, modelId } = pickProviderAndModel(runtime);
 
   const model = getModel(provider as Parameters<typeof getModel>[0], modelId as Parameters<typeof getModel>[1]);
   const apiKey = await resolveApiKey(provider, runtime.paths.authFile);
 
   if (!apiKey) {
-    console.error(`No auth found for provider "${provider}".`);
     if (getOAuthProvider(provider)) {
-      console.error(`Complete OAuth or copy OAuth credentials into ${runtime.paths.authFile}`);
-    } else {
-      console.error(
-        `Add { "type": "apiKey", "apiKey": "..." } for provider "${provider}" in ${runtime.paths.authFile}`
+      throw new AgentAuthError(
+        `No auth found for provider "${provider}". Complete OAuth or copy OAuth credentials into ${runtime.paths.authFile}`,
       );
     }
-    process.exit(1);
+    throw new AgentAuthError(
+      `No auth found for provider "${provider}". Add { "type": "apiKey", "apiKey": "..." } in ${runtime.paths.authFile}`,
+    );
   }
 
   return {

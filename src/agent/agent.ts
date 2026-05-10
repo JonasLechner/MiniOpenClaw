@@ -1,5 +1,4 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { initializeRuntime } from "../lib/runtime.js";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
@@ -8,8 +7,8 @@ import {
   ensureCurrentSession,
   type SessionRecord,
 } from "../lib/sessions.js";
-import { resolveAgentAuth } from "./auth.js";
 import { runAgentLoop } from "./agent-loop.js";
+import { loadAgentEnvironment, type AgentEnvironment } from "./environment.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.js";
 
 export type PromptOptions = {
@@ -20,29 +19,27 @@ export class Agent {
   readonly provider: string;
   readonly modelId: string;
 
-  #model: Awaited<ReturnType<typeof resolveAgentAuth>>["model"];
+  #model: AgentEnvironment["auth"]["model"];
   #apiKey: string;
   #session: SessionRecord;
+  #runtimePaths: AgentEnvironment["runtime"]["paths"];
   #systemPrompt: string | undefined;
   #listeners = new Set<AgentEventListener>();
 
-  private constructor(
-    auth: Awaited<ReturnType<typeof resolveAgentAuth>>,
-    session: SessionRecord,
-  ) {
-    this.provider = auth.provider;
-    this.modelId = auth.modelId;
-    this.#model = auth.model;
-    this.#apiKey = auth.apiKey;
+  private constructor(environment: AgentEnvironment, session: SessionRecord) {
+    this.provider = environment.auth.provider;
+    this.modelId = environment.auth.modelId;
+    this.#model = environment.auth.model;
+    this.#apiKey = environment.auth.apiKey;
     this.#session = session;
+    this.#runtimePaths = environment.runtime.paths;
     this.#systemPrompt = undefined;
   }
 
   static async create(): Promise<Agent> {
-    const runtime = initializeRuntime();
-    const auth = await resolveAgentAuth();
-    const session = await ensureCurrentSession(runtime.paths);
-    return new Agent(auth, session);
+    const environment = await loadAgentEnvironment();
+    const session = await ensureCurrentSession(environment.runtime.paths);
+    return new Agent(environment, session);
   }
 
   get sessionId(): string {
@@ -55,8 +52,7 @@ export class Agent {
   }
 
   async newSession(): Promise<{ sessionId: string }> {
-    const runtime = initializeRuntime();
-    const nextSession = await createNewSession(runtime.paths);
+    const nextSession = await createNewSession(this.#runtimePaths);
     this.#switchSession(nextSession);
     this.#emit({ type: "session_switched", sessionId: nextSession.header.sessionId });
     return { sessionId: nextSession.header.sessionId };
