@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import { resolveWorkspacePath } from "./fs.js";
 import type { Tool } from "./types.js";
 
 export interface WriteInput {
@@ -13,11 +14,12 @@ export interface WriteOutput {
 
 export const writeTool: Tool<WriteInput, WriteOutput> = {
   name: "write",
-  async run(input: WriteInput) {
-    await fs.writeFile(input.path, input.content, "utf8");
+  async run(input: WriteInput, context) {
+    const path = await resolveWorkspacePath(input.path, context);
+    await fs.writeFile(path, input.content, "utf8");
 
     return {
-      path: input.path,
+      path,
       bytesWritten: Buffer.byteLength(input.content, "utf8"),
     };
   },

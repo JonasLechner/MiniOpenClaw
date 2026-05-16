@@ -12,6 +12,7 @@ export type AgentLoopContext = {
   messages: Message[];
   model: unknown;
   apiKey: string;
+  workspacePath: string;
 };
 
 export type AgentLoopResult = {
@@ -82,7 +83,7 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
           throw new Error(`Unknown tool: ${call.name}`);
         }
 
-        const toolResult = await tool.run(args as never);
+        const toolResult = await tool.run(args as never, { workspacePath: context.workspacePath });
 
         context.messages.push({
           role: "toolResult",

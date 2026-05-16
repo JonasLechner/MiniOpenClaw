@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import test from "node:test";
-import { globTool } from "../src/tools/index.js";
+import { test } from "vitest";
+import { globTool } from "../src/agent/tools/index.js";
+
+const toolContext = (workspacePath: string) => ({ workspacePath });
 
 test("globTool finds files with recursive glob", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-glob-"));
@@ -17,7 +19,7 @@ test("globTool finds files with recursive glob", async () => {
     const result = await globTool.run({
       path: dir,
       pattern: "src/**/*.ts",
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result, {
       path: dir,
@@ -39,7 +41,7 @@ test("globTool supports non-recursive glob", async () => {
     const result = await globTool.run({
       path: join(dir, "src"),
       pattern: "*.ts",
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result.matches, ["a.ts"]);
   } finally {
@@ -57,7 +59,7 @@ test("globTool supports case-insensitive matching", async () => {
       path: dir,
       pattern: "*.ts",
       caseSensitive: false,
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result.matches, ["Alpha.TS"]);
   } finally {
@@ -76,7 +78,7 @@ test("globTool can include directories", async () => {
       path: dir,
       pattern: "src/**",
       includeDirectories: true,
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result.matches, ["src", "src/nested", "src/nested/file.txt"]);
   } finally {

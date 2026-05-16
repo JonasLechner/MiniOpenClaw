@@ -13,6 +13,16 @@ const resolveAgentAuthMock = vi.fn();
 vi.mock("@earendil-works/pi-ai", () => ({
   stream: streamMock,
   complete: vi.fn(),
+  validateToolCall: vi.fn(),
+  Type: {
+    Object: (value: unknown) => value,
+    String: () => ({ type: "string" }),
+    Number: () => ({ type: "number" }),
+    Boolean: () => ({ type: "boolean" }),
+    Optional: (value: unknown) => value,
+    Union: (value: unknown) => value,
+    Literal: (value: unknown) => value,
+  },
 }));
 
 vi.mock("../src/lib/runtime.js", () => ({

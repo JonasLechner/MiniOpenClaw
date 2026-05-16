@@ -71,6 +71,7 @@ export class Agent {
           messages: this.#session.messages as Message[],
           model: this.#model,
           apiKey: this.#apiKey,
+          workspacePath: this.#runtimePaths.workspace,
         },
         (event) => this.#emit(event, options?.onEvent),
       );

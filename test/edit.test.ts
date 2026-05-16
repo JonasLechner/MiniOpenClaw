@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import test from "node:test";
-import { editTool } from "../src/tools/index.js";
+import { test } from "vitest";
+import { editTool } from "../src/agent/tools/index.js";
+
+const toolContext = (workspacePath: string) => ({ workspacePath });
 
 test("editTool replaces a single line", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-edit-"));
@@ -17,7 +19,7 @@ test("editTool replaces a single line", async () => {
       startLine: 2,
       endLine: 2,
       newText: "updated line 2",
-    });
+    }, toolContext(dir));
 
     const content = await readFile(filePath, "utf8");
 
@@ -41,7 +43,7 @@ test("editTool replaces multiple lines", async () => {
       startLine: 2,
       endLine: 3,
       newText: "x\ny",
-    });
+    }, toolContext(dir));
 
     const content = await readFile(filePath, "utf8");
 
@@ -63,7 +65,7 @@ test("editTool can remove lines", async () => {
       startLine: 2,
       endLine: 2,
       newText: "",
-    });
+    }, toolContext(dir));
 
     const content = await readFile(filePath, "utf8");
 
@@ -86,7 +88,7 @@ test("editTool rejects invalid line order", async () => {
         startLine: 3,
         endLine: 2,
         newText: "x",
-      }),
+      }, toolContext(dir)),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -106,7 +108,7 @@ test("editTool rejects out of bounds line ranges", async () => {
         startLine: 2,
         endLine: 3,
         newText: "x",
-      }),
+      }, toolContext(dir)),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -126,7 +128,7 @@ test("editTool rejects line numbers below 1", async () => {
         startLine: 0,
         endLine: 1,
         newText: "x",
-      }),
+      }, toolContext(dir)),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

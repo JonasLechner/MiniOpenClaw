@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import test from "node:test";
-import { writeTool } from "../src/tools/index.js";
+import { test } from "vitest";
+import { writeTool } from "../src/agent/tools/index.js";
+
+const toolContext = (workspacePath: string) => ({ workspacePath });
 
 test("writeTool writes a new file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-write-"));
@@ -13,7 +15,7 @@ test("writeTool writes a new file", async () => {
     const result = await writeTool.run({
       path: filePath,
       content: "Hello",
-    });
+    }, toolContext(dir));
 
     const content = await readFile(filePath, "utf8");
 
@@ -34,12 +36,12 @@ test("writeTool overwrites an existing file", async () => {
     await writeTool.run({
       path: filePath,
       content: "Old content",
-    });
+    }, toolContext(dir));
 
     const result = await writeTool.run({
       path: filePath,
       content: "New",
-    });
+    }, toolContext(dir));
 
     const content = await readFile(filePath, "utf8");
 

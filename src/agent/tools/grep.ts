@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import { resolveWorkspacePath } from "./fs.js";
 import type { Tool } from "./types.js";
 
 export interface GrepInput {
@@ -39,7 +40,7 @@ function createMatcher(input: GrepInput): (line: string) => boolean {
 
 export const grepTool: Tool<GrepInput, GrepOutput> = {
   name: "grep",
-  async run(input: GrepInput) {
+  async run(input: GrepInput, context) {
     if (input.startLine !== undefined && input.startLine < 1) {
       throw new Error("startLine must be greater than 0");
     }
@@ -56,7 +57,8 @@ export const grepTool: Tool<GrepInput, GrepOutput> = {
       throw new Error("startLine must be less than or equal to endLine");
     }
 
-    const content = await fs.readFile(input.path, "utf8");
+    const path = await resolveWorkspacePath(input.path, context);
+    const content = await fs.readFile(path, "utf8");
     const lines = content.split(/\r?\n/);
 
     if (/\r?\n$/.test(content)) {
@@ -76,7 +78,7 @@ export const grepTool: Tool<GrepInput, GrepOutput> = {
     }
 
     return {
-      path: input.path,
+      path,
       matches,
     };
   },

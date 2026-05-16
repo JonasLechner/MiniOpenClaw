@@ -39,8 +39,8 @@ No `.env` file is used.
     "port": 3000
   },
   "agent": {
-    "provider": "openai",
-    "modelId": "gpt-4o-mini"
+    "provider": "openai-codex",
+    "modelId": "gpt-5.4-mini"
   }
 }
 ```
@@ -60,6 +60,10 @@ The current session is inferred as the most recently updated session file.
 
 ## Agent
 
+The example config above uses the `openai-codex` OAuth provider. On first run you will be
+prompted to authenticate in your browser. OAuth tokens are stored in
+`~/.mini-openclaw/auth.json`.
+
 For API-key providers, add credentials to `~/.mini-openclaw/auth.json`:
 
 ```json
@@ -70,8 +74,6 @@ For API-key providers, add credentials to `~/.mini-openclaw/auth.json`:
   }
 }
 ```
-
-For OAuth providers such as `openai-codex`, store OAuth credentials in the same file.
 
 Start with:
 

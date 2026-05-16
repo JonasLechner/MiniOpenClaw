@@ -1,4 +1,12 @@
 import { Type, type Tool as PiTool } from "@earendil-works/pi-ai";
+export { editTool } from "./edit.js";
+export { globTool } from "./glob.js";
+export { grepTool } from "./grep.js";
+export { readTool } from "./read.js";
+export { webFetchTool } from "./webfetch.js";
+export { webSearchTool } from "./websearch.js";
+export { writeTool } from "./write.js";
+
 import { editTool } from "./edit.js";
 import { globTool } from "./glob.js";
 import { grepTool } from "./grep.js";
@@ -10,7 +18,7 @@ import { writeTool } from "./write.js";
 export const exposedTools: PiTool[] = [
   {
     name: "read",
-    description: "Read a file, optionally by line range.",
+    description: "Read a file inside the workspace, optionally by line range.",
     parameters: Type.Object({
       path: Type.String(),
       startLine: Type.Optional(Type.Number()),
@@ -19,7 +27,7 @@ export const exposedTools: PiTool[] = [
   },
   {
     name: "write",
-    description: "Write text to a file.",
+    description: "Write text to a file inside the workspace.",
     parameters: Type.Object({
       path: Type.String(),
       content: Type.String(),
@@ -27,7 +35,7 @@ export const exposedTools: PiTool[] = [
   },
   {
     name: "edit",
-    description: "Replace a line range in a file.",
+    description: "Replace a line range in a file inside the workspace.",
     parameters: Type.Object({
       path: Type.String(),
       startLine: Type.Number(),
@@ -37,7 +45,7 @@ export const exposedTools: PiTool[] = [
   },
   {
     name: "grep",
-    description: "Search lines in a file.",
+    description: "Search lines in a file inside the workspace.",
     parameters: Type.Object({
       path: Type.String(),
       pattern: Type.String(),
@@ -49,7 +57,7 @@ export const exposedTools: PiTool[] = [
   },
   {
     name: "glob",
-    description: "Find files matching a glob pattern under a directory.",
+    description: "Find files matching a glob pattern under a workspace directory.",
     parameters: Type.Object({
       path: Type.String(),
       pattern: Type.String(),

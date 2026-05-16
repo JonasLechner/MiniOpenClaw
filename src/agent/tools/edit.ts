@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import { resolveWorkspacePath } from "./fs.js";
 import type { Tool } from "./types.js";
 
 export interface EditInput {
@@ -15,7 +16,7 @@ export interface EditOutput {
 
 export const editTool: Tool<EditInput, EditOutput> = {
   name: "edit",
-  async run(input: EditInput) {
+  async run(input: EditInput, context) {
     if (input.startLine < 1 || input.endLine < 1) {
       throw new Error("line numbers must be greater than 0");
     }
@@ -24,7 +25,8 @@ export const editTool: Tool<EditInput, EditOutput> = {
       throw new Error("startLine must be less than or equal to endLine");
     }
 
-    const content = await fs.readFile(input.path, "utf8");
+    const path = await resolveWorkspacePath(input.path, context);
+    const content = await fs.readFile(path, "utf8");
     const newline = content.includes("\r\n") ? "\r\n" : "\n";
     const hasTrailingNewline = /\r?\n$/.test(content);
     const lines = content.split(/\r?\n/);
@@ -49,10 +51,10 @@ export const editTool: Tool<EditInput, EditOutput> = {
       updatedContent += newline;
     }
 
-    await fs.writeFile(input.path, updatedContent, "utf8");
+    await fs.writeFile(path, updatedContent, "utf8");
 
     return {
-      path: input.path,
+      path,
       replacements: 1,
     };
   },

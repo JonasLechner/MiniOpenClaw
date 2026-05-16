@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import test from "node:test";
-import { grepTool } from "../src/tools/index.js";
+import { test } from "vitest";
+import { grepTool } from "../src/agent/tools/index.js";
+
+const toolContext = (workspacePath: string) => ({ workspacePath });
 
 test("grepTool finds plain text matches", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-grep-"));
@@ -15,7 +17,7 @@ test("grepTool finds plain text matches", async () => {
     const result = await grepTool.run({
       path: filePath,
       pattern: "alpha",
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result, {
       path: filePath,
@@ -40,7 +42,7 @@ test("grepTool supports case-insensitive search", async () => {
       path: filePath,
       pattern: "alpha",
       caseSensitive: false,
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result.matches, [
       { lineNumber: 1, line: "Alpha" },
@@ -62,7 +64,7 @@ test("grepTool supports regex search", async () => {
       path: filePath,
       pattern: "^[a-z]+\\d+$",
       useRegex: true,
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result.matches, [
       { lineNumber: 1, line: "abc123" },
@@ -85,7 +87,7 @@ test("grepTool limits search to a line range", async () => {
       pattern: "match",
       startLine: 2,
       endLine: 3,
-    });
+    }, toolContext(dir));
 
     assert.deepEqual(result.matches, [
       { lineNumber: 3, line: "match" },
@@ -108,7 +110,7 @@ test("grepTool rejects invalid line order", async () => {
         pattern: "a",
         startLine: 3,
         endLine: 2,
-      }),
+      }, toolContext(dir)),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -127,7 +129,7 @@ test("grepTool rejects invalid regex patterns", async () => {
         path: filePath,
         pattern: "[",
         useRegex: true,
-      }),
+      }, toolContext(dir)),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

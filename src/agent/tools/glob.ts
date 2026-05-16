@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import { join, relative } from "path";
+import { resolveWorkspacePath } from "./fs.js";
 import type { Tool } from "./types.js";
 
 export interface GlobInput {
@@ -89,14 +90,15 @@ async function collectEntries(
 
 export const globTool: Tool<GlobInput, GlobOutput> = {
   name: "glob",
-  async run(input: GlobInput) {
+  async run(input: GlobInput, context) {
+    const path = await resolveWorkspacePath(input.path, context);
     const matcher = globToRegex(input.pattern, input.caseSensitive ?? true);
     const entries: string[] = [];
 
-    await collectEntries(input.path, input.path, input.includeDirectories ?? false, entries);
+    await collectEntries(path, path, input.includeDirectories ?? false, entries);
 
     return {
-      path: input.path,
+      path,
       matches: entries.filter((entry) => matcher.test(entry)).sort(),
     };
   },
