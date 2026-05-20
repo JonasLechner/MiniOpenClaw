@@ -1,9 +1,11 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { ensureRuntimeFiles } from "../lib/config.js";
 import { initializeRuntime } from "../lib/runtime.js";
 import { createNewSession, ensureCurrentSession, getSessionById, listSessions } from "../lib/sessions.js";
 
 export function buildGateway(): FastifyInstance {
   const runtime = initializeRuntime();
+  ensureRuntimeFiles(runtime.paths);
   const app = Fastify({ logger: true });
 
   app.get("/health", async () => ({ status: "ok" }));

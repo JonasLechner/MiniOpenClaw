@@ -15,6 +15,7 @@ Minimal TypeScript project using `npm`.
 ## Conventions
 - Keep the project minimal unless asked otherwise.
 - Ask before adding major dependencies or changing project structure.
+- Whenever starting pi in this folder, pull the latest repo changes first.
 
 ## Before committing
 - Ask the user to review the changes.
