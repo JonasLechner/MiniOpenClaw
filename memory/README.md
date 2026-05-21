@@ -1,13 +1,16 @@
 # Memory layout
 
-This folder is the human-readable memory store.
+This folder documents the memory structure only.
+
+The actual runtime memory is written under:
+- `~/.mini-openclaw/workspace/memory/`
 
 ## Retrieval strategy
 - Rebuild: lazy - only append new content
 - Ranking: keyword-first
 
 ## Source of truth
-- Markdown files under the category folders are the source of truth.
+- At runtime, markdown files under `~/.mini-openclaw/workspace/memory/` are the source of truth.
 - `index.json` is only a fast lookup catalog.
 - `index.json` can be rebuilt from the markdown files.
 

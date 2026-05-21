@@ -7,6 +7,7 @@ import {
   ensureCurrentSession,
   type SessionRecord,
 } from "../lib/sessions.js";
+import { retrieveMemoryFiles, updateSessionSummary } from "../lib/memory.js";
 import { runAgentLoop } from "./agent-loop.js";
 import { loadAgentEnvironment, type AgentEnvironment } from "./environment.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.js";
@@ -14,6 +15,32 @@ import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.j
 export type PromptOptions = {
   onEvent?: AgentEventListener;
 };
+
+function stripFrontmatter(content: string): string {
+  return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+}
+
+function buildMemoryPromptBlock(
+  memories: Array<{ entry: { title: string; category: string; summary: string }; content: string }>,
+): string | undefined {
+  if (memories.length === 0) return undefined;
+
+  return [
+    "Relevant memory retrieved for this turn:",
+    ...memories.map((memory, index) => {
+      const excerpt = stripFrontmatter(memory.content).slice(0, 600).trim();
+      return [
+        `Memory ${index + 1}:`,
+        `- Title: ${memory.entry.title}`,
+        `- Category: ${memory.entry.category}`,
+        `- Summary: ${memory.entry.summary}`,
+        "- Content:",
+        excerpt || "[empty]",
+      ].join("\n");
+    }),
+    "Use memory only when relevant and do not claim uncertain memory as fact.",
+  ].join("\n\n");
+}
 
 export class Agent {
   readonly provider: string;
@@ -63,11 +90,15 @@ export class Agent {
     const userEvent = await appendUserMessageEvent(this.#session, prompt);
 
     try {
+      const retrievedMemories = await retrieveMemoryFiles(this.#runtimePaths.memory, prompt, 3);
+      const memoryPromptBlock = buildMemoryPromptBlock(retrievedMemories);
+      const systemPrompt = [this.#systemPrompt, memoryPromptBlock].filter(Boolean).join("\n\n");
+
       const loopResult = await runAgentLoop(
         {
           sessionId,
           prompt,
-          systemPrompt: this.#systemPrompt,
+          systemPrompt: systemPrompt || undefined,
           messages: this.#session.messages as Message[],
           model: this.#model,
           apiKey: this.#apiKey,
@@ -77,6 +108,11 @@ export class Agent {
       );
 
       await appendAssistantMessageEvent(this.#session, loopResult.message);
+      await updateSessionSummary(this.#runtimePaths.memory, {
+        sessionId,
+        prompt,
+        responseText: loopResult.result.text,
+      });
       return loopResult.result;
     } catch (error) {
       const resolvedError = error instanceof Error ? error : new Error(String(error));

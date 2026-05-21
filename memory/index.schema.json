@@ -47,7 +47,6 @@
         "path",
         "title",
         "category",
-        "tags",
         "keywords",
         "updated",
         "summary"
@@ -64,14 +63,6 @@
         "category": {
           "type": "string",
           "enum": ["projects", "decisions", "preferences", "session-summaries"]
-        },
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "uniqueItems": true
         },
         "keywords": {
           "type": "array",

@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -141,6 +142,14 @@ describe("createAgentLoop", () => {
       visibleText: "Hello world",
       thinking: ["hidden chain"],
     });
+
+    const memorySummary = await readFile(
+      join(paths.memory, "session-summaries", `session-${sessionSummary!.sessionId}-summary.md`),
+      "utf8",
+    );
+    expect(memorySummary).toContain("Total turns: 1");
+    expect(memorySummary).toContain("- User: hello");
+    expect(memorySummary).toContain("- Assistant: Hello world");
   });
 
   it("creates a new session that becomes the current session", async () => {
@@ -174,6 +183,20 @@ describe("createAgentLoop", () => {
       type: "error",
       message: "provider offline",
     });
+  });
+
+  it("injects retrieved memory into the system prompt", async () => {
+    const { createAgentLoop } = await import("../src/agent/loop.js");
+    const agent = await createAgentLoop();
+
+    await agent.runLoop("remember my lint preference");
+    await agent.runLoop("what do you remember about my lint preference?");
+
+    const secondCall = streamMock.mock.calls[1];
+    expect(secondCall).toBeDefined();
+    const llmContext = secondCall?.[1] as { systemPrompt?: string };
+    expect(llmContext.systemPrompt).toContain("Relevant memory retrieved for this turn:");
+    expect(llmContext.systemPrompt).toContain("remember my lint preference");
   });
 
   it("exposes an Agent wrapper with persistent listeners", async () => {
