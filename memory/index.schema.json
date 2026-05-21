@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miniopenclaw.local/schemas/memory/index.schema.json",
+  "title": "MiniOpenClaw Memory Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "strategy", "generatedAt", "entries"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rebuild", "ranking"],
+      "properties": {
+        "rebuild": {
+          "type": "string",
+          "const": "lazy"
+        },
+        "ranking": {
+          "type": "string",
+          "const": "keyword-first"
+        }
+      }
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "title",
+        "category",
+        "keywords",
+        "updated",
+        "summary"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^memory/.+\\.md$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "enum": ["projects", "decisions", "preferences", "session-summaries"]
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "updated": {
+          "type": "string",
+          "format": "date"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280
+        }
+      }
+    }
+  }
+}

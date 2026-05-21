@@ -1,0 +1,10 @@
+{
+  "$schema": "./index.schema.json",
+  "version": 1,
+  "strategy": {
+    "rebuild": "lazy",
+    "ranking": "keyword-first"
+  },
+  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "entries": []
+}

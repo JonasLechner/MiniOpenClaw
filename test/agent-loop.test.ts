@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,12 +8,13 @@ import type { RuntimeState } from "../src/lib/runtime.js";
 import { getSessionById, listSessions } from "../src/lib/sessions.js";
 
 const streamMock = vi.fn();
+const completeMock = vi.fn();
 const runtimeStateMock = vi.fn<() => RuntimeState>();
 const resolveAgentAuthMock = vi.fn();
 
 vi.mock("@earendil-works/pi-ai", () => ({
   stream: streamMock,
-  complete: vi.fn(),
+  complete: completeMock,
   validateToolCall: vi.fn(),
   Type: {
     Object: (value: unknown) => value,
@@ -93,6 +95,32 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function createAssistantTextResponse(text: string) {
+  return {
+    role: "assistant" as const,
+    content: [{ type: "text" as const, text }],
+    api: "openai-responses" as const,
+    provider: "openai",
+    model: "gpt-test",
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0,
+      },
+    },
+    stopReason: "stop" as const,
+    timestamp: Date.now(),
+  };
+}
+
 beforeEach(() => {
   paths = createRuntimePaths();
   runtimeStateMock.mockReturnValue({
@@ -109,6 +137,11 @@ beforeEach(() => {
     apiKey: "test-key",
   });
   streamMock.mockImplementation(() => createFakeEventStream());
+  completeMock.mockResolvedValue(
+    createAssistantTextResponse(
+      '{"summary":"User prefers concise answers and cares about lint-related workflow.","keywords":["memory","lint","preference"]}',
+    ),
+  );
 });
 
 describe("createAgentLoop", () => {
@@ -141,6 +174,14 @@ describe("createAgentLoop", () => {
       visibleText: "Hello world",
       thinking: ["hidden chain"],
     });
+
+    const memorySummary = await readFile(
+      join(paths.memory, "session-summaries", `session-${sessionSummary!.sessionId}-summary.md`),
+      "utf8",
+    );
+    expect(memorySummary).toContain("Total turns: 1");
+    expect(memorySummary).toContain("- User: hello");
+    expect(memorySummary).toContain("- Assistant: Hello world");
   });
 
   it("creates a new session that becomes the current session", async () => {
@@ -174,6 +215,60 @@ describe("createAgentLoop", () => {
       type: "error",
       message: "provider offline",
     });
+  });
+
+  it("stores llm-generated keywords in the session summary", async () => {
+    const { createAgentLoop } = await import("../src/agent/loop.js");
+    const agent = await createAgentLoop();
+
+    completeMock.mockResolvedValueOnce(
+      createAssistantTextResponse(
+        '{"summary":"User prefers lint-conscious concise responses.","keywords":["lint","preference","style"]}',
+      ),
+    );
+
+    await agent.runLoop("remember my lint preference");
+
+    const [sessionSummary] = await listSessions(paths);
+    const memorySummary = await readFile(
+      join(paths.memory, "session-summaries", `session-${sessionSummary!.sessionId}-summary.md`),
+      "utf8",
+    );
+    expect(memorySummary).toContain("summary: User prefers lint-conscious concise responses.");
+    expect(memorySummary).toContain("keywords: [lint, preference, style]");
+  });
+
+  it("generates session keywords from the full session summary body", async () => {
+    const { createAgentLoop } = await import("../src/agent/loop.js");
+    const agent = await createAgentLoop();
+
+    await agent.runLoop("my name is jonas");
+    await agent.runLoop("i like soccer");
+
+    const keywordCall = [...completeMock.mock.calls]
+      .reverse()
+      .find((call) => String((call[1] as { systemPrompt?: string })?.systemPrompt).includes("Generate memory metadata for retrieval"));
+    expect(keywordCall).toBeDefined();
+    const context = keywordCall?.[1] as { messages: Array<{ content: Array<{ text: string }> }> };
+    const text = context.messages[0]?.content[0]?.text ?? "";
+    expect(text).toContain("my name is jonas");
+    expect(text).toContain("i like soccer");
+    expect(text).toContain("## Turn 1");
+    expect(text).toContain("## Turn 2");
+  });
+
+  it("injects retrieved memory into the system prompt", async () => {
+    const { createAgentLoop } = await import("../src/agent/loop.js");
+    const agent = await createAgentLoop();
+
+    await agent.runLoop("remember my lint preference");
+    await agent.runLoop("what do you remember about my lint preference?");
+
+    const secondCall = streamMock.mock.calls[1];
+    expect(secondCall).toBeDefined();
+    const llmContext = secondCall?.[1] as { systemPrompt?: string };
+    expect(llmContext.systemPrompt).toContain("Relevant memory retrieved for this turn:");
+    expect(llmContext.systemPrompt).toContain("remember my lint preference");
   });
 
   it("exposes an Agent wrapper with persistent listeners", async () => {
