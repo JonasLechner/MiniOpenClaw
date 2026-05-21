@@ -30,6 +30,13 @@ export type MemoryDocument = {
   absolutePath: string;
 };
 
+export type GenerateMemoryKeywordsInput = {
+  category: MemoryCategory;
+  title: string;
+  summary: string;
+  body: string;
+};
+
 export type WriteMemoryEntryInput = {
   category: MemoryCategory;
   title: string;
@@ -37,12 +44,16 @@ export type WriteMemoryEntryInput = {
   body: string;
   keywords?: string[];
   updated?: string;
+  generateSummary?: (input: GenerateMemoryKeywordsInput) => Promise<string | undefined>;
+  generateKeywords?: (input: GenerateMemoryKeywordsInput) => Promise<string[]>;
 };
 
 export type UpdateSessionSummaryInput = {
   sessionId: string;
   prompt: string;
   responseText: string;
+  generateSummary?: (input: GenerateMemoryKeywordsInput) => Promise<string | undefined>;
+  generateKeywords?: (input: GenerateMemoryKeywordsInput) => Promise<string[]>;
 };
 
 const defaultMemoryIndex = (): MemoryIndex => ({
@@ -81,63 +92,12 @@ function tokenizeKeywords(...parts: string[]): string[] {
   return uniqueStrings(tokens ?? []).slice(0, 32);
 }
 
-function extractContentKeywords(...parts: string[]): string[] {
-  const stopwords = new Set([
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "assistant",
-    "at",
-    "be",
-    "but",
-    "by",
-    "do",
-    "for",
-    "from",
-    "hello",
-    "how",
-    "i",
-    "if",
-    "in",
-    "is",
-    "it",
-    "me",
-    "my",
-    "name",
-    "no",
-    "not",
-    "of",
-    "on",
-    "or",
-    "overview",
-    "please",
-    "session",
-    "so",
-    "summary",
-    "tell",
-    "that",
-    "the",
-    "this",
-    "to",
-    "total",
-    "turn",
-    "turns",
-    "user",
-    "what",
-    "with",
-    "you",
-    "your",
-  ]);
-
+export function sanitizeKeywords(values: string[]): string[] {
   const looksLikeIdentifier = (token: string): boolean => /^(?=.*\d)(?=.*[a-f])[a-f\d]{4,}$/i.test(token);
 
-  const tokens = (parts.join(" ").toLowerCase().replace(/['’]/g, "").match(/[a-z0-9]+/g) ?? []).filter(
-    (token) => token.length >= 3 && !stopwords.has(token) && !looksLikeIdentifier(token),
-  );
-
-  return uniqueStrings(tokens).slice(0, 12);
+  return uniqueStrings(values.map((value) => value.toLowerCase()))
+    .filter((token) => token.length >= 3 && !looksLikeIdentifier(token))
+    .slice(0, 12);
 }
 
 function normalizeDate(value: string): string {
@@ -152,6 +112,12 @@ function summarizeText(value: string, maxLength = 160): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function stripSessionSummaryHeader(body: string): string {
+  return body
+    .replace(/^# .*?\r?\n\r?\nTotal turns: \d+\r?\n\r?\n/, "")
+    .trim();
 }
 
 function formatFrontmatter(entry: MemoryIndexEntry): string {
@@ -397,7 +363,7 @@ function scoreDocumentContent(content: string, tokens: string[], normalizedQuery
 }
 
 export async function retrieveMemoryFiles(memoryRoot: string, query: string, limit = 5): Promise<MemoryDocument[]> {
-  const tokens = extractContentKeywords(query);
+  const tokens = sanitizeKeywords(tokenizeKeywords(query));
   const normalizedQuery = query.toLowerCase().trim();
   const index = await loadMemoryIndex(memoryRoot);
 
@@ -431,13 +397,27 @@ export async function retrieveMemoryFiles(memoryRoot: string, query: string, lim
 export async function writeMemoryEntry(memoryRoot: string, input: WriteMemoryEntryInput): Promise<MemoryDocument> {
   const slug = titleToFileName(input.title);
   const absolutePath = join(memoryRoot, input.category, `${slug}.md`);
+  const memoryInput = {
+    category: input.category,
+    title: input.title,
+    summary: input.summary,
+    body: input.body.trim(),
+  } satisfies GenerateMemoryKeywordsInput;
+  const generatedSummary = input.generateSummary ? await input.generateSummary(memoryInput).catch(() => undefined) : undefined;
+  const finalSummary = summarizeText(generatedSummary?.trim() || input.summary, 240);
+  const generatedKeywords = input.generateKeywords ? await input.generateKeywords({ ...memoryInput, summary: finalSummary }).catch(() => undefined) : undefined;
   const entry = coerceEntry({
     path: posix.join("memory", input.category, `${slug}.md`),
     title: input.title,
     category: input.category,
-    keywords: input.keywords ?? tokenizeKeywords(input.title, input.summary),
+    keywords:
+      generatedKeywords && generatedKeywords.length > 0
+        ? sanitizeKeywords(generatedKeywords)
+        : input.keywords
+          ? sanitizeKeywords(input.keywords)
+          : tokenizeKeywords(input.title, finalSummary),
     updated: input.updated ?? new Date().toISOString().slice(0, 10),
-    summary: input.summary,
+    summary: finalSummary,
   });
 
   if (!entry) {
@@ -472,7 +452,7 @@ export async function updateSessionSummary(
 
   try {
     const existing = await readMemoryFile(memoryRoot, entryPath);
-    existingBody = parseFrontmatter(existing.content).body.trim();
+    existingBody = stripSessionSummaryHeader(parseFrontmatter(existing.content).body.trim());
     turnCount = (existingBody.match(/^## Turn \d+$/gm) ?? []).length;
   } catch {
     // No existing summary yet.
@@ -505,7 +485,8 @@ export async function updateSessionSummary(
     title,
     summary: `Session summary for ${input.sessionId} with ${nextTurn} turn${nextTurn === 1 ? "" : "s"}.`,
     body,
-    keywords: extractContentKeywords(input.prompt, input.responseText),
+    generateSummary: input.generateSummary,
+    generateKeywords: input.generateKeywords,
   });
 }
 

@@ -58,6 +58,27 @@ test("writeMemoryEntry writes markdown and updates the index", async () => {
   });
 });
 
+test("writeMemoryEntry supports llm-generated summary and keywords for any memory", async () => {
+  await withMemoryRoot(async (memoryRoot) => {
+    const document = await writeMemoryEntry(memoryRoot, {
+      category: "preferences",
+      title: "Response style",
+      summary: "User response preferences.",
+      body: "# Response style\n\nThe user prefers concise answers and wants lint run before commit.",
+      generateSummary: async (memory) => {
+        assert.equal(memory.category, "preferences");
+        assert.equal(memory.title, "Response style");
+        assert.match(memory.body, /prefers concise answers/i);
+        return "User prefers concise answers and wants lint run before commits.";
+      },
+      generateKeywords: async () => ["concise", "lint", "preferences"],
+    });
+
+    assert.equal(document.entry.summary, "User prefers concise answers and wants lint run before commits.");
+    assert.deepEqual(document.entry.keywords, ["concise", "lint", "preferences"]);
+  });
+});
+
 test("readMemoryFile returns the indexed metadata and raw content", async () => {
   await withMemoryRoot(async (memoryRoot) => {
     await writeMemoryEntry(memoryRoot, {
@@ -139,25 +160,26 @@ test("updateSessionSummary creates and updates one session summary file per sess
       sessionId: "session-123",
       prompt: "second question",
       responseText: "second answer",
+      generateSummary: async (memory) => {
+        assert.match(memory.body, /## Turn 1/);
+        assert.match(memory.body, /## Turn 2/);
+        return "Conversation includes a greeting and a second question with its answer.";
+      },
+      generateKeywords: async () => ["question", "second"],
     });
 
     assert.match(second.content, /Total turns: 2/);
     assert.match(second.content, /## Turn 1/);
     assert.match(second.content, /## Turn 2/);
+    assert.equal((second.content.match(/^# Session session-123 summary$/gm) ?? []).length, 1);
+    assert.equal((second.content.match(/^Total turns: /gm) ?? []).length, 1);
 
     const index = await loadMemoryIndex(memoryRoot);
     assert.equal(index.entries.length, 1);
     assert.equal(index.entries[0]?.category, "session-summaries");
+    assert.equal(index.entries[0]?.summary, "Conversation includes a greeting and a second question with its answer.");
     assert.ok(index.entries[0]?.keywords.includes("question"));
     assert.ok(index.entries[0]?.keywords.includes("second"));
-    assert.ok(!index.entries[0]?.keywords.includes("session"));
-    assert.ok(!index.entries[0]?.keywords.includes("summary"));
-    assert.ok(!index.entries[0]?.keywords.includes("total"));
-    assert.ok(!index.entries[0]?.keywords.includes("turn"));
-    assert.ok(!index.entries[0]?.keywords.includes("turns"));
-    assert.ok(!index.entries[0]?.keywords.includes("user"));
-    assert.ok(!index.entries[0]?.keywords.includes("assistant"));
-    assert.ok(!index.entries[0]?.keywords.includes("123"));
   });
 });
 

@@ -1,4 +1,4 @@
-import type { Message } from "@earendil-works/pi-ai";
+import { complete, type AssistantMessage, type Message } from "@earendil-works/pi-ai";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
@@ -18,6 +18,82 @@ export type PromptOptions = {
 
 function stripFrontmatter(content: string): string {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+}
+
+function getVisibleText(message: AssistantMessage): string {
+  return message.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n")
+    .trim();
+}
+
+function sanitizeGeneratedKeywords(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+
+  return [...new Set(values.map((value) => String(value).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
+}
+
+function parseMemoryMetadataResponse(text: string): { summary?: string; keywords: string[] } {
+  const normalized = text.trim();
+  if (!normalized) return { keywords: [] };
+
+  const parseJson = (value: string): { summary?: string; keywords: string[] } => {
+    const parsed = JSON.parse(value) as { summary?: unknown; keywords?: unknown };
+    return {
+      summary: typeof parsed.summary === "string" ? parsed.summary.replace(/\s+/g, " ").trim() || undefined : undefined,
+      keywords: sanitizeGeneratedKeywords(parsed.keywords),
+    };
+  };
+
+  try {
+    return parseJson(normalized);
+  } catch {
+    const match = normalized.match(/\{[\s\S]*\}/);
+    if (!match) return { keywords: [] };
+
+    try {
+      return parseJson(match[0]);
+    } catch {
+      return { keywords: [] };
+    }
+  }
+}
+
+async function generateMemoryMetadata(
+  model: AgentEnvironment["auth"]["model"],
+  apiKey: string,
+  memory: { category: string; title: string; summary: string; body: string },
+): Promise<{ summary?: string; keywords: string[] }> {
+  const result = await complete(
+    model as Parameters<typeof complete>[0],
+    {
+      systemPrompt:
+        "Generate memory metadata for retrieval. Return JSON only in the shape {\"summary\":\"...\",\"keywords\":[\"keyword\"]}. Write one concise meaningful summary sentence and 5-10 short lowercase keywords. Base both on the full memory content. Avoid ids, turn counts, hashes, timestamps, filler words, roles, and duplicates.",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: [
+                "Generate a summary and keywords for this memory entry.",
+                `Category: ${memory.category}`,
+                `Title: ${memory.title}`,
+                `Summary: ${memory.summary}`,
+                "Body:",
+                memory.body || "[empty]",
+              ].join("\n"),
+            },
+          ],
+          timestamp: Date.now(),
+        },
+      ],
+    },
+    { apiKey },
+  );
+
+  return parseMemoryMetadataResponse(getVisibleText(result));
 }
 
 function buildMemoryPromptBlock(
@@ -108,10 +184,18 @@ export class Agent {
       );
 
       await appendAssistantMessageEvent(this.#session, loopResult.message);
+      let metadataPromise: Promise<{ summary?: string; keywords: string[] }> | undefined;
+      const getMetadata = (memory: { category: string; title: string; summary: string; body: string }) => {
+        metadataPromise ??= generateMemoryMetadata(this.#model, this.#apiKey, memory);
+        return metadataPromise;
+      };
+
       await updateSessionSummary(this.#runtimePaths.memory, {
         sessionId,
         prompt,
         responseText: loopResult.result.text,
+        generateSummary: async (memory) => (await getMetadata(memory)).summary,
+        generateKeywords: async (memory) => (await getMetadata(memory)).keywords,
       });
       return loopResult.result;
     } catch (error) {
