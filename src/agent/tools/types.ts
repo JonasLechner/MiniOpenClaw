@@ -1,4 +1,5 @@
 import type { ImageContent, TextContent, Tool as PiTool } from "@earendil-works/pi-ai";
+import type { BackgroundTaskLauncher } from "../../jobs/background.js";
 import type { Sandbox } from "../../sandbox/sandbox.js";
 import type { Workspace } from "../../core/workspace.js";
 
@@ -10,7 +11,9 @@ export interface ToolRunContext {
     source: string;
     chatId: string;
     userId?: string;
+    sessionId?: string;
   };
+  background?: BackgroundTaskLauncher;
 }
 
 export function requireToolContext(context?: ToolRunContext): ToolRunContext {

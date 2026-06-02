@@ -75,6 +75,14 @@ To chat with the agent over Telegram:
 
 Only users in `allowedUserIds` can interact with the bot. If the list is empty and Telegram is enabled, the bot accepts messages from anyone.
 
+Telegram commands:
+- `/new` — start a new bound session
+- `/session` — show the current bound session and model
+- `/bg <prompt>` — run a detached background agent against the current session sandbox; the result is sent back to Telegram and ingested into the current session
+- `/bglist` — list background tasks for the current session
+- `/bgstop <taskId>` — stop a queued or running background task for the current session
+- `/stop` — abort the current foreground run
+
 ### 4. Set up authentication
 
 Authenticate once with the dedicated auth command:
@@ -117,6 +125,8 @@ npm run start:agent
 ```
 
 Both the gateway and agent will warn or fail early if authentication is missing, pointing you to `npm run auth`.
+
+When chatting over Telegram, the agent can also use the `subagent` tool to launch detached background work. Those detached runs reply back into Telegram and their results are appended into the main session for follow-up.
 
 ## Commands
 

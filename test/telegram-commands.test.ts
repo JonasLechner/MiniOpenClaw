@@ -52,6 +52,9 @@ describe("telegram commands", () => {
     expect(TELEGRAM_BOT_COMMANDS).toEqual([
       { command: "new", description: "Start a new session" },
       { command: "session", description: "Show the current session id" },
+      { command: "bg", description: "Run a prompt in the background" },
+      { command: "bglist", description: "List background tasks for this session" },
+      { command: "bgstop", description: "Stop a background task" },
       { command: "stop", description: "Abort the current run" },
     ]);
     expect(TELEGRAM_BOT_COMMANDS.every(({ command }) => !command.startsWith("/"))).toBe(true);
@@ -117,6 +120,102 @@ describe("telegram commands", () => {
       "Model: openai/gpt-test",
       "Active run since: 2026-05-31T10:00:00.000Z",
     ].join("\n"));
+  });
+
+  it("starts a background task with /bg", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+
+    const binding: ConversationBinding = {
+      channel: "telegram",
+      chatId: "chat-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sendText = vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {});
+    const launchDetachedPrompt = vi.fn(async () => ({ taskId: "task-1" }));
+    const result = await handleTelegramCommand("/bg investigate this repo", {
+      runtime,
+      binding,
+      streamer: { sendText } as never,
+      backgroundTaskLauncher: { launchDetachedPrompt, listTasks: vi.fn(), stopTask: vi.fn() },
+    });
+
+    expect(result).toEqual({ handled: true });
+    expect(launchDetachedPrompt).toHaveBeenCalledWith({
+      chatId: "chat-1",
+      userId: "user-1",
+      parentSessionId: "session-1",
+      prompt: "investigate this repo",
+    });
+    expect(sendText).toHaveBeenCalledWith("chat-1", expect.stringContaining("Started background task task-1."));
+  });
+
+  it("lists background tasks with /bglist", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+
+    const binding: ConversationBinding = {
+      channel: "telegram",
+      chatId: "chat-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sendText = vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {});
+    const listTasks = vi.fn(async () => [{
+      taskId: "task-1",
+      chatId: "chat-1",
+      parentSessionId: "session-1",
+      prompt: "work",
+      status: "running" as const,
+      createdAt: "now",
+    }]);
+    const result = await handleTelegramCommand("/bglist", {
+      runtime,
+      binding,
+      streamer: { sendText } as never,
+      backgroundTaskLauncher: { launchDetachedPrompt: vi.fn(), listTasks, stopTask: vi.fn() },
+    });
+
+    expect(result).toEqual({ handled: true });
+    expect(listTasks).toHaveBeenCalledWith({ parentSessionId: "session-1" });
+    expect(sendText).toHaveBeenCalledWith("chat-1", expect.stringContaining("task-1 [running]"));
+  });
+
+  it("stops a background task with /bgstop", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+
+    const binding: ConversationBinding = {
+      channel: "telegram",
+      chatId: "chat-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sendText = vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {});
+    const stopTask = vi.fn(async () => ({ stopped: true, reason: "Stopping background task task-1…" }));
+    const result = await handleTelegramCommand("/bgstop task-1", {
+      runtime,
+      binding,
+      streamer: { sendText } as never,
+      backgroundTaskLauncher: { launchDetachedPrompt: vi.fn(), listTasks: vi.fn(), stopTask },
+    });
+
+    expect(result).toEqual({ handled: true });
+    expect(stopTask).toHaveBeenCalledWith({ parentSessionId: "session-1", taskId: "task-1" });
+    expect(sendText).toHaveBeenCalledWith("chat-1", "Stopping background task task-1…");
   });
 
   it("stops an active run", async () => {

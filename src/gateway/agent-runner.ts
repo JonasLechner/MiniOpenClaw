@@ -1,5 +1,6 @@
 import { Agent } from "../agent/agent.js";
 import type { AgentEventListener, AgentTurnResult } from "../agent/events.js";
+import type { BackgroundTaskLauncher } from "../jobs/background.js";
 import type { RuntimeState } from "../core/runtime.js";
 import { createNewSession } from "../core/sessions.js";
 import { logConversationToolCall, type ConversationLogSource } from "./conversation-log.js";
@@ -25,6 +26,7 @@ export type MainSessionAgent = {
   runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext, options?: RunPromptOptions): Promise<AgentTurnResult>;
   bindSession(sessionId: string): Promise<void>;
   appendUserMessage(sessionId: string, prompt: string): Promise<void>;
+  setBackgroundTaskLauncher(backgroundTaskLauncher?: BackgroundTaskLauncher): void;
   stopActiveRun(): boolean;
   getStatus(): MainSessionAgentStatus;
   dispose(): Promise<void>;
@@ -73,6 +75,7 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
   let activeAbortController: AbortController | undefined;
   let activeRunStartedAt: string | undefined;
   let lane = Promise.resolve();
+  let backgroundTaskLauncher: BackgroundTaskLauncher | undefined;
 
   async function clearCurrentAgent(): Promise<void> {
     const previous = currentAgentPromise;
@@ -129,7 +132,9 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
                 source: logContext.source,
                 chatId: logContext.chatId,
                 userId: logContext.userId,
+                sessionId,
               },
+              background: backgroundTaskLauncher,
             },
           });
         } finally {
@@ -150,6 +155,9 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
         const agent = await getAgent(sessionId);
         await agent.appendUserMessage(prompt);
       });
+    },
+    setBackgroundTaskLauncher(nextBackgroundTaskLauncher?: BackgroundTaskLauncher): void {
+      backgroundTaskLauncher = nextBackgroundTaskLauncher;
     },
     stopActiveRun(): boolean {
       if (!activeAbortController || activeAbortController.signal.aborted) {
@@ -178,22 +186,25 @@ export async function runPromptInDetachedSession(
   runtime: RuntimeState,
   prompt: string,
   logContext: PromptLogContext,
-  options: { sandboxSessionId?: string } = {},
-): Promise<AgentTurnResult> {
+  options: { sandboxSessionId?: string; signal?: AbortSignal } = {},
+): Promise<AgentTurnResult & { sessionId: string }> {
   const session = await createNewSession(runtime.paths);
   const agent = await Agent.createForSession(runtime, session.sessionId, { sandboxSessionId: options.sandboxSessionId });
 
   try {
-    return await agent.runLoop(prompt, {
+    const result = await agent.runLoop(prompt, {
       onEvent: createToolCallLogger(logContext),
+      signal: options.signal,
       toolContext: {
         channel: {
           source: logContext.source,
           chatId: logContext.chatId,
           userId: logContext.userId,
+          sessionId: session.sessionId,
         },
       },
     });
+    return { ...result, sessionId: session.sessionId };
   } finally {
     await agent.dispose();
   }

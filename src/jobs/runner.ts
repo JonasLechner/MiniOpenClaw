@@ -7,12 +7,9 @@ import type { TelegramMessageStreamer } from "../transports/telegram/message-str
 
 function buildDetachedTaskContextMessage(task: ScheduledTask, resultText: string): string {
   return [
-    "[SYSTEM: Detached task completed and its result was sent to the user via the chat gateway. Keep this in context for follow-up questions.]",
+    `Scheduled task ${task.id} returned for prompt:`,
+    task.prompt,
     "",
-    `Task ID: ${task.id}`,
-    `Task target: ${task.target}`,
-    `Task kind: ${task.kind}`,
-    "Result:",
     resultText,
   ].join("\n");
 }

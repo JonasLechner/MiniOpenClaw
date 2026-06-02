@@ -87,7 +87,11 @@ describe("runScheduledTask", () => {
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledTimes(1);
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledWith(
       "session-current",
-      expect.stringContaining("Detached task completed"),
+      expect.stringContaining("Scheduled task job-2 returned for prompt:"),
+    );
+    expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledWith(
+      "session-current",
+      expect.stringContaining("hello detached"),
     );
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledWith(
       "session-current",

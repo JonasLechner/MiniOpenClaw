@@ -28,7 +28,9 @@ export type PromptOptions = {
       source: string;
       chatId: string;
       userId?: string;
+      sessionId?: string;
     };
+    background?: import("./tools/types.js").ToolRunContext["background"];
   };
 };
 

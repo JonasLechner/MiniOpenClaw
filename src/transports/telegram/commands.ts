@@ -1,5 +1,7 @@
 import { createNewSession } from "../../core/sessions.js";
 import { bindTelegramConversationToSession, type ConversationBinding } from "../../core/conversation-bindings.js";
+import { type BackgroundTaskLauncher } from "../../jobs/background.js";
+import { formatBackgroundTaskList } from "../../jobs/background-format.js";
 import type { RuntimeState } from "../../core/runtime.js";
 import type { TelegramMessageStreamer } from "./message-streamer.js";
 
@@ -9,6 +11,7 @@ export type TelegramCommandContext = {
   streamer: TelegramMessageStreamer;
   stopActiveRun?: () => boolean;
   getStatus?: () => { provider: string; modelId: string; activeRunStartedAt?: string };
+  backgroundTaskLauncher?: BackgroundTaskLauncher;
 };
 
 export type TelegramCommandResult =
@@ -18,6 +21,9 @@ export type TelegramCommandResult =
 export const TELEGRAM_BOT_COMMANDS = [
   { command: "new", description: "Start a new session" },
   { command: "session", description: "Show the current session id" },
+  { command: "bg", description: "Run a prompt in the background" },
+  { command: "bglist", description: "List background tasks for this session" },
+  { command: "bgstop", description: "Stop a background task" },
   { command: "stop", description: "Abort the current run" },
 ] as const;
 
@@ -67,6 +73,59 @@ export async function handleTelegramCommand(
         status.activeRunStartedAt ? `Active run since: ${status.activeRunStartedAt}` : "Active run: none",
       ].join("\n"),
     );
+    return { handled: true };
+  }
+
+  if (command === "/bg") {
+    const prompt = text.slice(rawCommand.length).trim();
+    if (!prompt) {
+      await context.streamer.sendText(context.binding.chatId, "Usage: /bg <prompt>");
+      return { handled: true };
+    }
+    if (!context.backgroundTaskLauncher) {
+      throw new Error("Background task launcher is unavailable.");
+    }
+
+    const task = await context.backgroundTaskLauncher.launchDetachedPrompt({
+      chatId: context.binding.chatId,
+      userId: context.binding.userId,
+      parentSessionId: context.binding.sessionId,
+      prompt,
+    });
+    await context.streamer.sendText(
+      context.binding.chatId,
+      `Started background task ${task.taskId}. I will send the result here and add it back into session ${context.binding.sessionId} when it finishes.`,
+    );
+    return { handled: true };
+  }
+
+  if (command === "/bglist") {
+    if (!context.backgroundTaskLauncher) {
+      throw new Error("Background task launcher is unavailable.");
+    }
+
+    const tasks = await context.backgroundTaskLauncher.listTasks({
+      parentSessionId: context.binding.sessionId,
+    });
+    await context.streamer.sendText(context.binding.chatId, formatBackgroundTaskList(tasks));
+    return { handled: true };
+  }
+
+  if (command === "/bgstop") {
+    const taskId = text.slice(rawCommand.length).trim();
+    if (!taskId) {
+      await context.streamer.sendText(context.binding.chatId, "Usage: /bgstop <taskId>");
+      return { handled: true };
+    }
+    if (!context.backgroundTaskLauncher) {
+      throw new Error("Background task launcher is unavailable.");
+    }
+
+    const result = await context.backgroundTaskLauncher.stopTask({
+      parentSessionId: context.binding.sessionId,
+      taskId,
+    });
+    await context.streamer.sendText(context.binding.chatId, result.reason);
     return { handled: true };
   }
 

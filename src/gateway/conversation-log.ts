@@ -10,7 +10,7 @@ const ansi = {
   gray: "\u001b[90m",
 } as const;
 
-export type ConversationLogSource = "telegram" | "scheduled-main-session" | "scheduled-detached";
+export type ConversationLogSource = "telegram" | "telegram-detached" | "scheduled-main-session" | "scheduled-detached";
 
 export type ConversationLogEntry = {
   event: "conversation_message";

@@ -3,8 +3,7 @@ import { basename, extname } from "node:path";
 import { TelegramApiClient } from "./api.js";
 import { chunkTelegramText } from "./formatter.js";
 
-const STREAM_EDIT_INTERVAL_MS = 800;
-const STREAM_PREVIEW_MAX_LENGTH = 3900;
+const TYPING_REFRESH_INTERVAL_MS = 4000;
 
 function imageMimeTypeForPath(path: string): string {
   switch (extname(path).toLowerCase()) {
@@ -22,80 +21,59 @@ function imageMimeTypeForPath(path: string): string {
   }
 }
 
-function previewText(text: string): string {
-  const trimmed = text.trim();
-  if (!trimmed) return "Thinking…";
-  if (trimmed.length <= STREAM_PREVIEW_MAX_LENGTH) return trimmed;
-  return `${trimmed.slice(0, STREAM_PREVIEW_MAX_LENGTH - 20).trimEnd()}\n…`;
-}
-
 export class TelegramStreamingMessage {
   readonly #api: TelegramApiClient;
   readonly #chatId: string;
-  readonly #messageId: number;
-  #text = "";
-  #lastSent = "Thinking…";
-  #editPromise: Promise<void> = Promise.resolve();
   #timer: NodeJS.Timeout | undefined;
   #closed = false;
 
-  constructor(api: TelegramApiClient, chatId: string, messageId: number) {
+  constructor(api: TelegramApiClient, chatId: string) {
     this.#api = api;
     this.#chatId = chatId;
-    this.#messageId = messageId;
   }
 
   append(delta: string): void {
-    if (this.#closed || !delta) return;
-    this.#text += delta;
-    this.#scheduleFlush();
+    void delta;
+    // Telegram has no native streaming-message primitive. While the agent is
+    // running, keep the built-in typing indicator alive and send the final
+    // answer as a normal message in finish().
+  }
+
+  start(): void {
+    void this.#sendTyping();
+    this.#timer = setInterval(() => {
+      void this.#sendTyping();
+    }, TYPING_REFRESH_INTERVAL_MS);
   }
 
   async finish(finalText: string): Promise<void> {
-    this.#closed = true;
-    if (this.#timer) {
-      clearTimeout(this.#timer);
-      this.#timer = undefined;
-    }
-
-    const chunks = chunkTelegramText(finalText);
-    await this.#edit(chunks[0] ?? "Done.");
-
-    for (const chunk of chunks.slice(1)) {
+    this.#close();
+    for (const chunk of chunkTelegramText(finalText || "Done.")) {
       await this.#api.sendMessage(this.#chatId, chunk);
     }
   }
 
   async fail(text: string): Promise<void> {
+    this.#close();
+    await this.#api.sendMessage(this.#chatId, text);
+  }
+
+  #close(): void {
     this.#closed = true;
     if (this.#timer) {
-      clearTimeout(this.#timer);
+      clearInterval(this.#timer);
       this.#timer = undefined;
     }
-    this.#text = text;
-    await this.#flush();
   }
 
-  #scheduleFlush(): void {
-    if (this.#timer) return;
-    this.#timer = setTimeout(() => {
-      this.#timer = undefined;
-      void this.#flush();
-    }, STREAM_EDIT_INTERVAL_MS);
-  }
-
-  async #flush(): Promise<void> {
-    return this.#edit(previewText(this.#text));
-  }
-
-  async #edit(text: string): Promise<void> {
-    if (text === this.#lastSent) return this.#editPromise;
-
-    this.#lastSent = text;
-    this.#editPromise = this.#editPromise.then(async () => {
-      await this.#api.editMessageText(this.#chatId, this.#messageId, text);
-    });
-    return this.#editPromise;
+  async #sendTyping(): Promise<void> {
+    if (this.#closed) return;
+    try {
+      await this.#api.sendChatAction(this.#chatId, "typing");
+    } catch {
+      // Typing indicators are best-effort; don't fail the agent response if
+      // Telegram rejects or drops one chat action request.
+    }
   }
 }
 
@@ -119,7 +97,8 @@ export class TelegramMessageStreamer {
   }
 
   async startStream(chatId: string): Promise<TelegramStreamingMessage> {
-    const message = await this.#api.sendMessage(chatId, "Thinking…");
-    return new TelegramStreamingMessage(this.#api, chatId, message.message_id);
+    const stream = new TelegramStreamingMessage(this.#api, chatId);
+    stream.start();
+    return stream;
   }
 }

@@ -14,6 +14,7 @@ const getFileMock = vi.fn(async () => ({ file_unique_id: "unique-file", file_pat
 const downloadFileMock = vi.fn(async () => Buffer.from("image-bytes"));
 const sendMessageMock = vi.fn(async () => ({ message_id: 1, chat: { id: 1, type: "private" } }));
 const editMessageTextMock = vi.fn(async (_chatId: string, messageId: number, text: string) => ({ message_id: messageId, text, chat: { id: 1, type: "private" } }));
+const sendChatActionMock = vi.fn(async () => true);
 const sendPhotoMock = vi.fn(async () => ({ message_id: 2, chat: { id: 1, type: "private" } }));
 
 vi.mock("../src/core/conversation-bindings.js", () => ({
@@ -40,6 +41,7 @@ vi.mock("../src/transports/telegram/api.js", () => ({
     downloadFile = downloadFileMock;
     sendMessage = sendMessageMock;
     editMessageText = editMessageTextMock;
+    sendChatAction = sendChatActionMock;
     sendPhoto = sendPhotoMock;
   },
 }));
@@ -110,6 +112,7 @@ describe("telegram app", () => {
       runPrompt: vi.fn(async (_sessionId: string, prompt: string) => ({ text: `saw ${prompt}`, stopReason: "stop" })),
       bindSession: vi.fn(async () => {}),
       appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
       stopActiveRun: vi.fn(() => false),
       getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
       dispose: vi.fn(async () => {}),
@@ -148,8 +151,9 @@ describe("telegram app", () => {
     expect(savedPath?.toLowerCase()).toContain(".jpg");
     expect(savedPath ? existsSync(savedPath) : false).toBe(true);
 
-    expect(sendMessageMock).toHaveBeenCalledWith("123", "Thinking…");
-    expect(editMessageTextMock).toHaveBeenCalledWith("123", 1, expect.stringContaining("saw User sent an image."));
+    expect(sendChatActionMock).toHaveBeenCalledWith("123", "typing");
+    expect(sendMessageMock).toHaveBeenCalledWith("123", expect.stringContaining("saw User sent an image."));
+    expect(sendMessageMock).not.toHaveBeenCalledWith("123", "Thinking…");
   });
 
   it("ignores edited_message updates so edits do not trigger duplicate runs", async () => {
@@ -171,6 +175,7 @@ describe("telegram app", () => {
       runPrompt: vi.fn(async (_sessionId: string, prompt: string) => ({ text: `saw ${prompt}`, stopReason: "stop" })),
       bindSession: vi.fn(async () => {}),
       appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
       stopActiveRun: vi.fn(() => false),
       getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
       dispose: vi.fn(async () => {}),

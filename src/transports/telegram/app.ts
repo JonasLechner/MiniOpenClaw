@@ -3,6 +3,7 @@ import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { resolveTelegramConversationBinding } from "../../core/conversation-bindings.js";
 import type { RuntimeState } from "../../core/runtime.js";
 import type { MainSessionAgent } from "../../gateway/agent-runner.js";
+import { createBackgroundTaskLauncher } from "../../jobs/background.js";
 import { logConversationMessage } from "../../gateway/conversation-log.js";
 import { handleTelegramCommand, TELEGRAM_BOT_COMMANDS } from "./commands.js";
 import { TelegramApiClient } from "./api.js";
@@ -46,6 +47,8 @@ export function buildTelegramGatewayApp(
   const api = new TelegramApiClient(telegramConfig.token);
   const streamer = new TelegramMessageStreamer(api);
   const enqueue = createPromptQueue();
+  const backgroundTaskLauncher = createBackgroundTaskLauncher(runtime, streamer, mainSessionAgent);
+  mainSessionAgent.setBackgroundTaskLauncher(backgroundTaskLauncher);
 
   function extensionFromMimeType(mimeType?: string): string {
     switch (mimeType) {
@@ -128,6 +131,7 @@ export function buildTelegramGatewayApp(
       streamer,
       stopActiveRun: () => mainSessionAgent.stopActiveRun(),
       getStatus: () => mainSessionAgent.getStatus(),
+      backgroundTaskLauncher,
     });
     if (commandResult.handled) {
       if (commandResult.sessionId) {
@@ -235,6 +239,7 @@ export function buildTelegramGatewayApp(
       polling?.start();
     },
     async stop() {
+      mainSessionAgent.setBackgroundTaskLauncher(undefined);
       await polling.stop();
       await mainSessionAgent.dispose();
     },

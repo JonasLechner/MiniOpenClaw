@@ -109,6 +109,13 @@ export class TelegramApiClient {
     }, signal);
   }
 
+  async sendChatAction(chatId: string, action: "typing", signal?: AbortSignal): Promise<boolean> {
+    return await this.#request<boolean>("sendChatAction", {
+      chat_id: chatId,
+      action,
+    }, signal);
+  }
+
   async editMessageText(chatId: string, messageId: number, text: string, signal?: AbortSignal): Promise<TelegramMessage> {
     return await this.#request<TelegramMessage>("editMessageText", {
       chat_id: chatId,
