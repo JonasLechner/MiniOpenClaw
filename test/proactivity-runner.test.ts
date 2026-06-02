@@ -40,7 +40,11 @@ describe("runScheduledTask", () => {
     }, mainSessionAgent as never);
 
     expect(getTelegramConversationBindingByChatIdMock).toHaveBeenCalledWith({}, "chat-1");
-    expect(mainSessionAgent.runPrompt).toHaveBeenCalledWith("session-current", "hello");
+    expect(mainSessionAgent.runPrompt).toHaveBeenCalledWith("session-current", "hello", {
+      source: "scheduled-main-session",
+      chatId: "chat-1",
+      taskId: "job-1",
+    });
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "main reply");
   });
 
@@ -71,6 +75,11 @@ describe("runScheduledTask", () => {
     expect(runPromptInDetachedSessionMock).toHaveBeenCalledWith(
       { paths: {} },
       "hello detached",
+      {
+        source: "scheduled-detached",
+        chatId: "chat-1",
+        taskId: "job-2",
+      },
     );
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "detached reply");
     expect(getTelegramConversationBindingByChatIdMock).toHaveBeenCalledWith({}, "chat-1");

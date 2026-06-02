@@ -2,6 +2,7 @@ import { getTelegramConversationBindingByChatId } from "../../lib/conversation-b
 import type { RuntimeState } from "../../lib/runtime.js";
 import type { ScheduledTask } from "../../lib/proactivity/scheduled-task-types.js";
 import { runPromptInDetachedSession, type MainSessionAgent } from "../agent-runner.js";
+import { logConversationMessage } from "../conversation-log.js";
 import type { TelegramMessageStreamer } from "../telegram/message-streamer.js";
 
 function buildDetachedTaskContextMessage(task: ScheduledTask, resultText: string): string {
@@ -29,13 +30,51 @@ export async function runScheduledTask(
 
   if (task.target === "main-session") {
     const binding = await getTelegramConversationBindingByChatId(runtime.paths, task.chatId);
-    const result = await mainSessionAgent.runPrompt(binding.sessionId, task.prompt);
+    logConversationMessage({
+      role: "user",
+      source: "scheduled-main-session",
+      chatId: task.chatId,
+      taskId: task.id,
+      text: task.prompt,
+    });
+    const result = await mainSessionAgent.runPrompt(binding.sessionId, task.prompt, {
+      source: "scheduled-main-session",
+      chatId: task.chatId,
+      taskId: task.id,
+    });
+    logConversationMessage({
+      role: "assistant",
+      source: "scheduled-main-session",
+      chatId: task.chatId,
+      taskId: task.id,
+      stopReason: result.stopReason,
+      text: result.text || "Done.",
+    });
     await streamer.sendText(task.chatId, result.text || "Done.");
     return;
   }
 
-  const result = await runPromptInDetachedSession(runtime, task.prompt);
+  logConversationMessage({
+    role: "user",
+    source: "scheduled-detached",
+    chatId: task.chatId,
+    taskId: task.id,
+    text: task.prompt,
+  });
+  const result = await runPromptInDetachedSession(runtime, task.prompt, {
+    source: "scheduled-detached",
+    chatId: task.chatId,
+    taskId: task.id,
+  });
   const resultText = result.text || "Done.";
+  logConversationMessage({
+    role: "assistant",
+    source: "scheduled-detached",
+    chatId: task.chatId,
+    taskId: task.id,
+    stopReason: result.stopReason,
+    text: resultText,
+  });
   await streamer.sendText(task.chatId, resultText);
 
   const binding = await getTelegramConversationBindingByChatId(runtime.paths, task.chatId);

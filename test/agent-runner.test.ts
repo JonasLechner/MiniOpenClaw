@@ -28,8 +28,8 @@ describe("gateway agent runner", () => {
     const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
     const mainSessionAgent = createMainSessionAgent(runtime);
 
-    await mainSessionAgent.runPrompt("session-1", "first");
-    await mainSessionAgent.runPrompt("session-1", "second");
+    await mainSessionAgent.runPrompt("session-1", "first", { source: "telegram", chatId: "chat-1" });
+    await mainSessionAgent.runPrompt("session-1", "second", { source: "telegram", chatId: "chat-1" });
 
     expect(createForSessionMock).toHaveBeenCalledTimes(1);
     expect(createForSessionMock).toHaveBeenCalledWith(runtime, "session-1");
@@ -43,7 +43,7 @@ describe("gateway agent runner", () => {
     const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
     const mainSessionAgent = createMainSessionAgent(runtime);
 
-    await mainSessionAgent.runPrompt("session-1", "first");
+    await mainSessionAgent.runPrompt("session-1", "first", { source: "telegram", chatId: "chat-1" });
     await mainSessionAgent.bindSession("session-2");
 
     expect(disposeMock).toHaveBeenCalledTimes(1);
@@ -63,7 +63,7 @@ describe("gateway agent runner", () => {
     const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
     const mainSessionAgent = createMainSessionAgent(runtime);
 
-    const runningTurn = mainSessionAgent.runPrompt("session-1", "first");
+    const runningTurn = mainSessionAgent.runPrompt("session-1", "first", { source: "telegram", chatId: "chat-1" });
     const queuedAppend = mainSessionAgent.appendUserMessage("session-1", "note");
 
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -83,7 +83,7 @@ describe("gateway agent runner", () => {
     const runtime = { paths: {} } as never;
     const { runPromptInDetachedSession } = await import("../src/gateway/agent-runner.js");
 
-    await runPromptInDetachedSession(runtime, "hello");
+    await runPromptInDetachedSession(runtime, "hello", { source: "scheduled-detached", chatId: "chat-1", taskId: "task-1" });
 
     expect(createNewSessionMock).toHaveBeenCalledWith(runtime.paths);
     expect(createForSessionMock).toHaveBeenCalledTimes(1);

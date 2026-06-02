@@ -1,6 +1,7 @@
 import { resolveTelegramConversationBinding } from "../../lib/conversation-bindings.js";
 import type { RuntimeState } from "../../lib/runtime.js";
 import type { MainSessionAgent } from "../agent-runner.js";
+import { logConversationMessage } from "../conversation-log.js";
 import { handleTelegramCommand } from "./commands.js";
 import { TelegramApiClient } from "./api.js";
 import { TelegramMessageStreamer } from "./message-streamer.js";
@@ -54,8 +55,28 @@ export function buildTelegramGatewayApp(
       return;
     }
 
+    logConversationMessage({
+      role: "user",
+      source: "telegram",
+      chatId,
+      userId,
+      text,
+    });
+
     await streamer.sendText(chatId, "Thinking…");
-    const result = await mainSessionAgent.runPrompt(binding.sessionId, text);
+    const result = await mainSessionAgent.runPrompt(binding.sessionId, text, {
+      source: "telegram",
+      chatId,
+      userId,
+    });
+    logConversationMessage({
+      role: "assistant",
+      source: "telegram",
+      chatId,
+      userId,
+      stopReason: result.stopReason,
+      text: result.text || "Done.",
+    });
     await streamer.sendText(chatId, result.text || "Done.");
   }
 

@@ -1,14 +1,59 @@
 import { Agent } from "../agent/agent.js";
-import type { AgentTurnResult } from "../agent/events.js";
+import type { AgentEventListener, AgentTurnResult } from "../agent/events.js";
 import type { RuntimeState } from "../lib/runtime.js";
 import { createNewSession } from "../lib/sessions.js";
+import { logConversationToolCall, type ConversationLogSource } from "./conversation-log.js";
+
+export type PromptLogContext = {
+  source: ConversationLogSource;
+  chatId: string;
+  userId?: string;
+  taskId?: string;
+};
 
 export type MainSessionAgent = {
-  runPrompt(sessionId: string, prompt: string): Promise<AgentTurnResult>;
+  runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext): Promise<AgentTurnResult>;
   bindSession(sessionId: string): Promise<void>;
   appendUserMessage(sessionId: string, prompt: string): Promise<void>;
   dispose(): Promise<void>;
 };
+
+function createToolCallLogger(logContext: PromptLogContext): AgentEventListener {
+  const startedAt = new Map<string, number>();
+
+  return (event) => {
+    if (event.type === "tool_execution_start") {
+      startedAt.set(event.toolCallId, Date.now());
+      logConversationToolCall({
+        phase: "start",
+        source: logContext.source,
+        chatId: logContext.chatId,
+        userId: logContext.userId,
+        taskId: logContext.taskId,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: event.args,
+      });
+      return;
+    }
+
+    if (event.type === "tool_execution_end") {
+      const started = startedAt.get(event.toolCallId);
+      startedAt.delete(event.toolCallId);
+      logConversationToolCall({
+        phase: "end",
+        source: logContext.source,
+        chatId: logContext.chatId,
+        userId: logContext.userId,
+        taskId: logContext.taskId,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        durationMs: started === undefined ? undefined : Date.now() - started,
+        isError: event.result.isError,
+      });
+    }
+  };
+}
 
 export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent {
   let currentSessionId: string | undefined;
@@ -51,10 +96,10 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
   }
 
   return {
-    runPrompt(sessionId: string, prompt: string): Promise<AgentTurnResult> {
+    runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext): Promise<AgentTurnResult> {
       return enqueue(async () => {
         const agent = await getAgent(sessionId);
-        return agent.runLoop(prompt);
+        return agent.runLoop(prompt, { onEvent: createToolCallLogger(logContext) });
       });
     },
     bindSession(sessionId: string): Promise<void> {
@@ -79,12 +124,13 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
 export async function runPromptInDetachedSession(
   runtime: RuntimeState,
   prompt: string,
+  logContext: PromptLogContext,
 ): Promise<AgentTurnResult> {
   const session = await createNewSession(runtime.paths);
   const agent = await Agent.createForSession(runtime, session.sessionId);
 
   try {
-    return await agent.runLoop(prompt);
+    return await agent.runLoop(prompt, { onEvent: createToolCallLogger(logContext) });
   } finally {
     await agent.dispose();
   }
