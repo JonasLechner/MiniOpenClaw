@@ -89,7 +89,8 @@ describe("gateway and conversation logging", () => {
 
     const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(payload).toMatchObject({
-      event: "gateway_request",
+      event: "gateway_request_completed",
+      level: "info",
       method: "GET",
       url: "/health",
       statusCode: 200,
@@ -108,8 +109,9 @@ describe("gateway and conversation logging", () => {
     const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(payload).toMatchObject({
       event: "gateway_auth_warning",
-      method: "-",
-      url: "-",
+      level: "warn",
+      provider: "openai-codex",
+      authFile: "/tmp/auth.json",
     });
     expect(String(payload.message)).toContain("openai-codex");
     expect(String(payload.message)).toContain("/tmp/auth.json");

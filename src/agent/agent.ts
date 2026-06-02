@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { buildSystemPrompt } from "../core/agent-context.js";
 import { estimateSessionContextTokens, maybeCompactSession, type CompactionResult } from "../core/compaction.js";
+import { createLogger } from "../core/log.js";
 import type { Sandbox, SandboxFactory } from "../sandbox/sandbox.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
@@ -22,6 +24,7 @@ import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.j
 // import { persistSessionSummary } from "./session-memory.js";
 
 export type PromptOptions = {
+  runId?: string;
   onEvent?: AgentEventListener;
   signal?: AbortSignal;
   toolContext?: {
@@ -38,6 +41,8 @@ export type PromptOptions = {
 export type AgentCreateOptions = {
   sandboxSessionId?: string;
 };
+
+const logger = createLogger({ component: "agent" });
 
 export class Agent {
   readonly provider: string;
@@ -128,11 +133,12 @@ export class Agent {
 
   async compactSession(trigger: "automatic" | "manual", force = false): Promise<CompactionResult> {
     await this.#refreshApiKey();
-    return this.#runCompaction({ trigger, force });
+    return this.#runCompaction({ trigger, force, runId: randomUUID() });
   }
 
   async runLoop(prompt: string, options?: PromptOptions): Promise<AgentTurnResult> {
     const sessionId = this.#session.sessionId;
+    const runId = options?.runId ?? randomUUID();
     const userEvent = await appendUserMessageEvent(this.#session, prompt);
     const protectedEventIndex = this.#session.events.length - 1; // Protect only the current user prompt from pre-loop compaction.
 
@@ -141,15 +147,17 @@ export class Agent {
 
       const compaction = await this.#runCompaction({
         trigger: "automatic",
+        runId,
         protectedEventIndex,
         transient: options?.onEvent,
       });
       if (compaction.warning) {
-        console.warn(`Session compaction warning for ${sessionId}: ${compaction.warning}`);
+        logger.warn("agent_compaction_warning", { sessionId, runId, warning: compaction.warning });
       }
 
       const loopResult = await runAgentLoop({
         sessionId,
+        runId,
         prompt,
         systemPrompt: this.#systemPrompt,
         messages: getSessionMessages(this.#session),
@@ -189,7 +197,7 @@ export class Agent {
         userTimestamp: userEvent.message.timestamp,
       });
       this.#emit(
-        { type: "agent_error", sessionId, message: resolvedError.message, error: resolvedError },
+        { type: "agent_error", sessionId, runId, message: resolvedError.message, error: resolvedError },
         options?.onEvent,
       );
       throw resolvedError;
@@ -206,11 +214,13 @@ export class Agent {
     force = false,
     protectedEventIndex,
     transient,
+    runId,
   }: {
     trigger: "automatic" | "manual";
     force?: boolean;
     protectedEventIndex?: number;
     transient?: AgentEventListener;
+    runId: string;
   }): Promise<CompactionResult> {
     const sessionId = this.#session.sessionId;
     let started = false;
@@ -226,7 +236,7 @@ export class Agent {
         onCompacting: () => {
           if (started) return;
           started = true;
-          this.#emit({ type: "compaction_start", sessionId, trigger }, transient);
+          this.#emit({ type: "compaction_start", sessionId, runId, trigger }, transient);
         },
       });
 
@@ -234,6 +244,7 @@ export class Agent {
         this.#emit({
           type: "compaction_end",
           sessionId,
+          runId,
           trigger,
           compacted: result.compacted,
           estimatedTokensBefore: result.estimatedTokensBefore,
@@ -248,6 +259,7 @@ export class Agent {
         this.#emit({
           type: "compaction_end",
           sessionId,
+          runId,
           trigger,
           compacted: false,
           estimatedTokensBefore: estimateSessionContextTokens(this.#session),

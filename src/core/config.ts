@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import type { SandboxConfig } from "../sandbox/sandbox.js";
+import type { LogLevel } from "./log.js";
 
 export type UserConfig = {
   workspacePath?: string;
@@ -32,6 +33,9 @@ export type UserConfig = {
     cpus?: number;
     pidsLimit?: number;
   };
+  logging?: {
+    level?: LogLevel;
+  };
 };
 
 export type ResolvedConfig = {
@@ -53,6 +57,9 @@ export type ResolvedConfig = {
     availableModels?: Record<string, string[]>;
   };
   sandbox: SandboxConfig;
+  logging: {
+    level: LogLevel;
+  };
 };
 
 export type RuntimePaths = {
@@ -93,6 +100,9 @@ const defaultConfig: UserConfig = {
     image: DEFAULT_SANDBOX_IMAGE,
     network: "none",
   },
+  logging: {
+    level: "info",
+  },
 };
 
 export function ensureDir(path: string): void {
@@ -126,6 +136,7 @@ function parseConfig(path: string): ResolvedConfig {
   const gateway = (config.gateway ?? {}) as Record<string, unknown>;
   const agent = (config.agent ?? {}) as Record<string, unknown>;
   const sandbox = (config.sandbox ?? {}) as Record<string, unknown>;
+  const logging = (config.logging ?? {}) as Record<string, unknown>;
   const telegram = (gateway.telegram ?? {}) as Record<string, unknown>;
 
   if (config.workspacePath !== undefined && typeof config.workspacePath !== "string") {
@@ -173,6 +184,10 @@ function parseConfig(path: string): ResolvedConfig {
 
   if (config.sandbox !== undefined && (typeof config.sandbox !== "object" || Array.isArray(config.sandbox))) {
     throw new Error(`Invalid config file at ${path}: sandbox must be an object.`);
+  }
+
+  if (config.logging !== undefined && (!config.logging || typeof config.logging !== "object" || Array.isArray(config.logging))) {
+    throw new Error(`Invalid config file at ${path}: logging must be an object.`);
   }
 
   if (agent.provider !== undefined && typeof agent.provider !== "string") {
@@ -243,6 +258,10 @@ function parseConfig(path: string): ResolvedConfig {
     throw new Error(`Invalid config file at ${path}: sandbox.pidsLimit must be a positive integer.`);
   }
 
+  if (logging.level !== undefined && logging.level !== "debug" && logging.level !== "info" && logging.level !== "warn" && logging.level !== "error") {
+    throw new Error(`Invalid config file at ${path}: logging.level must be one of debug, info, warn, or error.`);
+  }
+
   return {
     workspacePath: config.workspacePath as string | undefined,
     gateway: {
@@ -269,6 +288,9 @@ function parseConfig(path: string): ResolvedConfig {
       memoryMb: sandbox.memoryMb as number | undefined,
       cpus: sandbox.cpus as number | undefined,
       pidsLimit: sandbox.pidsLimit as number | undefined,
+    },
+    logging: {
+      level: (logging.level as LogLevel | undefined) ?? defaultConfig.logging!.level!,
     },
   };
 }

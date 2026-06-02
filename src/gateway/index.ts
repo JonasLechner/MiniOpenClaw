@@ -1,4 +1,5 @@
 import { checkAuthAvailable } from "../agent/auth.js";
+import { createLogger } from "../core/log.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import { ensureCurrentSession } from "../core/sessions.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
@@ -32,6 +33,8 @@ async function launchGatewaySandbox(runtime: RuntimeState): Promise<void> {
   }
 }
 
+const logger = createLogger({ component: "gateway" });
+
 export async function main(): Promise<void> {
   const runtime = initializeRuntime();
   await launchGatewaySandbox(runtime);
@@ -39,7 +42,9 @@ export async function main(): Promise<void> {
   if (!checkAuthAvailable(runtime)) {
     const provider = runtime.config.agent.provider;
     if (!provider) {
-      console.log("No agent provider configured. Set agent.provider and agent.modelId in ~/.mini-openclaw/config.json");
+      logger.warn("gateway_provider_missing", {
+        message: "No agent provider configured. Set agent.provider and agent.modelId in ~/.mini-openclaw/config.json",
+      });
     } else {
       logGatewayAuthWarning(provider, runtime.paths.authFile);
     }
@@ -55,6 +60,7 @@ export async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
+  const resolvedError = error instanceof Error ? error : new Error(String(error));
+  logger.error("gateway_start_failed", { message: resolvedError.message, error: resolvedError });
   process.exit(1);
 });

@@ -35,6 +35,7 @@ function createRuntime(authFile: string, configFile: string): RuntimeState {
         cpus: undefined,
         pidsLimit: undefined,
       },
+      logging: { level: "info" },
     },
     paths: {
       home: join(configFile, ".."),

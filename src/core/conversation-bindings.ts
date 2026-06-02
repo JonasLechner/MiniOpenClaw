@@ -6,7 +6,7 @@ import type { Channel } from "./channels.js";
 export type ConversationBinding = {
   channel: Channel;
   chatId: string;
-  userId: string;
+  userId?: string;
   sessionId: string;
   createdAt: string;
   updatedAt: string;
@@ -14,8 +14,29 @@ export type ConversationBinding = {
 
 const bindingWriteLanes = new Map<string, Promise<void>>();
 
+function bindingKey(binding: Pick<ConversationBinding, "channel" | "chatId">): string {
+  return `${binding.channel}:${binding.chatId}`;
+}
+
+function assertNoDuplicateBindings(bindings: ConversationBinding[]): ConversationBinding[] {
+  const seen = new Set<string>();
+
+  for (const binding of bindings) {
+    const key = bindingKey(binding);
+    if (seen.has(key)) {
+      if (binding.channel === "telegram") {
+        throw new Error(`Multiple Telegram conversation bindings found for chat ${binding.chatId}.`);
+      }
+      throw new Error(`Multiple conversation bindings found for ${key}.`);
+    }
+    seen.add(key);
+  }
+
+  return bindings;
+}
+
 async function loadBindings(paths: RuntimePaths): Promise<ConversationBinding[]> {
-  return readJsonFile(paths.conversationBindings, [] as ConversationBinding[]);
+  return assertNoDuplicateBindings(await readJsonFile(paths.conversationBindings, [] as ConversationBinding[]));
 }
 
 async function saveBindings(paths: RuntimePaths, bindings: ConversationBinding[]): Promise<void> {
@@ -35,45 +56,34 @@ function enqueueBindingWrite<T>(paths: RuntimePaths, task: () => Promise<T>): Pr
   });
 }
 
-export async function listConversationBindings(paths: RuntimePaths): Promise<ConversationBinding[]> {
-  return loadBindings(paths);
-}
-
-export async function getConversationBinding(
-  paths: RuntimePaths,
-  channel: Channel,
-  chatId: string,
-  userId: string,
-): Promise<ConversationBinding | undefined> {
+async function getBinding(paths: RuntimePaths, channel: Channel, chatId: string): Promise<ConversationBinding | undefined> {
   const bindings = await loadBindings(paths);
-  return bindings.find((binding) => binding.channel === channel && binding.chatId === chatId && binding.userId === userId);
+  return bindings.find((binding) => binding.channel === channel && binding.chatId === chatId);
 }
 
-export async function setConversationBinding(paths: RuntimePaths, binding: ConversationBinding): Promise<ConversationBinding> {
-  return enqueueBindingWrite(paths, async () => {
-    const bindings = await loadBindings(paths);
-    const nextBindings = bindings.filter((entry) => {
-      return !(entry.channel === binding.channel && entry.chatId === binding.chatId && entry.userId === binding.userId);
-    });
+async function saveBinding(paths: RuntimePaths, binding: ConversationBinding): Promise<ConversationBinding> {
+  const bindings = await loadBindings(paths);
+  const nextBindings = bindings.filter((entry) => bindingKey(entry) !== bindingKey(binding));
 
-    nextBindings.push(binding);
-    await saveBindings(paths, nextBindings);
-    return binding;
-  });
+  nextBindings.push(binding);
+  await saveBindings(paths, nextBindings);
+  return binding;
 }
 
-export async function bindTelegramConversationToSession(
+export async function getTelegramBinding(paths: RuntimePaths, chatId: string): Promise<ConversationBinding | undefined> {
+  return getBinding(paths, "telegram", chatId);
+}
+
+export async function bindTelegramChatToSession(
   paths: RuntimePaths,
   chatId: string,
-  userId: string,
   sessionId: string,
+  userId?: string,
 ): Promise<ConversationBinding> {
   return enqueueBindingWrite(paths, async () => {
     const now = new Date().toISOString();
     const bindings = await loadBindings(paths);
-    const existing = bindings.find((binding) => {
-      return binding.channel === "telegram" && binding.chatId === chatId && binding.userId === userId;
-    });
+    const existing = bindings.find((binding) => binding.channel === "telegram" && binding.chatId === chatId);
 
     const nextBinding: ConversationBinding = {
       channel: "telegram",
@@ -84,34 +94,24 @@ export async function bindTelegramConversationToSession(
       updatedAt: now,
     };
 
-    const nextBindings = bindings.filter((binding) => {
-      return !(binding.channel === nextBinding.channel && binding.chatId === chatId && binding.userId === userId);
-    });
-    nextBindings.push(nextBinding);
-    await saveBindings(paths, nextBindings);
-    return nextBinding;
+    return saveBinding(paths, nextBinding);
   });
 }
 
-export async function resolveTelegramConversationBinding(paths: RuntimePaths, chatId: string, userId: string): Promise<ConversationBinding> {
-  const existing = await getConversationBinding(paths, "telegram", chatId, userId);
+export async function resolveTelegramBinding(paths: RuntimePaths, chatId: string, userId?: string): Promise<ConversationBinding> {
+  const existing = await getTelegramBinding(paths, chatId);
   if (existing) return existing;
 
   const session = await createNewSession(paths);
-  return bindTelegramConversationToSession(paths, chatId, userId, session.sessionId);
+  return bindTelegramChatToSession(paths, chatId, session.sessionId, userId);
 }
 
-export async function getTelegramConversationBindingByChatId(paths: RuntimePaths, chatId: string): Promise<ConversationBinding> {
-  const bindings = await loadBindings(paths);
-  const matches = bindings.filter((binding) => binding.channel === "telegram" && binding.chatId === chatId);
+export async function requireTelegramBinding(paths: RuntimePaths, chatId: string): Promise<ConversationBinding> {
+  const binding = await getTelegramBinding(paths, chatId);
 
-  if (matches.length === 0) {
+  if (!binding) {
     throw new Error(`No Telegram conversation binding found for chat ${chatId}.`);
   }
 
-  if (matches.length > 1) {
-    throw new Error(`Multiple Telegram conversation bindings found for chat ${chatId}.`);
-  }
-
-  return matches[0];
+  return binding;
 }

@@ -11,6 +11,7 @@ export type AgentEventSink = (event: AgentEvent) => void | Promise<void>;
 
 export type AgentLoopContext = {
   sessionId: string;
+  runId: string;
   prompt: string;
   systemPrompt: string;
   messages: Message[];
@@ -73,9 +74,9 @@ async function finishAborted(
     stopReason: message.stopReason,
     errorMessage: message.errorMessage,
   };
-  await emit({ type: "message_end", sessionId: context.sessionId, message, text: result.text });
-  await emit({ type: "turn_end", sessionId: context.sessionId, result });
-  await emit({ type: "agent_end", sessionId: context.sessionId, result });
+  await emit({ type: "message_end", sessionId: context.sessionId, runId: context.runId, message, text: result.text });
+  await emit({ type: "turn_end", sessionId: context.sessionId, runId: context.runId, result });
+  await emit({ type: "agent_end", sessionId: context.sessionId, runId: context.runId, result });
   return { message, generatedMessages, result };
 }
 
@@ -84,8 +85,8 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
   const generatedMessages: Array<AssistantMessage | ToolResultMessage> = [];
 
   try {
-    await emit({ type: "agent_start", sessionId: context.sessionId, prompt: context.prompt });
-    await emit({ type: "turn_start", sessionId: context.sessionId, prompt: context.prompt });
+    await emit({ type: "agent_start", sessionId: context.sessionId, runId: context.runId, prompt: context.prompt });
+    await emit({ type: "turn_start", sessionId: context.sessionId, runId: context.runId, prompt: context.prompt });
 
     while (true) {
       if (context.signal?.aborted) {
@@ -97,8 +98,8 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
       generatedMessages.push(message);
 
       if (message.stopReason !== "toolUse") {
-        await emit({ type: "turn_end", sessionId: context.sessionId, result });
-        await emit({ type: "agent_end", sessionId: context.sessionId, result });
+        await emit({ type: "turn_end", sessionId: context.sessionId, runId: context.runId, result });
+        await emit({ type: "agent_end", sessionId: context.sessionId, runId: context.runId, result });
         return { message, generatedMessages, result };
       }
 

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
+import { createLogger } from "../../core/log.js";
 import { TelegramApiClient, TelegramApiError } from "./api.js";
 import { chunkTelegramText } from "./formatter.js";
 
@@ -219,6 +220,7 @@ export class TelegramStreamingMessage {
 
 export class TelegramMessageStreamer {
   readonly #api: TelegramApiClient;
+  readonly #logger = createLogger({ component: "telegram" });
 
   constructor(api: TelegramApiClient) {
     this.#api = api;
@@ -228,12 +230,14 @@ export class TelegramMessageStreamer {
     for (const chunk of chunkTelegramText(text)) {
       await this.#api.sendMessage(chatId, chunk);
     }
+    this.#logger.info("telegram_message_sent", { chatId, text });
   }
 
   async sendImage(chatId: string, path: string, caption?: string): Promise<void> {
     const data = await readFile(path);
     const blob = new Blob([data], { type: imageMimeTypeForPath(path) });
     await this.#api.sendPhoto(chatId, blob, basename(path), caption);
+    this.#logger.info("telegram_image_sent", { chatId, path, caption });
   }
 
   async startStream(chatId: string): Promise<TelegramStreamingMessage> {

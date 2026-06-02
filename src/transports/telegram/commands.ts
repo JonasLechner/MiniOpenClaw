@@ -1,5 +1,5 @@
 import { createNewSession } from "../../core/sessions.js";
-import { bindTelegramConversationToSession, type ConversationBinding } from "../../core/conversation-bindings.js";
+import { bindTelegramChatToSession, type ConversationBinding } from "../../core/conversation-bindings.js";
 import { type BackgroundTaskLauncher } from "../../jobs/background.js";
 import { formatBackgroundTaskList } from "../../jobs/background-format.js";
 import type { RuntimeState } from "../../core/runtime.js";
@@ -10,7 +10,7 @@ export type TelegramCommandContext = {
   binding: ConversationBinding;
   streamer: TelegramMessageStreamer;
   stopActiveRun?: () => boolean;
-  getStatus?: () => { provider: string; modelId: string; activeRunStartedAt?: string };
+  getStatus?: () => { provider: string; modelId: string; activeRunId?: string; activeRunStartedAt?: string };
   backgroundTaskLauncher?: BackgroundTaskLauncher;
   compactSession?: () => Promise<{ compacted: boolean; warning?: string; estimatedTokensBefore: number; estimatedTokensAfter?: number }>;
 };
@@ -52,18 +52,18 @@ export async function handleTelegramCommand(
 
   if (command === "/new") {
     const session = await createNewSession(context.runtime.paths);
-    const binding = await bindTelegramConversationToSession(
+    const binding = await bindTelegramChatToSession(
       context.runtime.paths,
       context.binding.chatId,
-      context.binding.userId,
       session.sessionId,
+      context.binding.userId,
     );
     await context.streamer.sendText(context.binding.chatId, `Started new session ${session.sessionId}.`);
     return { handled: true, sessionId: binding.sessionId };
   }
 
   if (command === "/session") {
-    const status: { provider: string; modelId: string; activeRunStartedAt?: string } = context.getStatus?.() ?? {
+    const status: { provider: string; modelId: string; activeRunId?: string; activeRunStartedAt?: string } = context.getStatus?.() ?? {
       provider: context.runtime.config.agent.provider ?? "unknown",
       modelId: context.runtime.config.agent.modelId ?? "unknown",
     };
@@ -72,6 +72,7 @@ export async function handleTelegramCommand(
       [
         `Current session: ${context.binding.sessionId}`,
         `Model: ${status.provider}/${status.modelId}`,
+        status.activeRunId ? `Active run id: ${status.activeRunId}` : "Active run id: none",
         status.activeRunStartedAt ? `Active run since: ${status.activeRunStartedAt}` : "Active run: none",
       ].join("\n"),
     );

@@ -28,12 +28,13 @@ export async function generateAssistantTurn(
 
   for await (const event of eventStream) {
     if (event.type === "text_start") {
-      await emit({ type: "message_start", sessionId: context.sessionId, messageType: event.type });
+      await emit({ type: "message_start", sessionId: context.sessionId, runId: context.runId, messageType: event.type });
     }
     if (event.type === "text_delta") {
       await emit({
         type: "message_delta",
         sessionId: context.sessionId,
+        runId: context.runId,
         delta: event.delta,
         providerEvent: event,
       });
@@ -47,6 +48,6 @@ export async function generateAssistantTurn(
     errorMessage: message.errorMessage,
   };
 
-  await emit({ type: "message_end", sessionId: context.sessionId, message, text: result.text });
+  await emit({ type: "message_end", sessionId: context.sessionId, runId: context.runId, message, text: result.text });
   return { message, result };
 }

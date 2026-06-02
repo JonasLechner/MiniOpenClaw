@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
-import { resolveTelegramConversationBinding } from "../../core/conversation-bindings.js";
+import { resolveTelegramBinding } from "../../core/conversation-bindings.js";
+import { createLogger } from "../../core/log.js";
 import type { RuntimeState } from "../../core/runtime.js";
 import type { MainSessionAgent } from "../../gateway/agent-runner.js";
 import { createBackgroundTaskLauncher } from "../../jobs/background.js";
@@ -46,6 +48,7 @@ export function buildTelegramGatewayApp(
 
   const api = new TelegramApiClient(telegramConfig.token);
   const streamer = new TelegramMessageStreamer(api);
+  const logger = createLogger({ component: "telegram" });
   const enqueue = createPromptQueue();
   const backgroundTaskLauncher = createBackgroundTaskLauncher(runtime, streamer, mainSessionAgent);
   mainSessionAgent.setBackgroundTaskLauncher(backgroundTaskLauncher);
@@ -118,13 +121,15 @@ export function buildTelegramGatewayApp(
         if (!stats.isFile()) continue;
         await streamer.sendImage(chatId, imagePath, basename(imagePath));
       } catch (error) {
-        console.error("Failed to send Telegram image attachment:", error instanceof Error ? error.message : String(error));
+        const resolvedError = error instanceof Error ? error : new Error(String(error));
+        logger.error("telegram_image_send_failed", { chatId, imagePath, message: resolvedError.message, error: resolvedError });
       }
     }
   }
 
   async function handleTextMessage(chatId: string, userId: string, text: string): Promise<void> {
-    const binding = await resolveTelegramConversationBinding(runtime.paths, chatId, userId);
+    const binding = await resolveTelegramBinding(runtime.paths, chatId, userId);
+    const runId = randomUUID();
     const commandResult = await handleTelegramCommand(text, {
       runtime,
       binding,
@@ -146,6 +151,8 @@ export function buildTelegramGatewayApp(
       source: "telegram",
       chatId,
       userId,
+      sessionId: binding.sessionId,
+      runId,
       text,
     });
 
@@ -155,6 +162,8 @@ export function buildTelegramGatewayApp(
         source: "telegram",
         chatId,
         userId,
+        sessionId: binding.sessionId,
+        runId,
       }, {
         onEvent(event) {
           if (event.type === "compaction_start") {
@@ -174,6 +183,8 @@ export function buildTelegramGatewayApp(
         source: "telegram",
         chatId,
         userId,
+        sessionId: binding.sessionId,
+        runId,
         stopReason: result.stopReason,
         text: finalText,
       });
@@ -192,6 +203,7 @@ export function buildTelegramGatewayApp(
     if (!message || message.chat.type !== "private" || !message.from) return;
 
     if (!isAllowedUser(runtime, message.from.id)) {
+      logger.warn("telegram_unauthorized_user", { chatId: String(message.chat.id), userId: String(message.from.id) });
       await streamer.sendText(String(message.chat.id), "Unauthorized Telegram user.");
       return;
     }
@@ -199,6 +211,8 @@ export function buildTelegramGatewayApp(
     const chatId = String(message.chat.id);
     const userId = String(message.from.id);
     const imagePath = await saveTelegramImage(message);
+
+    logger.info("telegram_message_received", { chatId, userId, hasImage: Boolean(imagePath), messageId: message.message_id });
 
     const text = imagePath
       ? [
@@ -239,9 +253,10 @@ export function buildTelegramGatewayApp(
     async start() {
       try {
         await api.setMyCommands(TELEGRAM_BOT_COMMANDS);
-        console.log("Registered Telegram bot commands:", TELEGRAM_BOT_COMMANDS.map(({ command }) => `/${command}`).join(", "));
+        logger.info("telegram_command_registration_completed", { commands: TELEGRAM_BOT_COMMANDS.map(({ command }) => `/${command}`) });
       } catch (error) {
-        console.error("Failed to register Telegram bot commands:", error instanceof Error ? error.message : String(error));
+        const resolvedError = error instanceof Error ? error : new Error(String(error));
+        logger.error("telegram_command_registration_failed", { message: resolvedError.message, error: resolvedError });
       }
       polling?.start();
     },

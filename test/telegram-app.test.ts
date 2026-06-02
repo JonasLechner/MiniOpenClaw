@@ -6,7 +6,7 @@ import type { RuntimePaths } from "../src/core/config.js";
 import type { RuntimeState } from "../src/core/runtime.js";
 import type { TelegramCommandContext, TelegramCommandResult } from "../src/transports/telegram/commands.js";
 
-const resolveTelegramConversationBindingMock = vi.fn();
+const resolveTelegramBindingMock = vi.fn();
 const logConversationMessageMock = vi.fn();
 const handleTelegramCommandMock = vi.fn<(text: string, context: TelegramCommandContext) => Promise<TelegramCommandResult>>(async () => ({ handled: false }));
 const createTelegramPollingMock = vi.fn();
@@ -19,9 +19,10 @@ const deleteMessageMock = vi.fn(async () => true);
 const sendChatActionMock = vi.fn(async () => true);
 const sendPhotoMock = vi.fn(async () => ({ message_id: 2, chat: { id: 1, type: "private" } }));
 const statMock = vi.fn();
+const originalIsTTY = process.stdout.isTTY;
 
 vi.mock("../src/core/conversation-bindings.js", () => ({
-  resolveTelegramConversationBinding: resolveTelegramConversationBindingMock,
+  resolveTelegramBinding: resolveTelegramBindingMock,
 }));
 
 vi.mock("../src/gateway/conversation-log.js", () => ({
@@ -90,6 +91,7 @@ function createRuntime(paths: RuntimePaths): RuntimeState {
         cpus: undefined,
         pidsLimit: undefined,
       },
+      logging: { level: "info" },
     },
     paths,
   };
@@ -112,6 +114,7 @@ describe("telegram app", () => {
       const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
       return actual.stat(path);
     });
+    Object.defineProperty(process.stdout, "isTTY", { value: originalIsTTY, configurable: true });
     vi.clearAllMocks();
   });
 
@@ -119,7 +122,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1" });
 
     let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
     createTelegramPollingMock.mockImplementation((_api, handler) => {
@@ -223,7 +226,7 @@ describe("telegram app", () => {
 
     expect(sendMessageMock).toHaveBeenCalledWith("123", "Unauthorized Telegram user.");
     expect(mainSessionAgent.runPrompt).not.toHaveBeenCalled();
-    expect(resolveTelegramConversationBindingMock).not.toHaveBeenCalled();
+    expect(resolveTelegramBindingMock).not.toHaveBeenCalled();
   });
 
   it("ignores non-private chats", async () => {
@@ -268,7 +271,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1" });
     handleTelegramCommandMock.mockResolvedValueOnce({ handled: true, sessionId: "session-2" });
 
     let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
@@ -308,7 +311,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1", chatId: "123", userId: "456" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1", chatId: "123", userId: "456" });
 
     let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
     createTelegramPollingMock.mockImplementation((_api, handler) => {
@@ -372,7 +375,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1" });
 
     let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
     createTelegramPollingMock.mockImplementation((_api, handler) => {
@@ -419,7 +422,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1" });
     statMock.mockResolvedValue({ isFile: () => true });
 
     const absoluteImage = join(paths.workspace, "reports", "chart.png");
@@ -470,7 +473,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1" });
 
     let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
     createTelegramPollingMock.mockImplementation((_api, handler) => {
@@ -510,7 +513,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1" });
 
     let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
     createTelegramPollingMock.mockImplementation((_api, handler) => {
@@ -546,7 +549,8 @@ describe("telegram app", () => {
   });
 
   it("keeps polling alive when Telegram command registration fails", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     setMyCommandsMock.mockRejectedValueOnce(new Error("telegram down"));
     const paths = createRuntimePaths();
     roots.push(paths.home);
@@ -569,7 +573,14 @@ describe("telegram app", () => {
     const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
     await app?.start();
 
-    expect(errorSpy).toHaveBeenCalledWith("Failed to register Telegram bot commands:", "telegram down");
+    const failureLog = logSpy.mock.calls
+      .map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
+      .find((payload) => payload.event === "telegram_command_registration_failed");
+    expect(failureLog).toMatchObject({
+      event: "telegram_command_registration_failed",
+      level: "error",
+      message: "telegram down",
+    });
     expect(pollingStart).toHaveBeenCalledTimes(1);
   });
 
@@ -577,7 +588,7 @@ describe("telegram app", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
-    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1" });
 
     let onUpdate: ((update: { message?: unknown; edited_message?: unknown }) => Promise<void>) | undefined;
     createTelegramPollingMock.mockImplementation((_api, handler) => {

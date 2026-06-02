@@ -1,14 +1,18 @@
+import { randomUUID } from "node:crypto";
 import { Agent } from "../agent/agent.js";
-import type { AgentEventListener, AgentTurnResult } from "../agent/events.js";
-import type { BackgroundTaskLauncher } from "../jobs/background.js";
+import type { AgentEvent, AgentEventListener, AgentTurnResult } from "../agent/events.js";
+import { createLogger } from "../core/log.js";
 import type { RuntimeState } from "../core/runtime.js";
 import { createNewSession } from "../core/sessions.js";
+import type { BackgroundTaskLauncher } from "../jobs/background.js";
 import { logConversationToolCall, type ConversationLogSource } from "./conversation-log.js";
 
 export type PromptLogContext = {
   source: ConversationLogSource;
   chatId: string;
   userId?: string;
+  sessionId?: string;
+  runId?: string;
   taskId?: string;
 };
 
@@ -19,6 +23,7 @@ export type RunPromptOptions = {
 export type MainSessionAgentStatus = {
   provider: string;
   modelId: string;
+  activeRunId?: string;
   activeRunStartedAt?: string;
 };
 
@@ -33,7 +38,7 @@ export type MainSessionAgent = {
   dispose(): Promise<void>;
 };
 
-function createToolCallLogger(logContext: PromptLogContext): AgentEventListener {
+function createToolCallLogger(logContext: PromptLogContext & { sessionId: string; runId: string }): AgentEventListener {
   const startedAt = new Map<string, number>();
 
   return (event) => {
@@ -44,6 +49,8 @@ function createToolCallLogger(logContext: PromptLogContext): AgentEventListener 
         source: logContext.source,
         chatId: logContext.chatId,
         userId: logContext.userId,
+        sessionId: logContext.sessionId,
+        runId: logContext.runId,
         taskId: logContext.taskId,
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -60,6 +67,8 @@ function createToolCallLogger(logContext: PromptLogContext): AgentEventListener 
         source: logContext.source,
         chatId: logContext.chatId,
         userId: logContext.userId,
+        sessionId: logContext.sessionId,
+        runId: logContext.runId,
         taskId: logContext.taskId,
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -70,10 +79,29 @@ function createToolCallLogger(logContext: PromptLogContext): AgentEventListener 
   };
 }
 
+function handleRunEvent(logger: ReturnType<typeof createLogger>, event: AgentEvent): void {
+  if (event.type === "compaction_start") {
+    logger.info("agent_compaction_started", { trigger: event.trigger });
+    return;
+  }
+
+  if (event.type === "compaction_end") {
+    const level = event.warning ? logger.warn : logger.info;
+    level("agent_compaction_completed", {
+      trigger: event.trigger,
+      compacted: event.compacted,
+      estimatedTokensBefore: event.estimatedTokensBefore,
+      estimatedTokensAfter: event.estimatedTokensAfter,
+      warning: event.warning,
+    });
+  }
+}
+
 export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent {
   let currentSessionId: string | undefined;
   let currentAgentPromise: Promise<Agent> | undefined;
   let activeAbortController: AbortController | undefined;
+  let activeRunId: string | undefined;
   let activeRunStartedAt: string | undefined;
   let lane = Promise.resolve();
   let backgroundTaskLauncher: BackgroundTaskLauncher | undefined;
@@ -118,13 +146,29 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
       return enqueue(async () => {
         const agent = await getAgent(sessionId);
         const controller = new AbortController();
+        const runId = logContext.runId ?? randomUUID();
+        const runLogger = createLogger({
+          component: "agent",
+          sessionId,
+          runId,
+          source: logContext.source,
+          chatId: logContext.chatId,
+          userId: logContext.userId,
+          taskId: logContext.taskId,
+        });
+        const toolCallLogger = createToolCallLogger({ ...logContext, sessionId, runId });
+
         activeAbortController = controller;
+        activeRunId = runId;
         activeRunStartedAt = new Date().toISOString();
-        const toolCallLogger = createToolCallLogger(logContext);
+        runLogger.info("agent_run_started");
+
         try {
-          return await agent.runLoop(prompt, {
+          const result = await agent.runLoop(prompt, {
+            runId,
             onEvent(event) {
               toolCallLogger(event);
+              handleRunEvent(runLogger, event);
               options.onEvent?.(event);
             },
             signal: controller.signal,
@@ -138,9 +182,27 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
               background: backgroundTaskLauncher,
             },
           });
+
+          if (result.stopReason === "aborted") {
+            runLogger.warn("agent_run_aborted", { stopReason: result.stopReason });
+          } else if (result.stopReason === "error") {
+            runLogger.error("agent_run_completed", {
+              stopReason: result.stopReason,
+              errorMessage: result.errorMessage,
+            });
+          } else {
+            runLogger.info("agent_run_completed", { stopReason: result.stopReason });
+          }
+
+          return result;
+        } catch (error) {
+          const resolvedError = error instanceof Error ? error : new Error(String(error));
+          runLogger.error("agent_run_failed", { message: resolvedError.message, error: resolvedError });
+          throw resolvedError;
         } finally {
           if (activeAbortController === controller) {
             activeAbortController = undefined;
+            activeRunId = undefined;
             activeRunStartedAt = undefined;
           }
         }
@@ -177,6 +239,7 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
       return {
         provider: runtime.config.agent.provider ?? "unknown",
         modelId: runtime.config.agent.modelId ?? "unknown",
+        activeRunId,
         activeRunStartedAt,
       };
     },
@@ -196,11 +259,27 @@ export async function runPromptInDetachedSession(
   options: { sandboxSessionId?: string; signal?: AbortSignal } = {},
 ): Promise<AgentTurnResult & { sessionId: string }> {
   const session = await createNewSession(runtime.paths);
+  const runId = logContext.runId ?? randomUUID();
+  const logger = createLogger({
+    component: "agent",
+    sessionId: session.sessionId,
+    runId,
+    source: logContext.source,
+    chatId: logContext.chatId,
+    userId: logContext.userId,
+    taskId: logContext.taskId,
+  });
+  const toolCallLogger = createToolCallLogger({ ...logContext, sessionId: session.sessionId, runId });
   const agent = await Agent.createForSession(runtime, session.sessionId, { sandboxSessionId: options.sandboxSessionId });
 
   try {
+    logger.info("agent_run_started");
     const result = await agent.runLoop(prompt, {
-      onEvent: createToolCallLogger(logContext),
+      runId,
+      onEvent(event) {
+        toolCallLogger(event);
+        handleRunEvent(logger, event);
+      },
       signal: options.signal,
       toolContext: {
         channel: {
@@ -211,7 +290,23 @@ export async function runPromptInDetachedSession(
         },
       },
     });
+
+    if (result.stopReason === "aborted") {
+      logger.warn("agent_run_aborted", { stopReason: result.stopReason });
+    } else if (result.stopReason === "error") {
+      logger.error("agent_run_completed", {
+        stopReason: result.stopReason,
+        errorMessage: result.errorMessage,
+      });
+    } else {
+      logger.info("agent_run_completed", { stopReason: result.stopReason });
+    }
+
     return { ...result, sessionId: session.sessionId };
+  } catch (error) {
+    const resolvedError = error instanceof Error ? error : new Error(String(error));
+    logger.error("agent_run_failed", { message: resolvedError.message, error: resolvedError });
+    throw resolvedError;
   } finally {
     await agent.dispose();
   }

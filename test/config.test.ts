@@ -87,4 +87,16 @@ it("rejects agent.modelId values not listed for the configured provider", async 
   expect(() => loadRuntimeConfig()).toThrow(`agent.modelId must be listed in agent.availableModels.github-copilot.`);
 });
 
+it("rejects logging set to null", async () => {
+  await mockHome();
+
+  const configDir = join(home as string, ".mini-openclaw");
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, "config.json"), `${JSON.stringify({ logging: null }, null, 2)}\n`, "utf8");
+
+  const { loadRuntimeConfig } = await import("../src/core/config.js");
+
+  expect(() => loadRuntimeConfig()).toThrow("logging must be an object.");
+});
+
 

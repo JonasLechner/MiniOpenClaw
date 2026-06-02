@@ -40,6 +40,7 @@ function createRuntime(paths: RuntimePaths): RuntimeState {
         cpus: undefined,
         pidsLimit: undefined,
       },
+      logging: { level: "info" },
     },
     paths,
   };
@@ -112,13 +113,14 @@ describe("telegram commands", () => {
       runtime,
       binding,
       streamer: { sendText } as never,
-      getStatus: () => ({ provider: "openai", modelId: "gpt-test", activeRunStartedAt: "2026-05-31T10:00:00.000Z" }),
+      getStatus: () => ({ provider: "openai", modelId: "gpt-test", activeRunId: "run-1", activeRunStartedAt: "2026-05-31T10:00:00.000Z" }),
     });
 
     expect(result).toEqual({ handled: true });
     expect(sendText).toHaveBeenCalledWith("chat-1", [
       "Current session: session-1",
       "Model: openai/gpt-test",
+      "Active run id: run-1",
       "Active run since: 2026-05-31T10:00:00.000Z",
     ].join("\n"));
   });

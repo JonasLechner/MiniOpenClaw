@@ -8,6 +8,7 @@ import type { AgentEventSink } from "./agent-loop.js";
 
 export type ExecuteToolCallsContext = {
   sessionId: string;
+  runId: string;
   workspace: Workspace;
   sandbox: Sandbox;
   signal?: AbortSignal;
@@ -59,6 +60,7 @@ export async function executeAssistantToolCalls(
       await emit({
         type: "tool_execution_start",
         sessionId: context.sessionId,
+        runId: context.runId,
         toolCallId,
         toolName: call.name,
         args,
@@ -86,6 +88,7 @@ export async function executeAssistantToolCalls(
       await emit({
         type: "tool_execution_end",
         sessionId: context.sessionId,
+        runId: context.runId,
         toolCallId,
         toolName: call.name,
         result: toolResult,
@@ -104,6 +107,7 @@ export async function executeAssistantToolCalls(
       await emit({
         type: "tool_execution_end",
         sessionId: context.sessionId,
+        runId: context.runId,
         toolCallId,
         toolName: call.name,
         result: toolResult,

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { createLogger } from "../core/log.js";
+import type { RuntimeState } from "../core/runtime.js";
 import type { MainSessionAgent } from "../gateway/agent-runner.js";
 import { runPromptInDetachedSession } from "../gateway/agent-runner.js";
 import { logConversationMessage } from "../gateway/conversation-log.js";
-import type { RuntimeState } from "../core/runtime.js";
 import type { TelegramMessageStreamer } from "../transports/telegram/message-streamer.js";
 
 export type BackgroundTaskStatus = "queued" | "running" | "completed" | "failed" | "aborted";
@@ -155,6 +156,7 @@ export function createBackgroundTaskLauncher(
 ): BackgroundTaskLauncher {
   const enqueue = createLane();
   const tasks = new Map<string, BackgroundTaskRecord>();
+  const rootLogger = createLogger({ component: "background" });
 
   function pruneExpiredTasks(): void {
     const cutoff = Date.now() - COMPLETED_TASK_RETENTION_MS;
@@ -181,22 +183,29 @@ export function createBackgroundTaskLauncher(
         createdAt: new Date().toISOString(),
       };
       tasks.set(taskId, record);
+      const logger = rootLogger.child({ taskId, chatId: input.chatId, userId: input.userId, sessionId: input.parentSessionId });
+      logger.info("background_task_queued", { prompt: input.prompt });
 
       enqueue(input.parentSessionId, async () => {
         try {
           if (record.status === "aborted") {
+            logger.warn("background_task_aborted", { message: "Task was aborted before start." });
             return;
           }
 
           record.status = "running";
           record.startedAt = new Date().toISOString();
           record.abortController = new AbortController();
+          const runId = randomUUID();
+          logger.info("background_task_started", { runId, prompt: input.prompt });
 
           logConversationMessage({
             role: "user",
             source: "telegram-detached",
             chatId: input.chatId,
             userId: input.userId,
+            sessionId: input.parentSessionId,
+            runId,
             taskId,
             text: input.prompt,
           });
@@ -209,6 +218,8 @@ export function createBackgroundTaskLauncher(
                 source: "telegram-detached",
                 chatId: input.chatId,
                 userId: input.userId,
+                sessionId: input.parentSessionId,
+                runId,
                 taskId,
               },
               { sandboxSessionId: input.parentSessionId, signal: record.abortController.signal },
@@ -225,12 +236,20 @@ export function createBackgroundTaskLauncher(
               source: "telegram-detached",
               chatId: input.chatId,
               userId: input.userId,
+              sessionId: input.parentSessionId,
+              runId,
               taskId,
               stopReason: result.stopReason,
               text: resultText,
             });
 
             await publishBackgroundTaskCompletion(streamer, mainSessionAgent, record);
+            const level = record.status === "aborted" ? logger.warn : logger.info;
+            level(record.status === "aborted" ? "background_task_aborted" : "background_task_completed", {
+              runId,
+              detachedSessionId: result.sessionId,
+              stopReason: result.stopReason,
+            });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             const publishFailureMessage = record.status === "completed" || record.status === "aborted"
@@ -245,17 +264,21 @@ export function createBackgroundTaskLauncher(
               source: "telegram-detached",
               chatId: input.chatId,
               userId: input.userId,
+              sessionId: input.parentSessionId,
+              runId,
               taskId,
               stopReason: "error",
               text: `Background task ${taskId} failed: ${publishFailureMessage}`,
             });
 
             await publishBackgroundTaskFailure(streamer, mainSessionAgent, record);
+            logger.error("background_task_failed", { runId, message: publishFailureMessage, error: error instanceof Error ? error : undefined });
           } finally {
             record.abortController = undefined;
           }
         } catch (error) {
-          console.error(`background task ${taskId} failed at the async boundary:`, error);
+          const resolvedError = error instanceof Error ? error : new Error(String(error));
+          logger.error("background_task_async_boundary_failed", { message: resolvedError.message, error: resolvedError });
         }
       });
 
@@ -284,15 +307,19 @@ export function createBackgroundTaskLauncher(
         return { stopped: false, reason: `Unknown background task ${input.taskId}.` };
       }
 
+      const logger = rootLogger.child({ taskId: input.taskId, sessionId: input.parentSessionId, chatId: task.chatId, userId: task.userId });
+
       if (task.status === "queued") {
         task.status = "aborted";
         task.stopReason = "aborted";
         task.finishedAt = new Date().toISOString();
+        logger.warn("background_task_aborted", { message: "Stopped before start." });
         return { stopped: true, reason: `Stopped background task ${input.taskId}.` };
       }
 
       if (task.status === "running") {
         task.abortController?.abort();
+        logger.warn("background_task_stop_requested");
         return { stopped: true, reason: `Stopping background task ${input.taskId}…` };
       }
 

@@ -1,12 +1,12 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RuntimePaths } from "../src/core/config.js";
 import {
-  bindTelegramConversationToSession,
-  getTelegramConversationBindingByChatId,
-  resolveTelegramConversationBinding,
+  bindTelegramChatToSession,
+  requireTelegramBinding,
+  resolveTelegramBinding,
 } from "../src/core/conversation-bindings.js";
 import {
   createScheduledTask,
@@ -44,15 +44,18 @@ describe("gateway control-plane helpers", () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
 
-    const binding = await resolveTelegramConversationBinding(paths, "chat-1", "user-1");
+    const binding = await resolveTelegramBinding(paths, "chat-1", "user-1");
     expect(binding.sessionId).toBeTypeOf("string");
 
-    const updated = await bindTelegramConversationToSession(paths, "chat-1", "user-1", "session-2");
+    const sameChatDifferentUser = await resolveTelegramBinding(paths, "chat-1", "user-2");
+    expect(sameChatDifferentUser.sessionId).toBe(binding.sessionId);
+
+    const updated = await bindTelegramChatToSession(paths, "chat-1", "session-2", "user-1");
     expect(updated.sessionId).toBe("session-2");
 
-    const reloaded = await resolveTelegramConversationBinding(paths, "chat-1", "user-1");
+    const reloaded = await resolveTelegramBinding(paths, "chat-1", "user-2");
     expect(reloaded.sessionId).toBe("session-2");
-    expect((await getTelegramConversationBindingByChatId(paths, "chat-1")).sessionId).toBe("session-2");
+    expect((await requireTelegramBinding(paths, "chat-1")).sessionId).toBe("session-2");
   });
 
   it("keeps bindings from concurrent writes for different chats", async () => {
@@ -60,12 +63,36 @@ describe("gateway control-plane helpers", () => {
     roots.push(paths.home);
 
     await Promise.all([
-      bindTelegramConversationToSession(paths, "chat-1", "user-1", "session-1"),
-      bindTelegramConversationToSession(paths, "chat-2", "user-2", "session-2"),
+      bindTelegramChatToSession(paths, "chat-1", "session-1", "user-1"),
+      bindTelegramChatToSession(paths, "chat-2", "session-2", "user-2"),
     ]);
 
-    expect((await getTelegramConversationBindingByChatId(paths, "chat-1")).sessionId).toBe("session-1");
-    expect((await getTelegramConversationBindingByChatId(paths, "chat-2")).sessionId).toBe("session-2");
+    expect((await requireTelegramBinding(paths, "chat-1")).sessionId).toBe("session-1");
+    expect((await requireTelegramBinding(paths, "chat-2")).sessionId).toBe("session-2");
+  });
+
+  it("fails loudly on duplicate telegram chat bindings", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+
+    writeFileSync(paths.conversationBindings, JSON.stringify([
+      {
+        channel: "telegram",
+        chatId: "chat-1",
+        sessionId: "session-1",
+        createdAt: "now",
+        updatedAt: "now",
+      },
+      {
+        channel: "telegram",
+        chatId: "chat-1",
+        sessionId: "session-2",
+        createdAt: "later",
+        updatedAt: "later",
+      },
+    ], null, 2));
+
+    await expect(requireTelegramBinding(paths, "chat-1")).rejects.toThrow("Multiple Telegram conversation bindings found for chat chat-1.");
   });
 
   it("matches basic cron expressions", () => {

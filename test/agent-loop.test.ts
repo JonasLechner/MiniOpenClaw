@@ -241,6 +241,7 @@ beforeEach(() => {
         cpus: undefined,
         pidsLimit: undefined,
       },
+      logging: { level: "info" },
     },
     paths,
   });

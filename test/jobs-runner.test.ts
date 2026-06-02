@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const getTelegramConversationBindingByChatIdMock = vi.fn();
+const requireTelegramBindingMock = vi.fn();
 const runPromptInDetachedSessionMock = vi.fn();
 
 vi.mock("../src/core/conversation-bindings.js", () => ({
-  getTelegramConversationBindingByChatId: getTelegramConversationBindingByChatIdMock,
+  requireTelegramBinding: requireTelegramBindingMock,
 }));
 
 vi.mock("../src/gateway/agent-runner.js", () => ({
@@ -17,7 +17,7 @@ afterEach(() => {
 
 describe("runScheduledTask", () => {
   it("uses the current main session binding for main-session prompt jobs", async () => {
-    getTelegramConversationBindingByChatIdMock.mockResolvedValue({ sessionId: "session-current" });
+    requireTelegramBindingMock.mockResolvedValue({ sessionId: "session-current" });
 
     const { runScheduledTask } = await import("../src/jobs/runner.js");
     const streamer = { sendText: vi.fn(async () => {}) };
@@ -39,18 +39,20 @@ describe("runScheduledTask", () => {
       updatedAt: "now",
     }, mainSessionAgent as never);
 
-    expect(getTelegramConversationBindingByChatIdMock).toHaveBeenCalledWith({}, "chat-1");
-    expect(mainSessionAgent.runPrompt).toHaveBeenCalledWith("session-current", "hello", {
+    expect(requireTelegramBindingMock).toHaveBeenCalledWith({}, "chat-1");
+    expect(mainSessionAgent.runPrompt).toHaveBeenCalledWith("session-current", "hello", expect.objectContaining({
       source: "scheduled-main-session",
       chatId: "chat-1",
+      sessionId: "session-current",
       taskId: "job-1",
-    });
+      runId: expect.any(String),
+    }));
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "main reply");
   });
 
   it("uses a detached session with the current main session sandbox and injects the result into the main session", async () => {
     runPromptInDetachedSessionMock.mockResolvedValue({ text: "detached reply", stopReason: "stop" });
-    getTelegramConversationBindingByChatIdMock.mockResolvedValue({ sessionId: "session-current" });
+    requireTelegramBindingMock.mockResolvedValue({ sessionId: "session-current" });
 
     const { runScheduledTask } = await import("../src/jobs/runner.js");
     const streamer = { sendText: vi.fn(async () => {}) };
@@ -72,15 +74,17 @@ describe("runScheduledTask", () => {
       updatedAt: "now",
     }, mainSessionAgent as never);
 
-    expect(getTelegramConversationBindingByChatIdMock).toHaveBeenCalledWith({}, "chat-1");
+    expect(requireTelegramBindingMock).toHaveBeenCalledWith({}, "chat-1");
     expect(runPromptInDetachedSessionMock).toHaveBeenCalledWith(
       { paths: {} },
       "hello detached",
-      {
+      expect.objectContaining({
         source: "scheduled-detached",
         chatId: "chat-1",
+        sessionId: "session-current",
         taskId: "job-2",
-      },
+        runId: expect.any(String),
+      }),
       { sandboxSessionId: "session-current" },
     );
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "detached reply");

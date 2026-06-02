@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { ensureDir, ensureJsonFile, loadRuntimeConfig, type RuntimeConfig, type RuntimePaths } from "./config.js";
+import { configureLogging } from "./log.js";
 
 export type RuntimeState = RuntimeConfig;
 
@@ -32,6 +33,7 @@ export function ensureRuntimeFiles(paths: RuntimePaths): void {
 
 export function initializeRuntime(): RuntimeState {
   const runtime = loadRuntimeConfig();
+  configureLogging(runtime.config.logging.level);
   ensureRuntimeFiles(runtime.paths);
   return runtime;
 }
