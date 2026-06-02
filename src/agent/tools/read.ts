@@ -1,7 +1,5 @@
-import { promises as fs } from "fs";
 import { Type } from "@earendil-works/pi-ai";
-import { resolveWorkspacePath } from "./fs.js";
-import type { ToolDefinition } from "./types.js";
+import { requireToolContext, type ToolDefinition } from "./types.js";
 
 export interface ReadInput {
   path: string;
@@ -18,8 +16,8 @@ export const readTool: ToolDefinition<ReadInput, string> = {
     endLine: Type.Optional(Type.Number()),
   }),
   async run(input: ReadInput, context) {
-    const path = await resolveWorkspacePath(input.path, context);
-    const content = await fs.readFile(path, "utf8");
+    const toolContext = requireToolContext(context);
+    const content = await toolContext.workspace.readFile(input.path);
 
     if (input.startLine === undefined && input.endLine === undefined) {
       return content;

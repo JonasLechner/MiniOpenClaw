@@ -6,9 +6,10 @@ import { mkdtemp } from "node:fs/promises";
 import { test } from "vitest";
 import type { Sandbox } from "../src/lib/sandbox.js";
 import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
+import { createHostWorkspace } from "../src/lib/workspace/host-workspace.js";
 import { bashTool } from "../src/agent/tools/index.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
+const toolContext = (workspacePath: string) => ({ workspace: createHostWorkspace(workspacePath), sandbox: new HostSandbox(workspacePath) });
 
 async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-bash-"));
@@ -80,7 +81,7 @@ test("bashTool allows host execution when given host sandbox", async () => {
     const node = JSON.stringify(process.execPath);
     const result = await bashTool.run(
       { command: `${node} -e "process.stdout.write(process.cwd())"` },
-      { workspacePath: dir, sandbox: new HostSandbox(dir) },
+      { workspace: createHostWorkspace(dir), sandbox: new HostSandbox(dir) },
     );
 
     assert.equal(result.output, dir);
@@ -91,7 +92,7 @@ test("bashTool uses host execution when given host sandbox", async () => {
   const workspacePath = process.cwd();
   const result = await bashTool.run(
     { command: "echo hi" },
-    { workspacePath, sandbox: new HostSandbox(workspacePath) },
+    { workspace: createHostWorkspace(workspacePath), sandbox: new HostSandbox(workspacePath) },
   );
 
   assert.equal(result.output, "hi\n");
@@ -111,7 +112,7 @@ test("bashTool uses the provided sandbox when available", async () => {
 
   const result = await bashTool.run(
     { command: "echo hi", timeout: 3 },
-    { workspacePath: process.cwd(), sandbox },
+    { workspace: createHostWorkspace(process.cwd()), sandbox },
   );
 
   assert.equal(result.output, "sandbox-output");

@@ -1,7 +1,8 @@
 import { readTool, writeTool } from "../src/agent/tools/index.js";
 import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
+import { createHostWorkspace } from "../src/lib/workspace/host-workspace.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
+const toolContext = (workspacePath: string) => ({ workspace: createHostWorkspace(workspacePath), sandbox: new HostSandbox(workspacePath) });
 
 async function main(): Promise<void> {
   const writeResult = await writeTool.run({

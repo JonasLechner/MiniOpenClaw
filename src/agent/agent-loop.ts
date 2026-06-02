@@ -8,6 +8,7 @@ import {
   validateToolCall,
 } from "@earendil-works/pi-ai";
 import type { Sandbox } from "../lib/sandbox.js";
+import type { Workspace } from "../lib/workspace.js";
 import { createAgentContext } from "../lib/agent-context.js";
 import { getAssistantVisibleText } from "../lib/messages.js";
 import { exposedTools, toolMap } from "./tools/index.js";
@@ -23,7 +24,7 @@ export type AgentLoopContext = {
   messages: Message[];
   model: unknown;
   apiKey: string;
-  workspacePath: string;
+  workspace: Workspace;
   sandbox: Sandbox;
   reasoning?: string;
 };
@@ -117,7 +118,7 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
           });
 
           const toolContext: ToolRunContext = {
-            workspacePath: context.workspacePath,
+            workspace: context.workspace,
             sandbox: context.sandbox,
           };
 

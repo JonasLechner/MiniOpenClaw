@@ -5,8 +5,9 @@ import { join } from "path";
 import { test } from "vitest";
 import { globTool } from "../src/agent/tools/index.js";
 import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
+import { createHostWorkspace } from "../src/lib/workspace/host-workspace.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
+const toolContext = (workspacePath: string) => ({ workspace: createHostWorkspace(workspacePath), sandbox: new HostSandbox(workspacePath) });
 
 test("globTool finds files with recursive glob", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-glob-"));

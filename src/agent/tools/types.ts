@@ -1,8 +1,9 @@
 import type { Tool as PiTool } from "@earendil-works/pi-ai";
 import type { Sandbox } from "../../lib/sandbox.js";
+import type { Workspace } from "../../lib/workspace.js";
 
 export interface ToolRunContext {
-  workspacePath: string;
+  workspace: Workspace;
   sandbox: Sandbox;
 }
 

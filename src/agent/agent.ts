@@ -2,6 +2,8 @@ import { buildSystemPrompt } from "../lib/agent-context.js";
 import type { Sandbox, SandboxFactory } from "../lib/sandbox.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../lib/sandbox/factory.js";
 import { initializeRuntime, type RuntimeState } from "../lib/runtime.js";
+import type { Workspace } from "../lib/workspace.js";
+import { createHostWorkspace } from "../lib/workspace/host-workspace.js";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
@@ -32,6 +34,7 @@ export class Agent {
   #systemPrompt: string;
   #reasoning: string | undefined;
   #sandboxFactory: SandboxFactory;
+  #workspace: Workspace;
   #sandbox: Sandbox | undefined;
   #listeners = new Set<AgentEventListener>();
 
@@ -51,6 +54,7 @@ export class Agent {
     this.#systemPrompt = systemPrompt;
     this.#reasoning = runtime.config.agent.reasoning;
     this.#sandboxFactory = sandboxFactory;
+    this.#workspace = createHostWorkspace(runtime.paths.workspace);
   }
 
   static async create(): Promise<Agent> {
@@ -92,7 +96,7 @@ export class Agent {
         messages: getSessionMessages(this.#session),
         model: this.#model,
         apiKey: this.#apiKey,
-        workspacePath: this.#runtimePaths.workspace,
+        workspace: this.#workspace,
         sandbox: this.#getSandbox(),
         reasoning: this.#reasoning,
       }, (event) => this.#emit(event, options?.onEvent));

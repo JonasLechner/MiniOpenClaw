@@ -1,7 +1,6 @@
-import { promises as fs } from "fs";
 import { Type } from "@earendil-works/pi-ai";
 import { resolveWorkspacePath } from "./fs.js";
-import type { ToolDefinition } from "./types.js";
+import { requireToolContext, type ToolDefinition } from "./types.js";
 
 export interface EditInput {
   path: string;
@@ -33,8 +32,9 @@ export const editTool: ToolDefinition<EditInput, EditOutput> = {
       throw new Error("startLine must be less than or equal to endLine");
     }
 
-    const path = await resolveWorkspacePath(input.path, context);
-    const content = await fs.readFile(path, "utf8");
+    const toolContext = requireToolContext(context);
+    const path = await resolveWorkspacePath(input.path, toolContext);
+    const content = await toolContext.workspace.readFile(input.path);
     const newline = content.includes("\r\n") ? "\r\n" : "\n";
     const hasTrailingNewline = /\r?\n$/.test(content);
     const lines = content.split(/\r?\n/);
@@ -59,7 +59,7 @@ export const editTool: ToolDefinition<EditInput, EditOutput> = {
       updatedContent += newline;
     }
 
-    await fs.writeFile(path, updatedContent, "utf8");
+    await toolContext.workspace.writeFile(input.path, updatedContent);
 
     return {
       path,

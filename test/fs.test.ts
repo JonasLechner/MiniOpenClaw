@@ -6,8 +6,9 @@ import { test } from "vitest";
 import { editTool, globTool, grepTool, readTool, writeTool } from "../src/agent/tools/index.js";
 import { isWithinWorkspacePath } from "../src/agent/tools/fs.js";
 import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
+import { createHostWorkspace } from "../src/lib/workspace/host-workspace.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
+const toolContext = (workspacePath: string) => ({ workspace: createHostWorkspace(workspacePath), sandbox: new HostSandbox(workspacePath) });
 
 interface SandboxFixture {
   root: string;
