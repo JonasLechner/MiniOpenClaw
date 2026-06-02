@@ -5,6 +5,7 @@ const createForSessionMock = vi.fn();
 const createNewSessionMock = vi.fn(async () => ({ sessionId: "detached-session" }));
 const disposeMock = vi.fn(async () => {});
 const appendUserMessageMock = vi.fn(async () => {});
+const compactSessionMock = vi.fn(async () => ({ compacted: true, estimatedTokensBefore: 100_000, estimatedTokensAfter: 25_000 }));
 const runLoopMock = vi.fn(async (prompt: string) => ({ text: `reply:${prompt}`, stopReason: "stop" }));
 
 vi.mock("../src/agent/agent.js", () => ({
@@ -19,11 +20,12 @@ vi.mock("../src/core/sessions.js", () => ({
 
 afterEach(() => {
   vi.clearAllMocks();
+  compactSessionMock.mockResolvedValue({ compacted: true, estimatedTokensBefore: 100_000, estimatedTokensAfter: 25_000 });
 });
 
 describe("gateway agent runner", () => {
   it("reuses the same in-memory agent for repeated prompts in one session", async () => {
-    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
 
     const runtime = { paths: {} } as never;
     const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
@@ -38,7 +40,7 @@ describe("gateway agent runner", () => {
   });
 
   it("swaps the live agent when the session changes", async () => {
-    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
 
     const runtime = { paths: {} } as never;
     const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
@@ -62,7 +64,7 @@ describe("gateway agent runner", () => {
         releaseRunLoop = () => resolve({ text: "Stopped.", stopReason: "aborted" });
       });
     });
-    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
 
     const runtime = { paths: {} } as never;
     const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
@@ -85,7 +87,7 @@ describe("gateway agent runner", () => {
     runLoopMock.mockImplementationOnce(() => new Promise((resolve) => {
       releaseRunLoop = () => resolve({ text: "done", stopReason: "stop" });
     }));
-    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
 
     const runtime = { paths: {} } as never;
     const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
@@ -106,7 +108,7 @@ describe("gateway agent runner", () => {
   });
 
   it("disposes detached session agents after each run", async () => {
-    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
 
     const runtime = { paths: {} } as unknown as RuntimeState;
     const { runPromptInDetachedSession } = await import("../src/gateway/agent-runner.js");
@@ -119,8 +121,19 @@ describe("gateway agent runner", () => {
     expect(disposeMock).toHaveBeenCalledTimes(1);
   });
 
+  it("can compact the current session through the shared agent lane", async () => {
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
+
+    const runtime = { paths: {} } as never;
+    const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
+    const mainSessionAgent = createMainSessionAgent(runtime);
+
+    await expect(mainSessionAgent.compactSession("session-1")).resolves.toMatchObject({ compacted: true, estimatedTokensAfter: 25_000 });
+    expect(compactSessionMock).toHaveBeenCalledWith("manual", true);
+  });
+
   it("can run detached sessions against the main session sandbox", async () => {
-    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
 
     const runtime = { paths: {} } as unknown as RuntimeState;
     const { runPromptInDetachedSession } = await import("../src/gateway/agent-runner.js");

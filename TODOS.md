@@ -8,9 +8,10 @@
 # later
 - Agent loop rework
 - Add voice support
-- Subagents tool
 - Configurable toolset/models for subagents/crons
 - Prune telegram attachments
+- Session compaction (see `docs/compaction-draft.md`)
+- Clarify sandbox scoping semantics: should sessions always share one sandbox, or remain session-scoped by default?
 
 
 # maybe

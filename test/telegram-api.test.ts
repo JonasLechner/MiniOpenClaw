@@ -1,51 +1,47 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TelegramApiClient, TelegramApiError } from "../src/transports/telegram/api.js";
+import { TelegramApiClient } from "../src/transports/telegram/api.js";
 
 describe("TelegramApiClient", () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("fails with method and HTTP status context before JSON parsing in #request", async () => {
-    const json = vi.fn(async () => {
-      throw new Error("should not parse");
-    });
-    vi.stubGlobal("fetch", vi.fn(async () => ({
+  it("fails loudly on invalid JSON instead of normalizing it into a Telegram API error", async () => {
+    const parseError = new SyntaxError("Unexpected token < in JSON");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: false,
       status: 502,
-      json,
-    })));
+      json: async () => { throw parseError; },
+    } as unknown as Response);
 
-    const client = new TelegramApiClient("token");
+    const api = new TelegramApiClient("token");
 
-    await expect(client.sendMessage("chat-1", "hello")).rejects.toMatchObject({
-      name: "TelegramApiError",
-      method: "sendMessage",
-      httpStatus: 502,
-      description: "Telegram API sendMessage failed with HTTP 502.",
-    } satisfies Partial<TelegramApiError>);
-    expect(json).not.toHaveBeenCalled();
+    await expect(api.sendMessage("chat-1", "hello")).rejects.toMatchObject({
+      name: "Error",
+      message: "Telegram API sendMessage returned invalid JSON (HTTP 502).",
+      cause: parseError,
+    });
   });
 
-  it("fails with method and HTTP status context before JSON parsing in sendPhoto", async () => {
-    const json = vi.fn(async () => {
-      throw new Error("should not parse");
-    });
-    vi.stubGlobal("fetch", vi.fn(async () => ({
+  it("classifies message-not-modified from Telegram's JSON error payload even on HTTP 400", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: false,
-      status: 503,
-      json,
-    })));
+      status: 400,
+      json: async () => ({
+        ok: false,
+        error_code: 400,
+        description: "Bad Request: message is not modified",
+      }),
+    } as unknown as Response);
 
-    const client = new TelegramApiClient("token");
+    const api = new TelegramApiClient("token");
 
-    await expect(client.sendPhoto("chat-1", new Blob(["x"]), "x.txt")).rejects.toMatchObject({
+    await expect(api.editMessageText("chat-1", 1, "hello")).rejects.toMatchObject({
       name: "TelegramApiError",
-      method: "sendPhoto",
-      httpStatus: 503,
-      description: "Telegram API sendPhoto failed with HTTP 503.",
-    } satisfies Partial<TelegramApiError>);
-    expect(json).not.toHaveBeenCalled();
+      method: "editMessageText",
+      httpStatus: 400,
+      errorCode: 400,
+      reason: "message_not_modified",
+    });
   });
 });

@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimePaths } from "../src/core/config.js";
 import type { RuntimeState } from "../src/core/runtime.js";
-import type { TelegramCommandResult } from "../src/transports/telegram/commands.js";
+import type { TelegramCommandContext, TelegramCommandResult } from "../src/transports/telegram/commands.js";
 
 const resolveTelegramConversationBindingMock = vi.fn();
 const logConversationMessageMock = vi.fn();
-const handleTelegramCommandMock = vi.fn<() => Promise<TelegramCommandResult>>(async () => ({ handled: false }));
+const handleTelegramCommandMock = vi.fn<(text: string, context: TelegramCommandContext) => Promise<TelegramCommandResult>>(async () => ({ handled: false }));
 const createTelegramPollingMock = vi.fn();
 const setMyCommandsMock = vi.fn(async () => true);
 const getFileMock = vi.fn(async () => ({ file_unique_id: "unique-file", file_path: "photos/file.jpg" }));

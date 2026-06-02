@@ -37,6 +37,20 @@ export type ToolResultMessageEvent = SessionEventBase & {
   message: ToolResultMessage;
 };
 
+export type SessionCompactionEvent = SessionEventBase & {
+  type: "session_compaction";
+  summary: string;
+  firstKeptEventIndex: number;
+  estimatedTokensBefore: number;
+  estimatedTokensAfter: number;
+  trigger: "automatic" | "manual";
+  firstKeptMessage?: UserMessage | AssistantMessage;
+  details?: {
+    readFiles?: string[];
+    modifiedFiles?: string[];
+  };
+};
+
 export type SystemEvent = SessionEventBase & {
   type: "system";
   name: string;
@@ -53,6 +67,7 @@ export type SessionEvent =
   | UserMessageEvent
   | AssistantMessageEvent
   | ToolResultMessageEvent
+  | SessionCompactionEvent
   | SystemEvent
   | ErrorEvent;
 
@@ -85,8 +100,58 @@ function isContextMessageEvent(event: SessionEvent): event is UserMessageEvent |
   return event.type === "user_message" || event.type === "assistant_message" || event.type === "tool_result_message";
 }
 
+export function createSyntheticSummaryMessage(summary: string): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text: `Session summary:\n${summary}` }],
+    api: "compaction",
+    provider: "miniopenclaw",
+    model: "session-compaction",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "stop",
+    timestamp: Date.now(),
+  };
+}
+
+function normalizeCompactionBoundaryIndex(firstKeptEventIndex: number): number {
+  if (!Number.isFinite(firstKeptEventIndex) || firstKeptEventIndex < 0) {
+    throw new Error(`Invalid compaction boundary index: ${firstKeptEventIndex}`);
+  }
+
+  return Math.ceil(firstKeptEventIndex);
+}
+
+export function getLatestSessionCompactionEvent(session: Pick<Session, "events">): SessionCompactionEvent | undefined {
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index];
+    if (event?.type === "session_compaction") return event;
+  }
+
+  return undefined;
+}
+
 export function getSessionMessages(session: Pick<Session, "events">): Message[] {
-  return session.events.filter(isContextMessageEvent).map((event) => event.message);
+  const compaction = getLatestSessionCompactionEvent(session);
+  const firstKeptEventIndex = compaction ? normalizeCompactionBoundaryIndex(compaction.firstKeptEventIndex) : 0;
+  const messages = session.events
+    .slice(firstKeptEventIndex)
+    .filter(isContextMessageEvent)
+    .map((event) => event.message);
+
+  if (!compaction) return messages;
+
+  return [
+    createSyntheticSummaryMessage(compaction.summary),
+    ...(compaction.firstKeptMessage ? [compaction.firstKeptMessage] : []),
+    ...messages,
+  ];
 }
 
 async function ensureSessionsDir(paths: RuntimePaths): Promise<void> {
@@ -287,6 +352,21 @@ export async function appendToolResultMessageEvent(
     sessionId: session.sessionId,
     timestamp: new Date().toISOString(),
     message,
+  };
+
+  await appendSessionEvent(session, event);
+  return event;
+}
+
+export async function appendSessionCompactionEvent(
+  session: Session,
+  input: Omit<SessionCompactionEvent, "type" | "sessionId" | "timestamp">,
+): Promise<SessionCompactionEvent> {
+  const event: SessionCompactionEvent = {
+    type: "session_compaction",
+    sessionId: session.sessionId,
+    timestamp: new Date().toISOString(),
+    ...input,
   };
 
   await appendSessionEvent(session, event);

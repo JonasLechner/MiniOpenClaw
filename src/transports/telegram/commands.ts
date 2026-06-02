@@ -12,6 +12,7 @@ export type TelegramCommandContext = {
   stopActiveRun?: () => boolean;
   getStatus?: () => { provider: string; modelId: string; activeRunStartedAt?: string };
   backgroundTaskLauncher?: BackgroundTaskLauncher;
+  compactSession?: () => Promise<{ compacted: boolean; warning?: string; estimatedTokensBefore: number; estimatedTokensAfter?: number }>;
 };
 
 export type TelegramCommandResult =
@@ -24,6 +25,7 @@ export const TELEGRAM_BOT_COMMANDS = [
   { command: "bg", description: "Run a prompt in the background" },
   { command: "bglist", description: "List background tasks for this session" },
   { command: "bgstop", description: "Stop a background task" },
+  { command: "compact", description: "Compact the current session" },
   { command: "stop", description: "Abort the current run" },
 ] as const;
 
@@ -126,6 +128,22 @@ export async function handleTelegramCommand(
       taskId,
     });
     await context.streamer.sendText(context.binding.chatId, result.reason);
+    return { handled: true };
+  }
+
+  if (command === "/compact") {
+    if (!context.compactSession) {
+      throw new Error("Session compaction is unavailable.");
+    }
+
+    await context.streamer.sendText(context.binding.chatId, "Compacting...");
+    const result = await context.compactSession();
+    const message = result.compacted
+      ? `Compacted session ${context.binding.sessionId}: ~${result.estimatedTokensBefore} -> ~${result.estimatedTokensAfter ?? result.estimatedTokensBefore} estimated tokens.`
+      : result.warning
+        ? `Compaction skipped for session ${context.binding.sessionId}: ${result.warning}`
+        : `No compaction needed for session ${context.binding.sessionId} (~${result.estimatedTokensBefore} estimated tokens).`;
+    await context.streamer.sendText(context.binding.chatId, message);
     return { handled: true };
   }
 

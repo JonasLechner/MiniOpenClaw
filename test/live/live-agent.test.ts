@@ -81,7 +81,7 @@ beforeAll(() => {
   }
 
   if (!checkAuthAvailable(runtime)) {
-    throw new Error(`No configured auth found for provider \"${runtime.config.agent.provider}\". Run npm run auth or update ~/.mini-openclaw/auth.json before running npm run test:live.`);
+    throw new Error(`No configured auth found for provider "${runtime.config.agent.provider}". Run npm run auth or update ~/.mini-openclaw/auth.json before running npm run test:live.`);
   }
 });
 

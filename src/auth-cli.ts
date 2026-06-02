@@ -136,8 +136,10 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 const isEntrypoint = basename(process.argv[1] ?? "") === basename(fileURLToPath(import.meta.url));
 
 if (isEntrypoint) {
-  main().catch((error) => {
+  try {
+    await main();
+  } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
-  });
+  }
 }

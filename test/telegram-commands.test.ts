@@ -55,6 +55,7 @@ describe("telegram commands", () => {
       { command: "bg", description: "Run a prompt in the background" },
       { command: "bglist", description: "List background tasks for this session" },
       { command: "bgstop", description: "Stop a background task" },
+      { command: "compact", description: "Compact the current session" },
       { command: "stop", description: "Abort the current run" },
     ]);
     expect(TELEGRAM_BOT_COMMANDS.every(({ command }) => !command.startsWith("/"))).toBe(true);
@@ -216,6 +217,35 @@ describe("telegram commands", () => {
     expect(result).toEqual({ handled: true });
     expect(stopTask).toHaveBeenCalledWith({ parentSessionId: "session-1", taskId: "task-1" });
     expect(sendText).toHaveBeenCalledWith("chat-1", "Stopping background task task-1…");
+  });
+
+  it("compacts the current session with /compact", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+
+    const binding: ConversationBinding = {
+      channel: "telegram",
+      chatId: "chat-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sendText = vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {});
+    const compactSession = vi.fn(async () => ({ compacted: true, estimatedTokensBefore: 112000, estimatedTokensAfter: 28000 }));
+    const result = await handleTelegramCommand("/compact", {
+      runtime,
+      binding,
+      streamer: { sendText } as never,
+      compactSession,
+    });
+
+    expect(result).toEqual({ handled: true });
+    expect(compactSession).toHaveBeenCalledTimes(1);
+    expect(sendText).toHaveBeenNthCalledWith(1, "chat-1", "Compacting...");
+    expect(sendText).toHaveBeenNthCalledWith(2, "chat-1", "Compacted session session-1: ~112000 -> ~28000 estimated tokens.");
   });
 
   it("stops an active run", async () => {

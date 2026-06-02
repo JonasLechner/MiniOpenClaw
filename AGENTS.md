@@ -3,6 +3,8 @@
 ## Project
 **Work in progress — backwards compatibility is not important in this project.**
 
+Default agent workspace is `~/.mini-openclaw`. Contains session logs, config, memory, and other agent state.
+
 Minimal TypeScript project using `npm`.
 
 MiniOpenClaw is an always-on local personal-assistant backend. It should own runs, sessions, approvals, jobs, skills, and transports.

@@ -191,6 +191,8 @@ export class TelegramStreamingMessage {
         } catch (error) {
           retainedMessageIds.push(messageId);
           retainedRenderedChunks.push(renderedChunk ?? "");
+          this.#messageIds = retainedMessageIds;
+          this.#renderedChunks = retainedRenderedChunks;
           throw error;
         }
       }

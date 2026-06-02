@@ -76,14 +76,16 @@ export type TelegramBotCommand = {
 export class TelegramApiError extends Error {
   readonly method: string;
   readonly errorCode?: number;
+  readonly httpStatus?: number;
   readonly description?: string;
   readonly reason?: "message_not_modified";
 
-  constructor(method: string, options: { errorCode?: number; description?: string; reason?: "message_not_modified" } = {}) {
+  constructor(method: string, options: { errorCode?: number; httpStatus?: number; description?: string; reason?: "message_not_modified" } = {}) {
     super(options.description ?? `Telegram API ${method} failed.`);
     this.name = "TelegramApiError";
     this.method = method;
     this.errorCode = options.errorCode;
+    this.httpStatus = options.httpStatus;
     this.description = options.description;
     this.reason = options.reason;
   }
@@ -176,7 +178,7 @@ export class TelegramApiClient {
       signal,
     });
 
-    return assertTelegramApiResponse("sendPhoto", await response.json() as TelegramApiResponse<TelegramMessage>);
+    return await this.#parseTelegramResponse<TelegramMessage>("sendPhoto", response);
   }
 
   async getFile(fileId: string, signal?: AbortSignal): Promise<TelegramFile> {
@@ -201,6 +203,30 @@ export class TelegramApiClient {
       signal,
     });
 
-    return assertTelegramApiResponse(method, await response.json() as TelegramApiResponse<T>);
+    return await this.#parseTelegramResponse<T>(method, response);
+  }
+
+  async #parseTelegramResponse<T>(method: string, response: Response): Promise<T> {
+    let payload: TelegramApiResponse<T>;
+
+    try {
+      payload = await response.json() as TelegramApiResponse<T>;
+    } catch (error) {
+      throw new Error(`Telegram API ${method} returned invalid JSON (HTTP ${response.status}).`, { cause: error });
+    }
+
+    try {
+      return assertTelegramApiResponse(method, payload);
+    } catch (error) {
+      if (error instanceof TelegramApiError) {
+        throw new TelegramApiError(method, {
+          errorCode: error.errorCode,
+          httpStatus: response.status,
+          description: error.description,
+          reason: error.reason,
+        });
+      }
+      throw error;
+    }
   }
 }

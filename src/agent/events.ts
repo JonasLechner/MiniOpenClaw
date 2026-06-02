@@ -35,6 +35,16 @@ export type AgentEvent =
       toolName: string;
       result: ToolResultMessage;
     }
+  | { type: "compaction_start"; sessionId: string; trigger: "automatic" | "manual" }
+  | {
+      type: "compaction_end";
+      sessionId: string;
+      trigger: "automatic" | "manual";
+      compacted: boolean;
+      estimatedTokensBefore: number;
+      estimatedTokensAfter?: number;
+      warning?: string;
+    }
   | { type: "turn_end"; sessionId: string; result: AgentTurnResult }
   | { type: "agent_end"; sessionId: string; result: AgentTurnResult }
   | { type: "agent_error"; sessionId: string; message: string; error: Error }

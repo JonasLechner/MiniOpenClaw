@@ -26,6 +26,7 @@ export type MainSessionAgent = {
   runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext, options?: RunPromptOptions): Promise<AgentTurnResult>;
   bindSession(sessionId: string): Promise<void>;
   appendUserMessage(sessionId: string, prompt: string): Promise<void>;
+  compactSession(sessionId: string): Promise<{ compacted: boolean; warning?: string; estimatedTokensBefore: number; estimatedTokensAfter?: number }>;
   setBackgroundTaskLauncher(backgroundTaskLauncher?: BackgroundTaskLauncher): void;
   stopActiveRun(): boolean;
   getStatus(): MainSessionAgentStatus;
@@ -154,6 +155,12 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
       return enqueue(async () => {
         const agent = await getAgent(sessionId);
         await agent.appendUserMessage(prompt);
+      });
+    },
+    compactSession(sessionId: string): Promise<{ compacted: boolean; warning?: string; estimatedTokensBefore: number; estimatedTokensAfter?: number }> {
+      return enqueue(async () => {
+        const agent = await getAgent(sessionId);
+        return agent.compactSession("manual", true);
       });
     },
     setBackgroundTaskLauncher(nextBackgroundTaskLauncher?: BackgroundTaskLauncher): void {

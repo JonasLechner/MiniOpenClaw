@@ -8,6 +8,7 @@ import type { RuntimePaths } from "../src/core/config.js";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
+  appendSessionCompactionEvent,
   appendToolResultMessageEvent,
   appendUserMessageEvent,
   createNewSession,
@@ -138,6 +139,61 @@ describe("sessions", () => {
     expect(context.messages[0]?.content).toMatch(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] hello$/);
     expect(context.messages[1]).toMatchObject({ role: "assistant", stopReason: "stop" });
     expect(context.messages[2]).toMatchObject({ role: "toolResult", toolCallId: "call_123", toolName: "bash" });
+  });
+
+  it("reconstructs context from the latest compaction boundary", async () => {
+    const paths = createRuntimePaths();
+    tempRoots.push(paths.home);
+    const session = await ensureCurrentSession(paths);
+
+    await appendUserMessageEvent(session, "first");
+    const assistant = createAssistantMessage();
+    assistant.content = [{ type: "text", text: "intermediate" }];
+    await appendAssistantMessageEvent(session, assistant);
+    await appendUserMessageEvent(session, "latest");
+    await appendSessionCompactionEvent(session, {
+      summary: "goal: keep working",
+      firstKeptEventIndex: 3,
+      estimatedTokensBefore: 50000,
+      estimatedTokensAfter: 8000,
+      trigger: "automatic",
+    });
+
+    const messages = getSessionMessages(session);
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({ role: "assistant", provider: "miniopenclaw", model: "session-compaction" });
+    expect(messages[1]).toMatchObject({ role: "user" });
+    expect(messages[1]?.content).toMatch(/latest$/);
+  });
+
+  it("lets the latest compaction event win", async () => {
+    const paths = createRuntimePaths();
+    tempRoots.push(paths.home);
+    const session = await ensureCurrentSession(paths);
+
+    await appendUserMessageEvent(session, "first");
+    await appendUserMessageEvent(session, "second");
+    await appendUserMessageEvent(session, "third");
+    await appendSessionCompactionEvent(session, {
+      summary: "older summary",
+      firstKeptEventIndex: 1,
+      estimatedTokensBefore: 40000,
+      estimatedTokensAfter: 12000,
+      trigger: "automatic",
+    });
+    await appendSessionCompactionEvent(session, {
+      summary: "newer summary",
+      firstKeptEventIndex: 3,
+      estimatedTokensBefore: 30000,
+      estimatedTokensAfter: 9000,
+      trigger: "automatic",
+    });
+
+    const messages = getSessionMessages(session);
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({ role: "assistant" });
+    expect(messages[0]?.content).toMatchObject([{ type: "text", text: expect.stringContaining("newer summary") }]);
+    expect(messages[1]?.content).toMatch(/third$/);
   });
 
   it("uses the most recently updated session as current and lists sessions in that order", async () => {

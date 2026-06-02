@@ -132,6 +132,7 @@ export function buildTelegramGatewayApp(
       stopActiveRun: () => mainSessionAgent.stopActiveRun(),
       getStatus: () => mainSessionAgent.getStatus(),
       backgroundTaskLauncher,
+      compactSession: () => mainSessionAgent.compactSession(binding.sessionId),
     });
     if (commandResult.handled) {
       if (commandResult.sessionId) {
@@ -156,6 +157,10 @@ export function buildTelegramGatewayApp(
         userId,
       }, {
         onEvent(event) {
+          if (event.type === "compaction_start") {
+            stream.append("Compacting...\n\n");
+            return;
+          }
           if (event.type === "message_delta") {
             stream.append(event.delta);
           }

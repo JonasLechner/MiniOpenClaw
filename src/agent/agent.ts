@@ -1,4 +1,5 @@
 import { buildSystemPrompt } from "../core/agent-context.js";
+import { estimateSessionContextTokens, maybeCompactSession, type CompactionResult } from "../core/compaction.js";
 import type { Sandbox, SandboxFactory } from "../sandbox/sandbox.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
@@ -125,14 +126,27 @@ export class Agent {
     await appendUserMessageEvent(this.#session, prompt);
   }
 
+  async compactSession(trigger: "automatic" | "manual", force = false): Promise<CompactionResult> {
+    await this.#refreshApiKey();
+    return this.#runCompaction({ trigger, force });
+  }
+
   async runLoop(prompt: string, options?: PromptOptions): Promise<AgentTurnResult> {
     const sessionId = this.#session.sessionId;
     const userEvent = await appendUserMessageEvent(this.#session, prompt);
+    const protectedEventIndex = this.#session.events.length - 1; // Protect only the current user prompt from pre-loop compaction.
 
     try {
-      const auth = await resolveAgentAuth(this.#runtime);
-      this.#model = auth.model;
-      this.#apiKey = auth.apiKey;
+      await this.#refreshApiKey();
+
+      const compaction = await this.#runCompaction({
+        trigger: "automatic",
+        protectedEventIndex,
+        transient: options?.onEvent,
+      });
+      if (compaction.warning) {
+        console.warn(`Session compaction warning for ${sessionId}: ${compaction.warning}`);
+      }
 
       const loopResult = await runAgentLoop({
         sessionId,
@@ -179,6 +193,68 @@ export class Agent {
         options?.onEvent,
       );
       throw resolvedError;
+    }
+  }
+
+  async #refreshApiKey(): Promise<void> {
+    const auth = await resolveAgentAuth(this.#runtime);
+    this.#apiKey = auth.apiKey;
+  }
+
+  async #runCompaction({
+    trigger,
+    force = false,
+    protectedEventIndex,
+    transient,
+  }: {
+    trigger: "automatic" | "manual";
+    force?: boolean;
+    protectedEventIndex?: number;
+    transient?: AgentEventListener;
+  }): Promise<CompactionResult> {
+    const sessionId = this.#session.sessionId;
+    let started = false;
+
+    try {
+      const result = await maybeCompactSession({
+        model: this.#model,
+        apiKey: this.#apiKey,
+        session: this.#session,
+        trigger,
+        force,
+        protectedEventIndex,
+        onCompacting: () => {
+          if (started) return;
+          started = true;
+          this.#emit({ type: "compaction_start", sessionId, trigger }, transient);
+        },
+      });
+
+      if (started) {
+        this.#emit({
+          type: "compaction_end",
+          sessionId,
+          trigger,
+          compacted: result.compacted,
+          estimatedTokensBefore: result.estimatedTokensBefore,
+          estimatedTokensAfter: result.estimatedTokensAfter,
+          warning: result.warning,
+        }, transient);
+      }
+
+      return result;
+    } catch (error) {
+      if (started) {
+        this.#emit({
+          type: "compaction_end",
+          sessionId,
+          trigger,
+          compacted: false,
+          estimatedTokensBefore: estimateSessionContextTokens(this.#session),
+          warning: error instanceof Error ? error.message : String(error),
+        }, transient);
+      }
+      throw error;
     }
   }
 
