@@ -7,13 +7,13 @@ import type { RuntimePaths } from "../src/lib/config.js";
 import type { RuntimeState } from "../src/lib/runtime.js";
 import { getSessionById, listSessions } from "../src/lib/sessions.js";
 
-const streamMock = vi.fn();
+const streamSimpleMock = vi.fn();
 const completeMock = vi.fn();
 const runtimeStateMock = vi.fn<() => RuntimeState>();
 const resolveAgentAuthMock = vi.fn();
 
 vi.mock("@earendil-works/pi-ai", () => ({
-  stream: streamMock,
+  streamSimple: streamSimpleMock,
   complete: completeMock,
   validateToolCall: vi.fn(),
   Type: {
@@ -136,7 +136,7 @@ beforeEach(() => {
     model: { provider: "openai", id: "gpt-test" },
     apiKey: "test-key",
   });
-  streamMock.mockImplementation(() => createFakeEventStream());
+  streamSimpleMock.mockImplementation(() => createFakeEventStream());
   completeMock.mockResolvedValue(
     createAssistantTextResponse(
       '{"summary":"User prefers concise answers and cares about lint-related workflow.","keywords":["memory","lint","preference"]}',
@@ -203,7 +203,7 @@ describe("Agent", () => {
     const { Agent } = await import("../src/agent/agent.js");
     const agent = await Agent.create();
 
-    streamMock.mockImplementationOnce(() => {
+    streamSimpleMock.mockImplementationOnce(() => {
       throw new Error("provider offline");
     });
 
@@ -265,7 +265,7 @@ describe("Agent", () => {
     await agent.runLoop("remember my lint preference");
     await agent.runLoop("what do you remember about my lint preference?");
 
-    const secondCall = streamMock.mock.calls[1];
+    const secondCall = streamSimpleMock.mock.calls[1];
     expect(secondCall).toBeDefined();
     const llmContext = secondCall?.[1] as { systemPrompt?: string };
     expect(llmContext.systemPrompt).toContain("Relevant memory retrieved for this turn:");

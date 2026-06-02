@@ -79,11 +79,11 @@ describe("sessions", () => {
     expect(JSON.parse(lines[0])).toMatchObject({
       type: "session",
       version: SESSION_FORMAT_VERSION,
-      sessionId: session.header.sessionId,
+      sessionId: session.sessionId,
     });
     expect(JSON.parse(lines[1])).toMatchObject({
       type: "system",
-      sessionId: session.header.sessionId,
+      sessionId: session.sessionId,
       name: "session_created",
       details: { reason: "first_use" },
     });
@@ -98,7 +98,7 @@ describe("sessions", () => {
     await appendAssistantMessageEvent(session, createAssistantMessage());
     await appendErrorEvent(session, "boom", { code: "E_TEST" });
 
-    const persisted = await getSessionById(paths, session.header.sessionId);
+    const persisted = await getSessionById(paths, session.sessionId);
     expect(persisted).toBeDefined();
     expect(persisted?.events.map((event) => event.type)).toEqual([
       "system",
@@ -137,12 +137,12 @@ describe("sessions", () => {
     utimesSync(second.path, newerTime, newerTime);
 
     const current = await ensureCurrentSession(paths);
-    expect(current.header.sessionId).toBe(second.header.sessionId);
+    expect(current.sessionId).toBe(second.sessionId);
 
     const sessions = await listSessions(paths);
     expect(sessions.map((session) => session.sessionId)).toEqual([
-      second.header.sessionId,
-      first.header.sessionId,
+      second.sessionId,
+      first.sessionId,
     ]);
     expect(sessions[0]?.preview).toBe("newer");
   });

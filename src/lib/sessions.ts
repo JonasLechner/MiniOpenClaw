@@ -7,7 +7,7 @@ import { getAssistantThinkingBlocks, getAssistantVisibleText } from "./messages.
 
 export const SESSION_FORMAT_VERSION = 1;
 
-export type SessionHeader = {
+type SessionHeader = {
   type: "session";
   version: typeof SESSION_FORMAT_VERSION;
   sessionId: string;
@@ -46,8 +46,9 @@ export type ErrorEvent = SessionEventBase & {
 
 export type SessionEvent = UserMessageEvent | AssistantMessageEvent | SystemEvent | ErrorEvent;
 
-export type SessionRecord = {
-  header: SessionHeader;
+export type Session = {
+  sessionId: string;
+  createdAt: string;
   path: string;
   events: SessionEvent[];
   messages: Message[];
@@ -79,7 +80,17 @@ async function ensureSessionsDir(paths: RuntimePaths): Promise<void> {
   await mkdir(paths.sessions, { recursive: true });
 }
 
-async function parseSessionFile(path: string): Promise<SessionRecord | undefined> {
+function toSession(header: SessionHeader, path: string, events: SessionEvent[], messages: Message[]): Session {
+  return {
+    sessionId: header.sessionId,
+    createdAt: header.createdAt,
+    path,
+    events,
+    messages,
+  };
+}
+
+async function parseSessionFile(path: string): Promise<Session | undefined> {
   let content: string;
 
   try {
@@ -111,7 +122,7 @@ async function parseSessionFile(path: string): Promise<SessionRecord | undefined
     }
   }
 
-  return { header, path, events, messages };
+  return toSession(header, path, events, messages);
 }
 
 async function getSessionFiles(paths: RuntimePaths): Promise<string[]> {
@@ -132,7 +143,15 @@ async function getSessionFiles(paths: RuntimePaths): Promise<string[]> {
   return stats.map((entry) => entry.path);
 }
 
-async function createSessionRecord(paths: RuntimePaths, details?: unknown): Promise<SessionRecord> {
+async function appendSessionEvent(session: Session, event: SessionEvent): Promise<void> {
+  await writeFile(session.path, `${JSON.stringify(event)}\n`, { encoding: "utf8", flag: "a" });
+  session.events.push(event);
+  if (isContextMessageEvent(event)) {
+    session.messages.push(event.message);
+  }
+}
+
+async function createSession(paths: RuntimePaths, details?: unknown): Promise<Session> {
   await ensureSessionsDir(paths);
 
   const createdAt = new Date().toISOString();
@@ -147,8 +166,8 @@ async function createSessionRecord(paths: RuntimePaths, details?: unknown): Prom
 
   await writeFile(path, `${JSON.stringify(header)}\n`, "utf8");
 
-  const record: SessionRecord = { header, path, events: [], messages: [] };
-  await appendSessionEvent(record, {
+  const session = toSession(header, path, [], []);
+  await appendSessionEvent(session, {
     type: "system",
     sessionId,
     timestamp: createdAt,
@@ -156,70 +175,58 @@ async function createSessionRecord(paths: RuntimePaths, details?: unknown): Prom
     details,
   });
 
-  return record;
+  return session;
 }
 
-export async function ensureCurrentSession(paths: RuntimePaths): Promise<SessionRecord> {
+export async function ensureCurrentSession(paths: RuntimePaths): Promise<Session> {
   const mostRecentPath = (await getSessionFiles(paths))[0];
   if (!mostRecentPath) {
-    return createSessionRecord(paths, { reason: "first_use" });
+    return createSession(paths, { reason: "first_use" });
   }
 
-  const record = await parseSessionFile(mostRecentPath);
-  if (!record) {
-    return createSessionRecord(paths, { reason: "recovery_after_invalid_session" });
+  const session = await parseSessionFile(mostRecentPath);
+  if (!session) {
+    return createSession(paths, { reason: "recovery_after_invalid_session" });
   }
 
-  return record;
+  return session;
 }
 
-export async function createNewSession(paths: RuntimePaths): Promise<SessionRecord> {
-  return createSessionRecord(paths, { reason: "new_session" });
+export async function createNewSession(paths: RuntimePaths): Promise<Session> {
+  return createSession(paths, { reason: "new_session" });
 }
 
 export async function listSessions(paths: RuntimePaths): Promise<SessionSummary[]> {
   const sessionFiles = await getSessionFiles(paths);
-  const records = await Promise.all(sessionFiles.map((path) => parseSessionFile(path)));
+  const sessions = await Promise.all(sessionFiles.map((path) => parseSessionFile(path)));
 
   return Promise.all(
-    records.filter((record): record is SessionRecord => record !== undefined).map(async (record) => {
-      const stats = await stat(record.path);
-      const preview =
-        record.events.find((event) => event.type === "user_message")?.message.content ?? "(no user messages)";
+    sessions.filter((session): session is Session => session !== undefined).map(async (session) => {
+      const stats = await stat(session.path);
+      const preview = session.events.find((event) => event.type === "user_message")?.message.content ?? "(no user messages)";
 
       return {
-        sessionId: record.header.sessionId,
-        path: record.path,
-        createdAt: record.header.createdAt,
+        sessionId: session.sessionId,
+        path: session.path,
+        createdAt: session.createdAt,
         updatedAt: stats.mtime.toISOString(),
-        messageCount: record.messages.length,
+        messageCount: session.messages.length,
         preview: typeof preview === "string" ? preview : JSON.stringify(preview),
       };
     })
   );
 }
 
-export async function getSessionById(paths: RuntimePaths, sessionId: string): Promise<SessionRecord | undefined> {
+export async function getSessionById(paths: RuntimePaths, sessionId: string): Promise<Session | undefined> {
   for (const path of await getSessionFiles(paths)) {
-    const record = await parseSessionFile(path);
-    if (record?.header.sessionId === sessionId) return record;
+    const session = await parseSessionFile(path);
+    if (session?.sessionId === sessionId) return session;
   }
 
   return undefined;
 }
 
-export async function appendSessionEvent(record: SessionRecord, event: SessionEvent): Promise<void> {
-  await writeFile(record.path, `${JSON.stringify(event)}\n`, { encoding: "utf8", flag: "a" });
-  record.events.push(event);
-  if (isContextMessageEvent(event)) {
-    record.messages.push(event.message);
-  }
-}
-
-export async function appendUserMessageEvent(
-  record: SessionRecord,
-  prompt: string,
-): Promise<UserMessageEvent> {
+export async function appendUserMessageEvent(session: Session, prompt: string): Promise<UserMessageEvent> {
   const message: UserMessage = {
     role: "user",
     content: prompt,
@@ -227,41 +234,41 @@ export async function appendUserMessageEvent(
   };
   const event: UserMessageEvent = {
     type: "user_message",
-    sessionId: record.header.sessionId,
+    sessionId: session.sessionId,
     timestamp: new Date().toISOString(),
     message,
   };
 
-  await appendSessionEvent(record, event);
+  await appendSessionEvent(session, event);
   return event;
 }
 
 export async function appendAssistantMessageEvent(
-  record: SessionRecord,
+  session: Session,
   message: AssistantMessage,
 ): Promise<AssistantMessageEvent> {
   const event: AssistantMessageEvent = {
     type: "assistant_message",
-    sessionId: record.header.sessionId,
+    sessionId: session.sessionId,
     timestamp: new Date().toISOString(),
     message,
     visibleText: getAssistantVisibleText(message),
     thinking: getAssistantThinkingBlocks(message),
   };
 
-  await appendSessionEvent(record, event);
+  await appendSessionEvent(session, event);
   return event;
 }
 
-export async function appendErrorEvent(record: SessionRecord, message: string, details?: unknown): Promise<ErrorEvent> {
+export async function appendErrorEvent(session: Session, message: string, details?: unknown): Promise<ErrorEvent> {
   const event: ErrorEvent = {
     type: "error",
-    sessionId: record.header.sessionId,
+    sessionId: session.sessionId,
     timestamp: new Date().toISOString(),
     message,
     details,
   };
 
-  await appendSessionEvent(record, event);
+  await appendSessionEvent(session, event);
   return event;
 }

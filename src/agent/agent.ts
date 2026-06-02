@@ -7,7 +7,7 @@ import {
   appendUserMessageEvent,
   createNewSession,
   ensureCurrentSession,
-  type SessionRecord,
+  type Session,
 } from "../lib/sessions.js";
 import { resolveAgentAuth, type AgentAuth } from "./auth.js";
 import { runAgentLoop } from "./agent-loop.js";
@@ -24,12 +24,13 @@ export class Agent {
 
   #model: AgentAuth["model"];
   #apiKey: string;
-  #session: SessionRecord;
+  #session: Session;
   #runtimePaths: RuntimeState["paths"];
   #systemPrompt: string;
+  #reasoning: string | undefined;
   #listeners = new Set<AgentEventListener>();
 
-  private constructor(auth: AgentAuth, runtime: RuntimeState, session: SessionRecord, systemPrompt: string) {
+  private constructor(auth: AgentAuth, runtime: RuntimeState, session: Session, systemPrompt: string) {
     this.provider = auth.provider;
     this.modelId = auth.modelId;
     this.#model = auth.model;
@@ -37,6 +38,7 @@ export class Agent {
     this.#session = session;
     this.#runtimePaths = runtime.paths;
     this.#systemPrompt = systemPrompt;
+    this.#reasoning = runtime.config.agent?.reasoning;
   }
 
   static async create(): Promise<Agent> {
@@ -48,7 +50,7 @@ export class Agent {
   }
 
   get sessionId(): string {
-    return this.#session.header.sessionId;
+    return this.#session.sessionId;
   }
 
   onEvent(listener: AgentEventListener): () => void {
@@ -59,12 +61,12 @@ export class Agent {
   async newSession(): Promise<{ sessionId: string }> {
     const nextSession = await createNewSession(this.#runtimePaths);
     this.#switchSession(nextSession);
-    this.#emit({ type: "session_switched", sessionId: nextSession.header.sessionId });
-    return { sessionId: nextSession.header.sessionId };
+    this.#emit({ type: "session_switched", sessionId: nextSession.sessionId });
+    return { sessionId: nextSession.sessionId };
   }
 
   async runLoop(prompt: string, options?: PromptOptions): Promise<AgentTurnResult> {
-    const sessionId = this.#session.header.sessionId;
+    const sessionId = this.#session.sessionId;
     const userEvent = await appendUserMessageEvent(this.#session, prompt);
 
     try {
@@ -77,6 +79,7 @@ export class Agent {
           model: this.#model,
           apiKey: this.#apiKey,
           workspacePath: this.#runtimePaths.workspace,
+          reasoning: this.#reasoning,
         },
         (event) => this.#emit(event, options?.onEvent),
       );
@@ -105,7 +108,7 @@ export class Agent {
     }
   }
 
-  #switchSession(nextSession: SessionRecord): void {
+  #switchSession(nextSession: Session): void {
     this.#session = nextSession;
   }
 

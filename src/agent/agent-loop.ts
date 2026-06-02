@@ -1,4 +1,4 @@
-import { stream, type AssistantMessage, type Context, type Message, validateToolCall } from "@earendil-works/pi-ai";
+import { streamSimple, type AssistantMessage, type Context, type Message, type ThinkingLevel, validateToolCall } from "@earendil-works/pi-ai";
 import { createAgentContext } from "../lib/agent-context.js";
 import { getAssistantVisibleText } from "../lib/messages.js";
 import { exposedTools, toolMap } from "./tools/index.js";
@@ -14,6 +14,7 @@ export type AgentLoopContext = {
   model: unknown;
   apiKey: string;
   workspacePath: string;
+  reasoning?: string;
 };
 
 export type AgentLoopResult = {
@@ -31,7 +32,10 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
       tools: exposedTools,
     };
 
-    const eventStream = stream(context.model as Parameters<typeof stream>[0], llmContext, { apiKey: context.apiKey });
+    const eventStream = streamSimple(context.model as Parameters<typeof streamSimple>[0], llmContext, {
+      apiKey: context.apiKey,
+      reasoning: context.reasoning as ThinkingLevel | undefined,
+    });
 
     for await (const event of eventStream) {
       if (event.type === "text_start") {

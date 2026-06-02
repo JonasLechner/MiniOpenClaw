@@ -1,16 +1,16 @@
-import type { SessionRecord } from "../lib/sessions.js";
+import type { Session } from "../lib/sessions.js";
 
 export type SessionResponse = {
   sessionId: string;
   createdAt: string;
   path: string;
-  events: SessionRecord["events"];
+  events: Session["events"];
 };
 
-export function toSessionResponse(session: SessionRecord): SessionResponse {
+export function toSessionResponse(session: Session): SessionResponse {
   return {
-    sessionId: session.header.sessionId,
-    createdAt: session.header.createdAt,
+    sessionId: session.sessionId,
+    createdAt: session.createdAt,
     path: session.path,
     events: session.events,
   };

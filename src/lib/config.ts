@@ -12,6 +12,7 @@ export type UserConfig = {
   agent?: {
     provider?: string;
     modelId?: string;
+    reasoning?: string;
   };
 };
 
@@ -96,6 +97,10 @@ function parseConfig(path: string): UserConfig {
     throw new Error(`Invalid config file at ${path}: agent.modelId must be a string.`);
   }
 
+  if (agent.reasoning !== undefined && typeof agent.reasoning !== "string") {
+    throw new Error(`Invalid config file at ${path}: agent.reasoning must be a string.`);
+  }
+
   return {
     workspacePath: config.workspacePath as string | undefined,
     gateway: {
@@ -105,6 +110,7 @@ function parseConfig(path: string): UserConfig {
     agent: {
       provider: agent.provider as string | undefined,
       modelId: agent.modelId as string | undefined,
+      reasoning: agent.reasoning as string | undefined,
     },
   };
 }

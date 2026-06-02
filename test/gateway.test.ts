@@ -73,10 +73,10 @@ describe("gateway session endpoints", () => {
     const listPayload = listResponse.json();
     expect(listPayload.sessions).toHaveLength(2);
 
-    const eventsResponse = await app.inject({ method: "GET", url: `/sessions/${first.header.sessionId}/events` });
+    const eventsResponse = await app.inject({ method: "GET", url: `/sessions/${first.sessionId}/events` });
     expect(eventsResponse.statusCode).toBe(200);
     const eventsPayload = eventsResponse.json();
-    expect(eventsPayload.sessionId).toBe(first.header.sessionId);
+    expect(eventsPayload.sessionId).toBe(first.sessionId);
     expect(eventsPayload.events.some((event: { type: string }) => event.type === "user_message")).toBe(true);
 
     const missingResponse = await app.inject({ method: "GET", url: "/sessions/missing/events" });

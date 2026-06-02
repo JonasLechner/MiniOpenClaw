@@ -1,5 +1,6 @@
 import { toPiTool, type ToolDefinition } from "./types.js";
 
+export { bashTool } from "./bash.js";
 export { editTool } from "./edit.js";
 export { globTool } from "./glob.js";
 export { grepTool } from "./grep.js";
@@ -8,6 +9,7 @@ export { webFetchTool } from "./webfetch.js";
 export { webSearchTool } from "./websearch.js";
 export { writeTool } from "./write.js";
 
+import { bashTool } from "./bash.js";
 import { editTool } from "./edit.js";
 import { globTool } from "./glob.js";
 import { grepTool } from "./grep.js";
@@ -16,7 +18,7 @@ import { webFetchTool } from "./webfetch.js";
 import { webSearchTool } from "./websearch.js";
 import { writeTool } from "./write.js";
 
-const registeredTools = [readTool, writeTool, editTool, grepTool, globTool, webSearchTool, webFetchTool] as const;
+const registeredTools = [readTool, writeTool, editTool, grepTool, globTool, bashTool, webSearchTool, webFetchTool] as const;
 
 type RegisteredTool = (typeof registeredTools)[number];
 
