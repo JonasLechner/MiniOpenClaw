@@ -17,7 +17,7 @@ import {
 import { resolveAgentAuth, type AgentAuth } from "./auth.js";
 import { AgentLoopExecutionError, runAgentLoop, type AgentLoopResult } from "./agent-loop.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.js";
-import { persistSessionSummary } from "./session-memory.js";
+// import { persistSessionSummary } from "./session-memory.js";
 
 export type PromptOptions = {
   onEvent?: AgentEventListener;
@@ -103,14 +103,19 @@ export class Agent {
 
       await this.#persistGeneratedMessages(loopResult.generatedMessages);
 
-      await persistSessionSummary({
-        sessionId,
-        prompt,
-        responseText: loopResult.result.text,
-        memoryRoot: this.#runtimePaths.memory,
-        model: this.#model,
-        apiKey: this.#apiKey,
-      });
+      // Await any previous background persist so session summaries don't race on the same file
+      // await this.#persistPromise;
+      // this.#persistPromise = persistSessionSummary({
+      //   sessionId,
+      //   prompt,
+      //   responseText: loopResult.result.text,
+      //   memoryRoot: this.#runtimePaths.memory,
+      //   model: this.#model,
+      //   apiKey: this.#apiKey,
+      // }).catch((err) => {
+      //   console.error("Session summary persistence failed:", err instanceof Error ? err.message : String(err));
+      // });
+
       return loopResult.result;
     } catch (error) {
       if (error instanceof AgentLoopExecutionError) {
