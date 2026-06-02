@@ -23,6 +23,13 @@ import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.j
 export type PromptOptions = {
   onEvent?: AgentEventListener;
   signal?: AbortSignal;
+  toolContext?: {
+    channel?: {
+      source: string;
+      chatId: string;
+      userId?: string;
+    };
+  };
 };
 
 export type AgentCreateOptions = {
@@ -130,6 +137,7 @@ export class Agent {
         sandbox: this.#getSandbox(),
         reasoning: this.#reasoning,
         signal: options?.signal,
+        toolContext: options?.toolContext,
       }, (event) => this.#emit(event, options?.onEvent));
 
       await this.#persistGeneratedMessages(loopResult.generatedMessages);

@@ -28,6 +28,7 @@ export type AgentLoopContext = {
   sandbox: Sandbox;
   reasoning?: string;
   signal?: AbortSignal;
+  toolContext?: Pick<ToolRunContext, "channel">;
 };
 
 export type AgentLoopResult = {
@@ -186,6 +187,7 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
             workspace: context.workspace,
             sandbox: context.sandbox,
             signal: context.signal,
+            ...context.toolContext,
           };
 
           const runResult = normalizeToolResult(await tool.run(args as never, toolContext));

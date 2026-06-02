@@ -124,6 +124,13 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
               options.onEvent?.(event);
             },
             signal: controller.signal,
+            toolContext: {
+              channel: {
+                source: logContext.source,
+                chatId: logContext.chatId,
+                userId: logContext.userId,
+              },
+            },
           });
         } finally {
           if (activeAbortController === controller) {
@@ -177,7 +184,16 @@ export async function runPromptInDetachedSession(
   const agent = await Agent.createForSession(runtime, session.sessionId, { sandboxSessionId: options.sandboxSessionId });
 
   try {
-    return await agent.runLoop(prompt, { onEvent: createToolCallLogger(logContext) });
+    return await agent.runLoop(prompt, {
+      onEvent: createToolCallLogger(logContext),
+      toolContext: {
+        channel: {
+          source: logContext.source,
+          chatId: logContext.chatId,
+          userId: logContext.userId,
+        },
+      },
+    });
   } finally {
     await agent.dispose();
   }

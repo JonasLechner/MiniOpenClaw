@@ -6,6 +6,11 @@ export interface ToolRunContext {
   workspace: Workspace;
   sandbox: Sandbox;
   signal?: AbortSignal;
+  channel?: {
+    source: string;
+    chatId: string;
+    userId?: string;
+  };
 }
 
 export function requireToolContext(context?: ToolRunContext): ToolRunContext {

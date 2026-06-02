@@ -3,6 +3,7 @@ dist/
 dist-test/
 auth.json
 package-lock.json
+TODOS.md
 
 # Runtime memory contents (hybrid model)
 memory/index.json
