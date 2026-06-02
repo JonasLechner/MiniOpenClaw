@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { join, relative } from "path";
 import type { Workspace } from "../../core/workspace.js";
-import { resolveWorkspacePath } from "./fs.js";
+import { resolveWorkspacePath } from "./workspace-paths.js";
 import { requireToolContext, textToolResult, type ToolDefinition, type ToolRunResult } from "./types.js";
 import { truncateHead, truncationNotice, type TruncationDetails } from "./truncate.js";
 

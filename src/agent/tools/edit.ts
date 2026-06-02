@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
-import { resolveWorkspacePath } from "./fs.js";
+import { resolveWorkspacePath } from "./workspace-paths.js";
 import { requireToolContext, type ToolDefinition } from "./types.js";
 
 export interface EditInput {

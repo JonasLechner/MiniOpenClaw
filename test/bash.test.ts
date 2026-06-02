@@ -7,7 +7,7 @@ import { test } from "vitest";
 import type { Sandbox } from "../src/sandbox/sandbox.js";
 import { HostSandbox } from "../src/sandbox/host-sandbox.js";
 import { createHostWorkspace } from "../src/core/host-workspace.js";
-import { bashTool } from "../src/agent/tools/index.js";
+import { bashTool } from "../src/agent/tools/tool-registry.js";
 
 const toolContext = (workspacePath: string) => ({ workspace: createHostWorkspace(workspacePath), sandbox: new HostSandbox(workspacePath) });
 

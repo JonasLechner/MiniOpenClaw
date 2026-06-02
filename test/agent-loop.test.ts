@@ -1,13 +1,19 @@
-import { mkdtempSync, rmSync } from "node:fs";
-
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-
 import type { RuntimePaths } from "../src/core/config.js";
 import type { RuntimeState } from "../src/core/runtime.js";
 import { getSessionById, getSessionMessages, listSessions } from "../src/core/sessions.js";
+import {
+  expectSessionEventTypes,
+  expectToolResultsToMatchAssistantCalls,
+  getToolResultMessages,
+  getToolResultText,
+  loadOnlySession,
+} from "./helpers/session-assertions.js";
 
 const streamSimpleMock = vi.fn();
 const completeMock = vi.fn();
@@ -202,8 +208,22 @@ function createMultiToolUseEventStream(toolCalls: Array<{ id: string; name: stri
   };
 }
 
+function createAssistantDoneEventStream(text: string) {
+  const response = createAssistantTextResponse(text);
+
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { type: "done" as const, reason: "stop" as const, message: response };
+    },
+    async result() {
+      return response;
+    },
+  };
+}
+
 beforeEach(() => {
   paths = createRuntimePaths();
+  mkdirSync(paths.workspace, { recursive: true });
   runtimeStateMock.mockReturnValue({
     config: {
       gateway: {
@@ -301,6 +321,16 @@ describe("Agent", () => {
     expect(fresh.sessionId).not.toBe(firstSessionId);
     expect(sessions[0]?.sessionId).toBe(fresh.sessionId);
     expect(sessions[1]?.sessionId).toBe(firstSessionId);
+  });
+
+  it("re-resolves agent auth for each run so OAuth tokens can refresh when needed", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    await agent.runLoop("first prompt");
+    await agent.runLoop("second prompt");
+
+    expect(resolveAgentAuthMock).toHaveBeenCalledTimes(3);
   });
 
   it("resolves sandbox engine once during startup and builds the factory from it", async () => {
@@ -542,6 +572,151 @@ describe("Agent", () => {
       expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
       expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash" }),
     ]);
+  });
+
+  it("runs a real write workflow and persists filesystem plus session messages", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    streamSimpleMock
+      .mockImplementationOnce(() => createToolUseEventStream({
+        id: "call_write",
+        name: "write",
+        arguments: { path: "workflow.txt", content: "alpha\nbeta\n" },
+      }))
+      .mockImplementationOnce(() => createAssistantDoneEventStream("Wrote workflow.txt."));
+
+    const result = await agent.runLoop("create workflow file");
+
+    expect(result).toMatchObject({ text: "Wrote workflow.txt.", stopReason: "stop" });
+    expect(await readFile(join(paths.workspace, "workflow.txt"), "utf8")).toBe("alpha\nbeta\n");
+
+    const session = await loadOnlySession(paths);
+    const messages = getSessionMessages(session);
+    expect(messages).toEqual([
+      expect.objectContaining({ role: "user", content: expect.stringMatching(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] create workflow file$/) }),
+      expect.objectContaining({
+        role: "assistant",
+        stopReason: "toolUse",
+        content: [{ type: "toolCall", id: "call_write", name: "write", arguments: { path: "workflow.txt", content: "alpha\nbeta\n" } }],
+      }),
+      expect.objectContaining({
+        role: "toolResult",
+        toolCallId: "call_write",
+        toolName: "write",
+        isError: false,
+        content: [{ type: "text", text: JSON.stringify({ path: join(paths.workspace, "workflow.txt"), bytesWritten: 11 }, null, 2) }],
+      }),
+      expect.objectContaining({ role: "assistant", stopReason: "stop" }),
+    ]);
+    expectSessionEventTypes(session, ["system", "user_message", "assistant_message", "tool_result_message", "assistant_message"]);
+    expectToolResultsToMatchAssistantCalls(messages);
+  });
+
+  it("runs a real write-edit-read workflow and keeps tool results paired with tool calls", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    streamSimpleMock
+      .mockImplementationOnce(() => createToolUseEventStream({
+        id: "call_write",
+        name: "write",
+        arguments: { path: "workflow.txt", content: "alpha\nbeta\n" },
+      }))
+      .mockImplementationOnce(() => createToolUseEventStream({
+        id: "call_edit",
+        name: "edit",
+        arguments: { path: "workflow.txt", startLine: 2, endLine: 2, newText: "gamma" },
+      }))
+      .mockImplementationOnce(() => createToolUseEventStream({
+        id: "call_read",
+        name: "read",
+        arguments: { path: "workflow.txt" },
+      }))
+      .mockImplementationOnce(() => createAssistantDoneEventStream("Updated and verified workflow.txt."));
+
+    const result = await agent.runLoop("create, update, and verify workflow file");
+
+    expect(result).toMatchObject({ text: "Updated and verified workflow.txt.", stopReason: "stop" });
+    expect(await readFile(join(paths.workspace, "workflow.txt"), "utf8")).toBe("alpha\ngamma\n");
+
+    const session = await loadOnlySession(paths);
+    const messages = getSessionMessages(session);
+    const toolResults = getToolResultMessages(session);
+
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "toolResult",
+      "assistant",
+      "toolResult",
+      "assistant",
+      "toolResult",
+      "assistant",
+    ]);
+    expect(toolResults).toHaveLength(3);
+    expect(toolResults.map((message) => ({ toolCallId: message.toolCallId, toolName: message.toolName, isError: message.isError }))).toEqual([
+      { toolCallId: "call_write", toolName: "write", isError: false },
+      { toolCallId: "call_edit", toolName: "edit", isError: false },
+      { toolCallId: "call_read", toolName: "read", isError: false },
+    ]);
+    expect(getToolResultText(toolResults[2]!)).toBe("alpha\ngamma\n");
+    expectSessionEventTypes(session, [
+      "system",
+      "user_message",
+      "assistant_message",
+      "tool_result_message",
+      "assistant_message",
+      "tool_result_message",
+      "assistant_message",
+      "tool_result_message",
+      "assistant_message",
+    ]);
+    expectToolResultsToMatchAssistantCalls(messages);
+  });
+
+  it("persists tool errors from a real filesystem workflow and continues the loop", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    streamSimpleMock
+      .mockImplementationOnce(() => createToolUseEventStream({
+        id: "call_write",
+        name: "write",
+        arguments: { path: "workflow.txt", content: "alpha\nbeta\n" },
+      }))
+      .mockImplementationOnce(() => createToolUseEventStream({
+        id: "call_edit_error",
+        name: "edit",
+        arguments: { path: "workflow.txt", startLine: 4, endLine: 4, newText: "gamma" },
+      }))
+      .mockImplementationOnce(() => createAssistantDoneEventStream("Edit failed but the file stayed unchanged."));
+
+    const result = await agent.runLoop("create file and try an invalid edit");
+
+    expect(result).toMatchObject({ text: "Edit failed but the file stayed unchanged.", stopReason: "stop" });
+    expect(await readFile(join(paths.workspace, "workflow.txt"), "utf8")).toBe("alpha\nbeta\n");
+
+    const session = await loadOnlySession(paths);
+    const messages = getSessionMessages(session);
+    const toolResults = getToolResultMessages(session);
+
+    expect(toolResults).toHaveLength(2);
+    expect(toolResults.map((message) => ({ toolCallId: message.toolCallId, toolName: message.toolName, isError: message.isError }))).toEqual([
+      { toolCallId: "call_write", toolName: "write", isError: false },
+      { toolCallId: "call_edit_error", toolName: "edit", isError: true },
+    ]);
+    expect(getToolResultText(toolResults[1]!)).toContain("line range is out of bounds");
+    expectSessionEventTypes(session, [
+      "system",
+      "user_message",
+      "assistant_message",
+      "tool_result_message",
+      "assistant_message",
+      "tool_result_message",
+      "assistant_message",
+    ]);
+    expectToolResultsToMatchAssistantCalls(messages);
   });
 
   it("fails fast when an explicit session id does not exist", async () => {

@@ -1,7 +1,7 @@
 import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai";
 import type { Sandbox } from "../sandbox/sandbox.js";
 import type { Workspace } from "../core/workspace.js";
-import { exposedTools, toolMap } from "./tools/index.js";
+import { exposedTools, toolMap } from "./tools/tool-registry.js";
 import type { ToolRunContext, ToolRunResult } from "./tools/types.js";
 import { validateToolCall } from "@earendil-works/pi-ai";
 import type { AgentEventSink } from "./agent-loop.js";

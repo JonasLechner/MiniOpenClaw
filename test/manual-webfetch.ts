@@ -1,4 +1,4 @@
-import { webFetchTool } from "../src/agent/tools/index.js";
+import { webFetchTool } from "../src/agent/tools/tool-registry.js";
 
 async function main(): Promise<void> {
   const result = await webFetchTool.run({

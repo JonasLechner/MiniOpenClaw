@@ -161,15 +161,17 @@ export function buildTelegramGatewayApp(
           }
         },
       });
+      const finalText = result.stopReason === "error"
+        ? result.errorMessage?.trim() || "Error."
+        : result.text || "Done.";
       logConversationMessage({
         role: "assistant",
         source: "telegram",
         chatId,
         userId,
         stopReason: result.stopReason,
-        text: result.text || "Done.",
+        text: finalText,
       });
-      const finalText = result.text || "Done.";
       await stream.finish(finalText);
       await sendReferencedWorkspaceImages(chatId, finalText);
     } catch (error) {

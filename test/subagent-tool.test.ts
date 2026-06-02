@@ -65,6 +65,54 @@ describe("subagent tool", () => {
     });
   });
 
+  it("rejects use outside a bound chat session", async () => {
+    const { subagentTool } = await import("../src/agent/tools/subagent.js");
+
+    await expect(subagentTool.run(
+      { action: "list" },
+      {
+        workspace: {} as never,
+        sandbox: {} as never,
+      },
+    )).rejects.toThrow("subagent is only available from a bound chat session");
+  });
+
+  it("rejects use when no background launcher is available", async () => {
+    const { subagentTool } = await import("../src/agent/tools/subagent.js");
+
+    await expect(subagentTool.run(
+      { action: "list" },
+      {
+        workspace: {} as never,
+        sandbox: {} as never,
+        channel: {
+          source: "telegram",
+          chatId: "chat-1",
+          userId: "user-1",
+          sessionId: "session-1",
+        },
+      },
+    )).rejects.toThrow("subagent background launcher is unavailable in this runtime");
+  });
+
+  it("validates required start and stop arguments", async () => {
+    const { subagentTool } = await import("../src/agent/tools/subagent.js");
+    const context = {
+      workspace: {} as never,
+      sandbox: {} as never,
+      channel: {
+        source: "telegram",
+        chatId: "chat-1",
+        userId: "user-1",
+        sessionId: "session-1",
+      },
+      background: { launchDetachedPrompt: vi.fn(), listTasks: vi.fn(), stopTask: vi.fn() },
+    };
+
+    await expect(subagentTool.run({ action: "start" } as never, context)).rejects.toThrow("prompt is required for subagent start");
+    await expect(subagentTool.run({ action: "stop" } as never, context)).rejects.toThrow("taskId is required for subagent stop");
+  });
+
   it("stops a background subagent for the bound session", async () => {
     const { subagentTool } = await import("../src/agent/tools/subagent.js");
     const stopTask = vi.fn(async () => ({ stopped: true, reason: "Stopping background task task-1…" }));

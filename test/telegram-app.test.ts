@@ -15,6 +15,7 @@ const getFileMock = vi.fn(async () => ({ file_unique_id: "unique-file", file_pat
 const downloadFileMock = vi.fn(async () => Buffer.from("image-bytes"));
 const sendMessageMock = vi.fn(async () => ({ message_id: 1, chat: { id: 1, type: "private" } }));
 const editMessageTextMock = vi.fn(async (_chatId: string, messageId: number, text: string) => ({ message_id: messageId, text, chat: { id: 1, type: "private" } }));
+const deleteMessageMock = vi.fn(async () => true);
 const sendChatActionMock = vi.fn(async () => true);
 const sendPhotoMock = vi.fn(async () => ({ message_id: 2, chat: { id: 1, type: "private" } }));
 const statMock = vi.fn();
@@ -51,6 +52,7 @@ vi.mock("../src/transports/telegram/api.js", () => ({
     downloadFile = downloadFileMock;
     sendMessage = sendMessageMock;
     editMessageText = editMessageTextMock;
+    deleteMessage = deleteMessageMock;
     sendChatAction = sendChatActionMock;
     sendPhoto = sendPhotoMock;
   },
@@ -302,6 +304,117 @@ describe("telegram app", () => {
     expect(mainSessionAgent.runPrompt).not.toHaveBeenCalled();
   });
 
+  it("lets /stop bypass the per-chat prompt queue", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1", chatId: "123", userId: "456" });
+
+    let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
+    createTelegramPollingMock.mockImplementation((_api, handler) => {
+      onUpdate = handler;
+      return { start() {}, async stop() {} };
+    });
+
+    let releaseRunPrompt: (() => void) | undefined;
+    const mainSessionAgent = {
+      runPrompt: vi.fn(async () => await new Promise((resolve) => {
+        releaseRunPrompt = () => resolve({ text: "Stopped.", stopReason: "aborted" });
+      })),
+      bindSession: vi.fn(async () => {}),
+      appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
+      stopActiveRun: vi.fn(() => true),
+      getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
+      dispose: vi.fn(async () => {}),
+    };
+
+    handleTelegramCommandMock.mockImplementation(async (text: string, context: { streamer: { sendText(chatId: string, text: string): Promise<void> }; binding: { chatId: string }; stopActiveRun?: () => boolean }) => {
+      if (text !== "/stop") return { handled: false };
+      const stopped = context.stopActiveRun?.() ?? false;
+      await context.streamer.sendText(context.binding.chatId, stopped ? "Stopping current run…" : "No active run to stop.");
+      return { handled: true };
+    });
+
+    const { buildTelegramGatewayApp } = await import("../src/transports/telegram/app.js");
+    const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
+    await app?.start();
+
+    const runningUpdate = onUpdate?.({
+      message: {
+        message_id: 4,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "hello",
+      },
+    });
+
+    await vi.waitFor(() => expect(mainSessionAgent.runPrompt).toHaveBeenCalledTimes(1));
+
+    await onUpdate?.({
+      message: {
+        message_id: 5,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "/stop",
+      },
+    });
+
+    expect(mainSessionAgent.stopActiveRun).toHaveBeenCalledTimes(1);
+    expect(sendMessageMock).toHaveBeenCalledWith("123", "Stopping current run…");
+
+    releaseRunPrompt?.();
+    await runningUpdate;
+  });
+
+  it("edits the Telegram reply while the agent streams deltas", async () => {
+    vi.useFakeTimers();
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+
+    let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
+    createTelegramPollingMock.mockImplementation((_api, handler) => {
+      onUpdate = handler;
+      return { start() {}, async stop() {} };
+    });
+
+    const mainSessionAgent = {
+      runPrompt: vi.fn(async (_sessionId: string, _prompt: string, _logContext: unknown, options?: { onEvent?: (event: { type: string; delta?: string }) => void }) => {
+        options?.onEvent?.({ type: "message_delta", delta: "Hello" });
+        await Promise.resolve();
+        options?.onEvent?.({ type: "message_delta", delta: " world" });
+        await vi.advanceTimersByTimeAsync(500);
+        return { text: "Hello world!", stopReason: "stop" };
+      }),
+      bindSession: vi.fn(async () => {}),
+      appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
+      stopActiveRun: vi.fn(() => false),
+      getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
+      dispose: vi.fn(async () => {}),
+    };
+
+    const { buildTelegramGatewayApp } = await import("../src/transports/telegram/app.js");
+    const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
+    await app?.start();
+
+    await onUpdate?.({
+      message: {
+        message_id: 6,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "hello",
+      },
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledWith("123", "Hello");
+    expect(editMessageTextMock).toHaveBeenCalledWith("123", 1, "Hello world");
+    expect(editMessageTextMock).toHaveBeenCalledWith("123", 1, "Hello world!");
+    vi.useRealTimers();
+  });
+
   it("sends referenced workspace images back to Telegram", async () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
@@ -391,6 +504,45 @@ describe("telegram app", () => {
     });
 
     expect(sendMessageMock).toHaveBeenCalledWith("123", "Error: provider boom");
+  });
+
+  it("sends the model error message instead of Done when a run ends with stopReason=error", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+    resolveTelegramConversationBindingMock.mockResolvedValue({ sessionId: "session-1" });
+
+    let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
+    createTelegramPollingMock.mockImplementation((_api, handler) => {
+      onUpdate = handler;
+      return { start() {}, async stop() {} };
+    });
+
+    const mainSessionAgent = {
+      runPrompt: vi.fn(async () => ({ text: "", stopReason: "error", errorMessage: "401 token expired" })),
+      bindSession: vi.fn(async () => {}),
+      appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
+      stopActiveRun: vi.fn(() => false),
+      getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
+      dispose: vi.fn(async () => {}),
+    };
+
+    const { buildTelegramGatewayApp } = await import("../src/transports/telegram/app.js");
+    const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
+    await app?.start();
+
+    await onUpdate?.({
+      message: {
+        message_id: 6,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "hello",
+      },
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledWith("123", "401 token expired");
+    expect(sendMessageMock).not.toHaveBeenCalledWith("123", "Done.");
   });
 
   it("keeps polling alive when Telegram command registration fails", async () => {

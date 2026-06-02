@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { dirname, join, win32 } from "node:path";
 import { test } from "vitest";
-import { editTool, globTool, grepTool, readTool, writeTool } from "../src/agent/tools/index.js";
-import { isWithinWorkspacePath } from "../src/agent/tools/fs.js";
+import { editTool, globTool, grepTool, readTool, writeTool } from "../src/agent/tools/tool-registry.js";
+import { isWithinWorkspacePath } from "../src/core/host-workspace.js";
 import { HostSandbox } from "../src/sandbox/host-sandbox.js";
 import { createHostWorkspace } from "../src/core/host-workspace.js";
 

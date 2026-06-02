@@ -73,15 +73,44 @@ export type TelegramBotCommand = {
   description: string;
 };
 
+export class TelegramApiError extends Error {
+  readonly method: string;
+  readonly errorCode?: number;
+  readonly description?: string;
+  readonly reason?: "message_not_modified";
+
+  constructor(method: string, options: { errorCode?: number; description?: string; reason?: "message_not_modified" } = {}) {
+    super(options.description ?? `Telegram API ${method} failed.`);
+    this.name = "TelegramApiError";
+    this.method = method;
+    this.errorCode = options.errorCode;
+    this.description = options.description;
+    this.reason = options.reason;
+  }
+}
+
 type TelegramApiResponse<T> = {
   ok: boolean;
   result: T;
   description?: string;
+  error_code?: number;
 };
+
+function classifyTelegramError(method: string, payload: TelegramApiResponse<unknown>): TelegramApiError["reason"] {
+  if (method === "editMessageText" && payload.error_code === 400 && payload.description === "Bad Request: message is not modified") {
+    return "message_not_modified";
+  }
+
+  return undefined;
+}
 
 function assertTelegramApiResponse<T>(method: string, payload: TelegramApiResponse<T>): T {
   if (!payload.ok) {
-    throw new Error(payload.description ?? `Telegram API ${method} failed.`);
+    throw new TelegramApiError(method, {
+      errorCode: payload.error_code,
+      description: payload.description,
+      reason: classifyTelegramError(method, payload),
+    });
   }
 
   return payload.result;
@@ -124,6 +153,13 @@ export class TelegramApiClient {
     }, signal);
   }
 
+  async deleteMessage(chatId: string, messageId: number, signal?: AbortSignal): Promise<boolean> {
+    return await this.#request<boolean>("deleteMessage", {
+      chat_id: chatId,
+      message_id: messageId,
+    }, signal);
+  }
+
   async setMyCommands(commands: readonly TelegramBotCommand[], signal?: AbortSignal): Promise<boolean> {
     return await this.#request<boolean>("setMyCommands", { commands }, signal);
   }
@@ -139,10 +175,6 @@ export class TelegramApiClient {
       body,
       signal,
     });
-
-    if (!response.ok) {
-      throw new Error(`Telegram API sendPhoto failed with ${response.status}.`);
-    }
 
     return assertTelegramApiResponse("sendPhoto", await response.json() as TelegramApiResponse<TelegramMessage>);
   }
@@ -168,10 +200,6 @@ export class TelegramApiClient {
       body: JSON.stringify(body),
       signal,
     });
-
-    if (!response.ok) {
-      throw new Error(`Telegram API ${method} failed with ${response.status}.`);
-    }
 
     return assertTelegramApiResponse(method, await response.json() as TelegramApiResponse<T>);
   }

@@ -1,4 +1,4 @@
-import { webSearchTool } from "../src/agent/tools/index.js";
+import { webSearchTool } from "../src/agent/tools/tool-registry.js";
 
 async function main(): Promise<void> {
   const result = await webSearchTool.run({

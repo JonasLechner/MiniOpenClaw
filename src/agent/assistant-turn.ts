@@ -1,7 +1,7 @@
 import { streamSimple, type AssistantMessage, type Context, type ThinkingLevel, type Message } from "@earendil-works/pi-ai";
 import { createAgentContext } from "../core/agent-context.js";
 import { getAssistantVisibleText } from "../core/messages.js";
-import { exposedTools } from "./tools/index.js";
+import { exposedTools } from "./tools/tool-registry.js";
 import type { AgentEventSink, AgentLoopContext } from "./agent-loop.js";
 import type { AgentTurnResult } from "./events.js";
 

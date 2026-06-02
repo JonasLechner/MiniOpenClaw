@@ -45,6 +45,7 @@ export class Agent {
   #model: AgentAuth["model"];
   #apiKey: string;
   #session: Session;
+  #runtime: RuntimeState;
   #runtimePaths: RuntimeState["paths"];
   #systemPrompt: string;
   #reasoning: string | undefined;
@@ -68,6 +69,7 @@ export class Agent {
     this.#model = auth.model;
     this.#apiKey = auth.apiKey;
     this.#session = session;
+    this.#runtime = runtime;
     this.#runtimePaths = runtime.paths;
     this.#systemPrompt = systemPrompt;
     this.#reasoning = runtime.config.agent.reasoning;
@@ -128,6 +130,10 @@ export class Agent {
     const userEvent = await appendUserMessageEvent(this.#session, prompt);
 
     try {
+      const auth = await resolveAgentAuth(this.#runtime);
+      this.#model = auth.model;
+      this.#apiKey = auth.apiKey;
+
       const loopResult = await runAgentLoop({
         sessionId,
         prompt,

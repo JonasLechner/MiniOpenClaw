@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { test } from "vitest";
-import { globTool } from "../src/agent/tools/index.js";
+import { globTool } from "../src/agent/tools/tool-registry.js";
 import { HostSandbox } from "../src/sandbox/host-sandbox.js";
 import { createHostWorkspace } from "../src/core/host-workspace.js";
 

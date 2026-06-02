@@ -1,4 +1,4 @@
-import { readTool, writeTool } from "../src/agent/tools/index.js";
+import { readTool, writeTool } from "../src/agent/tools/tool-registry.js";
 import { HostSandbox } from "../src/sandbox/host-sandbox.js";
 import { createHostWorkspace } from "../src/core/host-workspace.js";
 

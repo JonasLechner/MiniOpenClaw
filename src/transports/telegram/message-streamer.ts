@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
-import { TelegramApiClient } from "./api.js";
+import { TelegramApiClient, TelegramApiError } from "./api.js";
 import { chunkTelegramText } from "./formatter.js";
 
 const TYPING_REFRESH_INTERVAL_MS = 4000;
+const STREAM_FLUSH_INTERVAL_MS = 500;
 
 function imageMimeTypeForPath(path: string): string {
   switch (extname(path).toLowerCase()) {
@@ -21,11 +22,22 @@ function imageMimeTypeForPath(path: string): string {
   }
 }
 
+function isTelegramMessageNotModifiedError(error: unknown): boolean {
+  return error instanceof TelegramApiError && error.reason === "message_not_modified";
+}
+
 export class TelegramStreamingMessage {
   readonly #api: TelegramApiClient;
   readonly #chatId: string;
   #timer: NodeJS.Timeout | undefined;
+  #flushTimer: NodeJS.Timeout | undefined;
   #closed = false;
+  #pendingText = "";
+  #messageIds: number[] = [];
+  #renderedChunks: string[] = [];
+  #mutationLane = Promise.resolve();
+  #immediateFlushQueued = false;
+  #streamError: Error | undefined;
 
   constructor(api: TelegramApiClient, chatId: string) {
     this.#api = api;
@@ -33,10 +45,13 @@ export class TelegramStreamingMessage {
   }
 
   append(delta: string): void {
-    void delta;
-    // Telegram has no native streaming-message primitive. While the agent is
-    // running, keep the built-in typing indicator alive and send the final
-    // answer as a normal message in finish().
+    if (this.#closed || this.#streamError || !delta) return;
+    this.#pendingText += delta;
+    if (this.#messageIds.length === 0) {
+      this.#scheduleImmediateFlush();
+      return;
+    }
+    this.#scheduleDeferredFlush();
   }
 
   start(): void {
@@ -47,15 +62,26 @@ export class TelegramStreamingMessage {
   }
 
   async finish(finalText: string): Promise<void> {
+    this.#pendingText = finalText || "Done.";
     this.#close();
-    for (const chunk of chunkTelegramText(finalText || "Done.")) {
-      await this.#api.sendMessage(this.#chatId, chunk);
+    if (this.#streamError) {
+      throw this.#streamError;
     }
+    await this.#enqueueMutation(async () => {
+      await this.#syncToText(this.#pendingText);
+    });
   }
 
   async fail(text: string): Promise<void> {
     this.#close();
-    await this.#api.sendMessage(this.#chatId, text);
+    await this.#enqueueMutation(async () => {
+      if (this.#messageIds.length === 0) {
+        await this.#api.sendMessage(this.#chatId, text);
+        return;
+      }
+
+      await this.#api.sendMessage(this.#chatId, text);
+    });
   }
 
   #close(): void {
@@ -64,6 +90,118 @@ export class TelegramStreamingMessage {
       clearInterval(this.#timer);
       this.#timer = undefined;
     }
+    if (this.#flushTimer) {
+      clearTimeout(this.#flushTimer);
+      this.#flushTimer = undefined;
+    }
+  }
+
+  #scheduleImmediateFlush(): void {
+    if (this.#immediateFlushQueued) return;
+    this.#immediateFlushQueued = true;
+    queueMicrotask(() => {
+      this.#immediateFlushQueued = false;
+      if (this.#closed) return;
+      void this.#flushIncremental();
+    });
+  }
+
+  #scheduleDeferredFlush(): void {
+    if (this.#flushTimer) return;
+    this.#flushTimer = setTimeout(() => {
+      this.#flushTimer = undefined;
+      if (this.#closed) return;
+      void this.#flushIncremental();
+    }, STREAM_FLUSH_INTERVAL_MS);
+  }
+
+  async #flushIncremental(): Promise<void> {
+    if (this.#streamError) return;
+
+    const snapshot = this.#pendingText;
+    try {
+      await this.#enqueueMutation(async () => {
+        await this.#syncToText(snapshot);
+      });
+    } catch (error) {
+      this.#streamError = error instanceof Error ? error : new Error(String(error));
+      this.#close();
+      return;
+    }
+
+    if (!this.#closed && this.#pendingText !== snapshot) {
+      if (this.#messageIds.length === 0) {
+        this.#scheduleImmediateFlush();
+      } else {
+        this.#scheduleDeferredFlush();
+      }
+    }
+  }
+
+  #enqueueMutation(task: () => Promise<void>): Promise<void> {
+    const next = this.#mutationLane.catch(() => undefined).then(task);
+    this.#mutationLane = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
+  async #syncToText(text: string): Promise<void> {
+    const chunks = chunkTelegramText(text || "Done.");
+
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index]!;
+      const messageId = this.#messageIds[index];
+      const rendered = this.#renderedChunks[index];
+
+      if (messageId === undefined) {
+        const message = await this.#api.sendMessage(this.#chatId, chunk);
+        this.#messageIds[index] = message.message_id;
+        this.#renderedChunks[index] = chunk;
+        continue;
+      }
+
+      if (rendered === chunk) {
+        continue;
+      }
+
+      try {
+        const message = await this.#api.editMessageText(this.#chatId, messageId, chunk);
+        this.#messageIds[index] = message.message_id;
+        this.#renderedChunks[index] = chunk;
+      } catch (error) {
+        if (isTelegramMessageNotModifiedError(error)) {
+          this.#renderedChunks[index] = chunk;
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    if (this.#messageIds.length > chunks.length) {
+      const retainedMessageIds = this.#messageIds.slice(0, chunks.length);
+      const retainedRenderedChunks = this.#renderedChunks.slice(0, chunks.length);
+
+      for (let index = chunks.length; index < this.#messageIds.length; index += 1) {
+        const messageId = this.#messageIds[index];
+        const renderedChunk = this.#renderedChunks[index];
+        if (messageId === undefined) continue;
+
+        try {
+          await this.#api.deleteMessage(this.#chatId, messageId);
+        } catch (error) {
+          retainedMessageIds.push(messageId);
+          retainedRenderedChunks.push(renderedChunk ?? "");
+          throw error;
+        }
+      }
+
+      this.#messageIds = retainedMessageIds;
+      this.#renderedChunks = retainedRenderedChunks;
+      return;
+    }
+
+    this.#messageIds.length = chunks.length;
+    this.#renderedChunks.length = chunks.length;
   }
 
   async #sendTyping(): Promise<void> {
