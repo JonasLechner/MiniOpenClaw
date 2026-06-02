@@ -21,6 +21,11 @@ export type TelegramUpdate = {
   message?: TelegramMessage;
 };
 
+export type TelegramBotCommand = {
+  command: string;
+  description: string;
+};
+
 type TelegramApiResponse<T> = {
   ok: boolean;
   result: T;
@@ -42,11 +47,23 @@ export class TelegramApiClient {
     }, signal);
   }
 
-  async sendMessage(chatId: string, text: string, signal?: AbortSignal): Promise<void> {
-    await this.#request("sendMessage", {
+  async sendMessage(chatId: string, text: string, signal?: AbortSignal): Promise<TelegramMessage> {
+    return await this.#request<TelegramMessage>("sendMessage", {
       chat_id: chatId,
       text,
     }, signal);
+  }
+
+  async editMessageText(chatId: string, messageId: number, text: string, signal?: AbortSignal): Promise<TelegramMessage> {
+    return await this.#request<TelegramMessage>("editMessageText", {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+    }, signal);
+  }
+
+  async setMyCommands(commands: readonly TelegramBotCommand[], signal?: AbortSignal): Promise<boolean> {
+    return await this.#request<boolean>("setMyCommands", { commands }, signal);
   }
 
   async #request<T>(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {

@@ -21,13 +21,16 @@ test("grepTool finds plain text matches", async () => {
       pattern: "alpha",
     }, toolContext(dir));
 
-    assert.deepEqual(result, {
+    assert.deepEqual(result.details, {
       path: filePath,
       matches: [
         { lineNumber: 1, line: "alpha" },
         { lineNumber: 3, line: "alphabet" },
       ],
+      truncation: undefined,
     });
+    assert.equal(result.content[0].type, "text");
+    assert.equal(result.content[0].text, `${filePath}:1: alpha\n${filePath}:3: alphabet`);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -46,7 +49,7 @@ test("grepTool supports case-insensitive search", async () => {
       caseSensitive: false,
     }, toolContext(dir));
 
-    assert.deepEqual(result.matches, [
+    assert.deepEqual(result.details?.matches, [
       { lineNumber: 1, line: "Alpha" },
       { lineNumber: 3, line: "ALPHA" },
     ]);
@@ -68,7 +71,7 @@ test("grepTool supports regex search", async () => {
       useRegex: true,
     }, toolContext(dir));
 
-    assert.deepEqual(result.matches, [
+    assert.deepEqual(result.details?.matches, [
       { lineNumber: 1, line: "abc123" },
       { lineNumber: 3, line: "xyz789" },
     ]);
@@ -91,7 +94,7 @@ test("grepTool limits search to a line range", async () => {
       endLine: 3,
     }, toolContext(dir));
 
-    assert.deepEqual(result.matches, [
+    assert.deepEqual(result.details?.matches, [
       { lineNumber: 3, line: "match" },
     ]);
   } finally {

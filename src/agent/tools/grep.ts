@@ -1,6 +1,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { resolveWorkspacePath } from "./fs.js";
-import { requireToolContext, type ToolDefinition } from "./types.js";
+import { requireToolContext, textToolResult, type ToolDefinition, type ToolRunResult } from "./types.js";
+import { truncateHead, truncationNotice, type TruncationDetails } from "./truncate.js";
 
 export interface GrepInput {
   path: string;
@@ -19,6 +20,7 @@ export interface GrepMatch {
 export interface GrepOutput {
   path: string;
   matches: GrepMatch[];
+  truncation?: TruncationDetails;
 }
 
 function createMatcher(input: GrepInput): (line: string) => boolean {
@@ -38,7 +40,7 @@ function createMatcher(input: GrepInput): (line: string) => boolean {
   };
 }
 
-export const grepTool: ToolDefinition<GrepInput, GrepOutput> = {
+export const grepTool: ToolDefinition<GrepInput, ToolRunResult<GrepOutput>> = {
   name: "grep",
   description: "Search lines in a file inside the workspace.",
   parameters: Type.Object({
@@ -87,9 +89,15 @@ export const grepTool: ToolDefinition<GrepInput, GrepOutput> = {
       }
     }
 
-    return {
+    const output = matches.length === 0
+      ? "No matches."
+      : matches.map((match) => `${path}:${match.lineNumber}: ${match.line}`).join("\n");
+    const truncated = truncateHead(output);
+
+    return textToolResult(`${truncated.content}${truncationNotice(truncated.details)}`, {
       path,
       matches,
-    };
+      truncation: truncated.details.truncated ? truncated.details : undefined,
+    });
   },
 };

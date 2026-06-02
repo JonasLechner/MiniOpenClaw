@@ -12,7 +12,7 @@ import type { Workspace } from "../core/workspace.js";
 import { createAgentContext } from "../core/agent-context.js";
 import { getAssistantVisibleText } from "../core/messages.js";
 import { exposedTools, toolMap } from "./tools/index.js";
-import type { ToolRunContext } from "./tools/types.js";
+import type { ToolRunContext, ToolRunResult } from "./tools/types.js";
 import type { AgentEvent, AgentTurnResult } from "./events.js";
 
 export type AgentEventSink = (event: AgentEvent) => void | Promise<void>;
@@ -65,6 +65,25 @@ function createAbortedAssistantMessage(context: AgentLoopContext): AssistantMess
     stopReason: "aborted",
     errorMessage: "Aborted by user",
     timestamp: Date.now(),
+  };
+}
+
+function isToolRunResult(result: unknown): result is ToolRunResult {
+  return Boolean(
+    result
+    && typeof result === "object"
+    && "content" in result
+    && Array.isArray((result as { content?: unknown }).content),
+  );
+}
+
+function normalizeToolResult(result: unknown): ToolRunResult {
+  if (isToolRunResult(result)) {
+    return result;
+  }
+
+  return {
+    content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }],
   };
 }
 
@@ -169,11 +188,13 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
             signal: context.signal,
           };
 
+          const runResult = normalizeToolResult(await tool.run(args as never, toolContext));
           const toolResult: ToolResultMessage = {
             role: "toolResult",
             toolCallId,
             toolName: call.name,
-            content: [{ type: "text", text: JSON.stringify(await tool.run(args as never, toolContext)) }],
+            content: runResult.content,
+            details: runResult.details,
             isError: false,
             timestamp: Date.now(),
           };

@@ -8,11 +8,25 @@ export type TelegramCommandContext = {
   binding: ConversationBinding;
   streamer: TelegramMessageStreamer;
   stopActiveRun?: () => boolean;
+  getStatus?: () => { provider: string; modelId: string; activeRunStartedAt?: string };
 };
 
 export type TelegramCommandResult =
   | { handled: false }
   | { handled: true; sessionId?: string };
+
+export const TELEGRAM_BOT_COMMANDS = [
+  { command: "new", description: "Start a new session" },
+  { command: "session", description: "Show the current session id" },
+  { command: "stop", description: "Abort the current run" },
+] as const;
+
+function formatHelpText(): string {
+  return [
+    "Commands:",
+    ...TELEGRAM_BOT_COMMANDS.map(({ command, description }) => `/${command} - ${description.charAt(0).toLowerCase()}${description.slice(1)}`),
+  ].join("\n");
+}
 
 export async function handleTelegramCommand(
   text: string,
@@ -23,17 +37,8 @@ export async function handleTelegramCommand(
   const [rawCommand] = text.trim().split(/\s+/);
   const command = rawCommand?.split("@")[0];
 
-  if (command === "/help" || command === "/start") {
-    await context.streamer.sendText(
-      context.binding.chatId,
-      [
-        "Commands:",
-        "/help - show this help",
-        "/new - start a new session",
-        "/session - show the current session id",
-        "/stop - abort the current run",
-      ].join("\n"),
-    );
+  if (command === "/start") {
+    await context.streamer.sendText(context.binding.chatId, formatHelpText());
     return { handled: true };
   }
 
@@ -50,7 +55,18 @@ export async function handleTelegramCommand(
   }
 
   if (command === "/session") {
-    await context.streamer.sendText(context.binding.chatId, `Current session: ${context.binding.sessionId}`);
+    const status: { provider: string; modelId: string; activeRunStartedAt?: string } = context.getStatus?.() ?? {
+      provider: context.runtime.config.agent.provider ?? "unknown",
+      modelId: context.runtime.config.agent.modelId ?? "unknown",
+    };
+    await context.streamer.sendText(
+      context.binding.chatId,
+      [
+        `Current session: ${context.binding.sessionId}`,
+        `Model: ${status.provider}/${status.modelId}`,
+        status.activeRunStartedAt ? `Active run since: ${status.activeRunStartedAt}` : "Active run: none",
+      ].join("\n"),
+    );
     return { handled: true };
   }
 

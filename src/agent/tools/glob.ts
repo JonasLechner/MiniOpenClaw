@@ -2,7 +2,8 @@ import { Type } from "@earendil-works/pi-ai";
 import { join, relative } from "path";
 import type { Workspace } from "../../core/workspace.js";
 import { resolveWorkspacePath } from "./fs.js";
-import { requireToolContext, type ToolDefinition } from "./types.js";
+import { requireToolContext, textToolResult, type ToolDefinition, type ToolRunResult } from "./types.js";
+import { truncateHead, truncationNotice, type TruncationDetails } from "./truncate.js";
 
 export interface GlobInput {
   path: string;
@@ -14,6 +15,7 @@ export interface GlobInput {
 export interface GlobOutput {
   path: string;
   matches: string[];
+  truncation?: TruncationDetails;
 }
 
 function escapeRegex(value: string): string {
@@ -90,7 +92,7 @@ async function collectEntries(
   }
 }
 
-export const globTool: ToolDefinition<GlobInput, GlobOutput> = {
+export const globTool: ToolDefinition<GlobInput, ToolRunResult<GlobOutput>> = {
   name: "glob",
   description: "Find files matching a glob pattern under a workspace directory.",
   parameters: Type.Object({
@@ -107,9 +109,14 @@ export const globTool: ToolDefinition<GlobInput, GlobOutput> = {
 
     await collectEntries(toolContext.workspace, path, path, input.includeDirectories ?? false, entries);
 
-    return {
+    const matches = entries.filter((entry) => matcher.test(entry)).sort();
+    const output = matches.length === 0 ? "No matches." : matches.join("\n");
+    const truncated = truncateHead(output);
+
+    return textToolResult(`${truncated.content}${truncationNotice(truncated.details)}`, {
       path,
-      matches: entries.filter((entry) => matcher.test(entry)).sort(),
-    };
+      matches,
+      truncation: truncated.details.truncated ? truncated.details : undefined,
+    });
   },
 };

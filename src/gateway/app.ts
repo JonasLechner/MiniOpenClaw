@@ -28,7 +28,7 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
   });
 
   app.addHook("onReady", async () => {
-    telegramApp?.start();
+    await telegramApp?.start();
     scheduler?.start();
   });
 

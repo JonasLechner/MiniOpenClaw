@@ -6,7 +6,7 @@ import type { RuntimePaths } from "../src/core/config.js";
 import type { RuntimeState } from "../src/core/runtime.js";
 import { createNewSession } from "../src/core/sessions.js";
 import type { ConversationBinding } from "../src/core/conversation-bindings.js";
-import { handleTelegramCommand } from "../src/transports/telegram/commands.js";
+import { handleTelegramCommand, TELEGRAM_BOT_COMMANDS } from "../src/transports/telegram/commands.js";
 
 function createRuntimePaths(): RuntimePaths {
   const root = mkdtempSync(join(tmpdir(), "miniopenclaw-telegram-commands-test-"));
@@ -48,6 +48,15 @@ function createRuntime(paths: RuntimePaths): RuntimeState {
 describe("telegram commands", () => {
   const roots: string[] = [];
 
+  it("exports previewable Telegram bot commands", () => {
+    expect(TELEGRAM_BOT_COMMANDS).toEqual([
+      { command: "new", description: "Start a new session" },
+      { command: "session", description: "Show the current session id" },
+      { command: "stop", description: "Abort the current run" },
+    ]);
+    expect(TELEGRAM_BOT_COMMANDS.every(({ command }) => !command.startsWith("/"))).toBe(true);
+  });
+
   afterEach(() => {
     for (const root of roots.splice(0)) {
       rmSync(root, { recursive: true, force: true });
@@ -55,7 +64,7 @@ describe("telegram commands", () => {
     vi.clearAllMocks();
   });
 
-  it("shows only the supported help commands", async () => {
+  it("does not handle /help", async () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);
     const runtime = createRuntime(paths);
@@ -76,12 +85,38 @@ describe("telegram commands", () => {
       streamer: { sendText } as never,
     });
 
+    expect(result).toEqual({ handled: false });
+    expect(sendText).not.toHaveBeenCalled();
+  });
+
+  it("shows session, model, and active run status", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+
+    const binding: ConversationBinding = {
+      channel: "telegram",
+      chatId: "chat-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sendText = vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {});
+    const result = await handleTelegramCommand("/session", {
+      runtime,
+      binding,
+      streamer: { sendText } as never,
+      getStatus: () => ({ provider: "openai", modelId: "gpt-test", activeRunStartedAt: "2026-05-31T10:00:00.000Z" }),
+    });
+
     expect(result).toEqual({ handled: true });
-    expect(sendText).toHaveBeenCalledTimes(1);
-    const helpText = sendText.mock.calls[0]![1];
-    expect(helpText).toContain("/new - start a new session");
-    expect(helpText).not.toContain("/remind");
-    expect(helpText).not.toContain("/approve");
+    expect(sendText).toHaveBeenCalledWith("chat-1", [
+      "Current session: session-1",
+      "Model: openai/gpt-test",
+      "Active run since: 2026-05-31T10:00:00.000Z",
+    ].join("\n"));
   });
 
   it("stops an active run", async () => {

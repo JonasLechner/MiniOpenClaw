@@ -11,11 +11,22 @@ export type PromptLogContext = {
   taskId?: string;
 };
 
+export type RunPromptOptions = {
+  onEvent?: AgentEventListener;
+};
+
+export type MainSessionAgentStatus = {
+  provider: string;
+  modelId: string;
+  activeRunStartedAt?: string;
+};
+
 export type MainSessionAgent = {
-  runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext): Promise<AgentTurnResult>;
+  runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext, options?: RunPromptOptions): Promise<AgentTurnResult>;
   bindSession(sessionId: string): Promise<void>;
   appendUserMessage(sessionId: string, prompt: string): Promise<void>;
   stopActiveRun(): boolean;
+  getStatus(): MainSessionAgentStatus;
   dispose(): Promise<void>;
 };
 
@@ -60,6 +71,7 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
   let currentSessionId: string | undefined;
   let currentAgentPromise: Promise<Agent> | undefined;
   let activeAbortController: AbortController | undefined;
+  let activeRunStartedAt: string | undefined;
   let lane = Promise.resolve();
 
   async function clearCurrentAgent(): Promise<void> {
@@ -98,19 +110,25 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
   }
 
   return {
-    runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext): Promise<AgentTurnResult> {
+    runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext, options: RunPromptOptions = {}): Promise<AgentTurnResult> {
       return enqueue(async () => {
         const agent = await getAgent(sessionId);
         const controller = new AbortController();
         activeAbortController = controller;
+        activeRunStartedAt = new Date().toISOString();
+        const toolCallLogger = createToolCallLogger(logContext);
         try {
           return await agent.runLoop(prompt, {
-            onEvent: createToolCallLogger(logContext),
+            onEvent(event) {
+              toolCallLogger(event);
+              options.onEvent?.(event);
+            },
             signal: controller.signal,
           });
         } finally {
           if (activeAbortController === controller) {
             activeAbortController = undefined;
+            activeRunStartedAt = undefined;
           }
         }
       });
@@ -132,6 +150,13 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
       }
       activeAbortController.abort();
       return true;
+    },
+    getStatus(): MainSessionAgentStatus {
+      return {
+        provider: runtime.config.agent.provider ?? "unknown",
+        modelId: runtime.config.agent.modelId ?? "unknown",
+        activeRunStartedAt,
+      };
     },
     dispose(): Promise<void> {
       activeAbortController?.abort();

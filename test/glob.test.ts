@@ -23,10 +23,13 @@ test("globTool finds files with recursive glob", async () => {
       pattern: "src/**/*.ts",
     }, toolContext(dir));
 
-    assert.deepEqual(result, {
+    assert.deepEqual(result.details, {
       path: dir,
       matches: ["src/a.ts", "src/nested/b.ts"],
+      truncation: undefined,
     });
+    assert.equal(result.content[0].type, "text");
+    assert.equal(result.content[0].text, "src/a.ts\nsrc/nested/b.ts");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -45,7 +48,7 @@ test("globTool supports non-recursive glob", async () => {
       pattern: "*.ts",
     }, toolContext(dir));
 
-    assert.deepEqual(result.matches, ["a.ts"]);
+    assert.deepEqual(result.details?.matches, ["a.ts"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -63,7 +66,7 @@ test("globTool supports case-insensitive matching", async () => {
       caseSensitive: false,
     }, toolContext(dir));
 
-    assert.deepEqual(result.matches, ["Alpha.TS"]);
+    assert.deepEqual(result.details?.matches, ["Alpha.TS"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -82,7 +85,7 @@ test("globTool can include directories", async () => {
       includeDirectories: true,
     }, toolContext(dir));
 
-    assert.deepEqual(result.matches, ["src", "src/nested", "src/nested/file.txt"]);
+    assert.deepEqual(result.details?.matches, ["src", "src/nested", "src/nested/file.txt"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

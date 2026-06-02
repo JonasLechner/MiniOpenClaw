@@ -143,6 +143,21 @@ function createAssistantTextResponse(text: string) {
   };
 }
 
+function createAbortDuringStreamingEventStream(response = createAssistantTextResponse("partial final should not persist")) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { type: "text_start" as const, contentIndex: 0, partial: response };
+      yield { type: "text_delta" as const, contentIndex: 0, delta: "partial", partial: response };
+      const error = new Error("aborted");
+      error.name = "AbortError";
+      throw error;
+    },
+    async result() {
+      throw new Error("result should not be read after an aborted stream");
+    },
+  };
+}
+
 function createToolUseEventStream(toolCall: { id: string; name: string; arguments: Record<string, unknown> }) {
   const response = {
     role: "assistant" as const,
@@ -361,6 +376,62 @@ describe("Agent", () => {
     expect(llmContext.systemPrompt).toContain("remember my lint preference");
   });
   */
+
+  it("stops during streaming and persists only the user message plus aborted assistant message", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+    const seenDeltas: string[] = [];
+    const controller = new AbortController();
+
+    streamSimpleMock.mockImplementationOnce(() => createAbortDuringStreamingEventStream());
+
+    const result = await agent.runLoop("please stream", {
+      signal: controller.signal,
+      onEvent(event) {
+        if (event.type === "message_delta") {
+          seenDeltas.push(event.delta);
+          controller.abort();
+        }
+      },
+    });
+
+    expect(seenDeltas).toEqual(["partial"]);
+    expect(result).toMatchObject({ text: "Stopped.", stopReason: "aborted", errorMessage: "Aborted by user" });
+
+    const [sessionSummary] = await listSessions(paths);
+    const session = await getSessionById(paths, sessionSummary!.sessionId);
+    expect(session?.events.map((event) => event.type)).toEqual(["system", "user_message", "assistant_message"]);
+    expect(session ? getSessionMessages(session) : undefined).toEqual([
+      expect.objectContaining({ role: "user", content: expect.stringMatching(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] please stream$/) }),
+      expect.objectContaining({ role: "assistant", stopReason: "aborted", errorMessage: "Aborted by user" }),
+    ]);
+  });
+
+  it("stops after a tool call without starting another model stream and persists the message array", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    const controller = new AbortController();
+    streamSimpleMock.mockImplementationOnce(() => createToolUseEventStream({ id: "call_123", name: "bash", arguments: { command: "pwd" } }));
+    sandboxExecMock.mockImplementationOnce(async () => {
+      controller.abort();
+      return { output: "/workspace\n" };
+    });
+
+    const result = await agent.runLoop("run pwd", { signal: controller.signal });
+
+    expect(result).toMatchObject({ text: "Stopped.", stopReason: "aborted", errorMessage: "Aborted by user" });
+    expect(streamSimpleMock).toHaveBeenCalledTimes(1);
+
+    const [sessionSummary] = await listSessions(paths);
+    const session = await getSessionById(paths, sessionSummary!.sessionId);
+    expect(session ? getSessionMessages(session) : undefined).toEqual([
+      expect.objectContaining({ role: "user", content: expect.stringMatching(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] run pwd$/) }),
+      expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
+      expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash", isError: false }),
+      expect.objectContaining({ role: "assistant", stopReason: "aborted", errorMessage: "Aborted by user" }),
+    ]);
+  });
 
   it("persists intermediate assistant tool calls and tool results with matching toolCallIds", async () => {
     const { Agent } = await import("../src/agent/agent.js");

@@ -1,4 +1,4 @@
-import type { Tool as PiTool } from "@earendil-works/pi-ai";
+import type { ImageContent, TextContent, Tool as PiTool } from "@earendil-works/pi-ai";
 import type { Sandbox } from "../../sandbox/sandbox.js";
 import type { Workspace } from "../../core/workspace.js";
 
@@ -18,6 +18,18 @@ export function requireToolContext(context?: ToolRunContext): ToolRunContext {
 
 export function requireSandbox(context?: ToolRunContext): Sandbox {
   return requireToolContext(context).sandbox;
+}
+
+export interface ToolRunResult<Details = unknown> {
+  content: Array<TextContent | ImageContent>;
+  details?: Details;
+}
+
+export function textToolResult<Details = unknown>(text: string, details?: Details): ToolRunResult<Details> {
+  return {
+    content: [{ type: "text", text }],
+    details,
+  };
 }
 
 export interface ToolDefinition<Input, Output> {

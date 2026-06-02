@@ -2,14 +2,14 @@ import { resolveTelegramConversationBinding } from "../../core/conversation-bind
 import type { RuntimeState } from "../../core/runtime.js";
 import type { MainSessionAgent } from "../../gateway/agent-runner.js";
 import { logConversationMessage } from "../../gateway/conversation-log.js";
-import { handleTelegramCommand } from "./commands.js";
+import { handleTelegramCommand, TELEGRAM_BOT_COMMANDS } from "./commands.js";
 import { TelegramApiClient } from "./api.js";
 import { TelegramMessageStreamer } from "./message-streamer.js";
 import { createTelegramPolling, type TelegramPolling } from "./polling.js";
 
 export type TelegramGatewayApp = {
   streamer: TelegramMessageStreamer;
-  start(): void;
+  start(): Promise<void>;
   stop(): Promise<void>;
 };
 function createPromptQueue() {
@@ -52,6 +52,7 @@ export function buildTelegramGatewayApp(
       binding,
       streamer,
       stopActiveRun: () => mainSessionAgent.stopActiveRun(),
+      getStatus: () => mainSessionAgent.getStatus(),
     });
     if (commandResult.handled) {
       if (commandResult.sessionId) {
@@ -68,21 +69,32 @@ export function buildTelegramGatewayApp(
       text,
     });
 
-    await streamer.sendText(chatId, "Thinking…");
-    const result = await mainSessionAgent.runPrompt(binding.sessionId, text, {
-      source: "telegram",
-      chatId,
-      userId,
-    });
-    logConversationMessage({
-      role: "assistant",
-      source: "telegram",
-      chatId,
-      userId,
-      stopReason: result.stopReason,
-      text: result.text || "Done.",
-    });
-    await streamer.sendText(chatId, result.text || "Done.");
+    const stream = await streamer.startStream(chatId);
+    try {
+      const result = await mainSessionAgent.runPrompt(binding.sessionId, text, {
+        source: "telegram",
+        chatId,
+        userId,
+      }, {
+        onEvent(event) {
+          if (event.type === "message_delta") {
+            stream.append(event.delta);
+          }
+        },
+      });
+      logConversationMessage({
+        role: "assistant",
+        source: "telegram",
+        chatId,
+        userId,
+        stopReason: result.stopReason,
+        text: result.text || "Done.",
+      });
+      await stream.finish(result.text || "Done.");
+    } catch (error) {
+      const message = error instanceof Error ? `Error: ${error.message}` : `Error: ${String(error)}`;
+      await stream.fail(message);
+    }
   }
 
   const polling: TelegramPolling = createTelegramPolling(api, async (update) => {
@@ -124,7 +136,13 @@ export function buildTelegramGatewayApp(
 
   return {
     streamer,
-    start() {
+    async start() {
+      try {
+        await api.setMyCommands(TELEGRAM_BOT_COMMANDS);
+        console.log("Registered Telegram bot commands:", TELEGRAM_BOT_COMMANDS.map(({ command }) => `/${command}`).join(", "));
+      } catch (error) {
+        console.error("Failed to register Telegram bot commands:", error instanceof Error ? error.message : String(error));
+      }
       polling?.start();
     },
     async stop() {
