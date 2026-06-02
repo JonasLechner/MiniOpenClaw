@@ -1,18 +1,10 @@
-import {
-  streamSimple,
-  type AssistantMessage,
-  type Context,
-  type Message,
-  type ThinkingLevel,
-  type ToolResultMessage,
-  validateToolCall,
-} from "@earendil-works/pi-ai";
+import { type AssistantMessage, type Message, type ToolResultMessage } from "@earendil-works/pi-ai";
 import type { Sandbox } from "../sandbox/sandbox.js";
 import type { Workspace } from "../core/workspace.js";
-import { createAgentContext } from "../core/agent-context.js";
 import { getAssistantVisibleText } from "../core/messages.js";
-import { exposedTools, toolMap } from "./tools/index.js";
-import type { ToolRunContext, ToolRunResult } from "./tools/types.js";
+import { generateAssistantTurn } from "./assistant-turn.js";
+import { executeAssistantToolCalls } from "./tool-execution.js";
+import type { ToolRunContext } from "./tools/types.js";
 import type { AgentEvent, AgentTurnResult } from "./events.js";
 
 export type AgentEventSink = (event: AgentEvent) => void | Promise<void>;
@@ -28,7 +20,7 @@ export type AgentLoopContext = {
   sandbox: Sandbox;
   reasoning?: string;
   signal?: AbortSignal;
-  toolContext?: Pick<ToolRunContext, "channel">;
+  toolContext?: Pick<ToolRunContext, "channel" | "background">;
 };
 
 export type AgentLoopResult = {
@@ -69,25 +61,6 @@ function createAbortedAssistantMessage(context: AgentLoopContext): AssistantMess
   };
 }
 
-function isToolRunResult(result: unknown): result is ToolRunResult {
-  return Boolean(
-    result
-    && typeof result === "object"
-    && "content" in result
-    && Array.isArray((result as { content?: unknown }).content),
-  );
-}
-
-function normalizeToolResult(result: unknown): ToolRunResult {
-  if (isToolRunResult(result)) {
-    return result;
-  }
-
-  return {
-    content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }],
-  };
-}
-
 async function finishAborted(
   context: AgentLoopContext,
   generatedMessages: Array<AssistantMessage | ToolResultMessage>,
@@ -119,42 +92,9 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
         return await finishAborted(context, generatedMessages, emit);
       }
 
-      const llmContext: Context = {
-        ...createAgentContext(messages, context.systemPrompt),
-        tools: exposedTools,
-      };
-
-      const eventStream = streamSimple(context.model as Parameters<typeof streamSimple>[0], llmContext, {
-        apiKey: context.apiKey,
-        reasoning: context.reasoning as ThinkingLevel | undefined,
-        signal: context.signal,
-      });
-
-      for await (const event of eventStream) {
-        if (event.type === "text_start") {
-          await emit({ type: "message_start", sessionId: context.sessionId, messageType: event.type });
-        }
-        if (event.type === "text_delta") {
-          await emit({
-            type: "message_delta",
-            sessionId: context.sessionId,
-            delta: event.delta,
-            providerEvent: event,
-          });
-        }
-      }
-
-      const message = await eventStream.result();
+      const { message, result } = await generateAssistantTurn(context, messages, emit);
       messages.push(message);
       generatedMessages.push(message);
-
-      const result: AgentTurnResult = {
-        text: getAssistantVisibleText(message),
-        stopReason: message.stopReason,
-        errorMessage: message.errorMessage,
-      };
-
-      await emit({ type: "message_end", sessionId: context.sessionId, message, text: result.text });
 
       if (message.stopReason !== "toolUse") {
         await emit({ type: "turn_end", sessionId: context.sessionId, result });
@@ -162,78 +102,12 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
         return { message, generatedMessages, result };
       }
 
-      const toolCalls = message.content.filter((block) => block.type === "toolCall");
+      const toolResults = await executeAssistantToolCalls(context, message, emit);
+      messages.push(...toolResults);
+      generatedMessages.push(...toolResults);
 
-      for (const call of toolCalls) {
-        const toolCallId = call.id;
-
-        try {
-          const args = validateToolCall(exposedTools, call);
-          const tool = toolMap[call.name as keyof typeof toolMap];
-
-          if (!tool) {
-            throw new Error(`Unknown tool: ${call.name}`);
-          }
-
-          await emit({
-            type: "tool_execution_start",
-            sessionId: context.sessionId,
-            toolCallId,
-            toolName: call.name,
-            args,
-          });
-
-          const toolContext: ToolRunContext = {
-            workspace: context.workspace,
-            sandbox: context.sandbox,
-            signal: context.signal,
-            ...context.toolContext,
-          };
-
-          const runResult = normalizeToolResult(await tool.run(args as never, toolContext));
-          const toolResult: ToolResultMessage = {
-            role: "toolResult",
-            toolCallId,
-            toolName: call.name,
-            content: runResult.content,
-            details: runResult.details,
-            isError: false,
-            timestamp: Date.now(),
-          };
-
-          messages.push(toolResult);
-          generatedMessages.push(toolResult);
-          await emit({
-            type: "tool_execution_end",
-            sessionId: context.sessionId,
-            toolCallId,
-            toolName: call.name,
-            result: toolResult,
-          });
-        } catch (error) {
-          const toolResult: ToolResultMessage = {
-            role: "toolResult",
-            toolCallId,
-            toolName: call.name,
-            content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
-            isError: true,
-            timestamp: Date.now(),
-          };
-
-          messages.push(toolResult);
-          generatedMessages.push(toolResult);
-          await emit({
-            type: "tool_execution_end",
-            sessionId: context.sessionId,
-            toolCallId,
-            toolName: call.name,
-            result: toolResult,
-          });
-        }
-
-        if (context.signal?.aborted) {
-          return await finishAborted(context, generatedMessages, emit);
-        }
+      if (context.signal?.aborted) {
+        return await finishAborted(context, generatedMessages, emit);
       }
     }
   } catch (error) {

@@ -159,9 +159,18 @@ function createAbortDuringStreamingEventStream(response = createAssistantTextRes
 }
 
 function createToolUseEventStream(toolCall: { id: string; name: string; arguments: Record<string, unknown> }) {
+  return createMultiToolUseEventStream([toolCall]);
+}
+
+function createMultiToolUseEventStream(toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>) {
   const response = {
     role: "assistant" as const,
-    content: [{ type: "toolCall" as const, id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments }],
+    content: toolCalls.map((toolCall) => ({
+      type: "toolCall" as const,
+      id: toolCall.id,
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    })),
     api: "openai-responses" as const,
     provider: "openai",
     model: "gpt-test",
@@ -431,6 +440,37 @@ describe("Agent", () => {
       expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash", isError: false }),
       expect.objectContaining({ role: "assistant", stopReason: "aborted", errorMessage: "Aborted by user" }),
     ]);
+  });
+
+  it("stops before later tool calls when aborted during the first tool execution", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    const controller = new AbortController();
+    streamSimpleMock.mockImplementationOnce(() => createMultiToolUseEventStream([
+      { id: "call_123", name: "bash", arguments: { command: "pwd" } },
+      { id: "call_456", name: "bash", arguments: { command: "ls" } },
+    ]));
+    sandboxExecMock.mockImplementationOnce(async () => {
+      controller.abort();
+      return { output: "/workspace\n" };
+    });
+
+    const result = await agent.runLoop("run pwd and ls", { signal: controller.signal });
+
+    expect(result).toMatchObject({ text: "Stopped.", stopReason: "aborted", errorMessage: "Aborted by user" });
+    expect(streamSimpleMock).toHaveBeenCalledTimes(1);
+    expect(sandboxExecMock).toHaveBeenCalledTimes(1);
+
+    const [sessionSummary] = await listSessions(paths);
+    const session = await getSessionById(paths, sessionSummary!.sessionId);
+    expect(session ? getSessionMessages(session) : undefined).toEqual([
+      expect.objectContaining({ role: "user", content: expect.stringMatching(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] run pwd and ls$/) }),
+      expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
+      expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash", isError: false }),
+      expect.objectContaining({ role: "assistant", stopReason: "aborted", errorMessage: "Aborted by user" }),
+    ]);
+    expect(session ? getSessionMessages(session)?.some((message) => message.role === "toolResult" && message.toolCallId === "call_456") : false).toBe(false);
   });
 
   it("persists intermediate assistant tool calls and tool results with matching toolCallIds", async () => {
