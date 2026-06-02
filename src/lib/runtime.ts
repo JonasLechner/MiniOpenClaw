@@ -26,6 +26,8 @@ export function ensureRuntimeFiles(paths: RuntimePaths): void {
 
   ensureJsonFile(join(paths.memory, "index.json"), defaultMemoryIndex);
   ensureJsonFile(paths.authFile, {});
+  ensureJsonFile(paths.conversationBindings, []);
+  ensureJsonFile(paths.scheduledTasks, []);
 }
 
 export function initializeRuntime(): RuntimeState {

@@ -3,7 +3,7 @@
 Minimal TypeScript repo for a long-running personal agent with two entrypoints:
 
 - `src/gateway/index.ts` — Fastify gateway daemon
-- `src/agent/index.ts` — pi-ai agent CLI
+- `src/agent/cli.ts` — local TUI agent
 
 All runtime files live in `~/.mini-openclaw/`:
 
@@ -21,7 +21,7 @@ No `.env` file is used.
 - `npm run build` — compile to `dist/`
 - `npm start` — start the gateway
 - `npm run start:gateway` — start the gateway
-- `npm run start:agent` — start the agent CLI
+- `npm run start:agent` — start the agent TUI
 - `npm run dev` — TypeScript watch mode
 - `npm run lint` — run ESLint
 - `npm run lint:fix` — fix ESLint issues
@@ -67,6 +67,10 @@ This project is intended to keep session state over time rather than behave like
 
 ## Agent
 
+`npm run start:agent` launches the local TUI and requires an interactive TTY.
+For non-interactive access, use the gateway.
+
+
 The example config above uses the `openai-codex` OAuth provider. On first run you will be
 prompted to authenticate in your browser. OAuth tokens are stored in
 `~/.mini-openclaw/auth.json`.
@@ -82,7 +86,7 @@ For API-key providers, add credentials to `~/.mini-openclaw/auth.json`:
 }
 ```
 
-Start with:
+Start the TUI with:
 
 ```bash
 npm run start:agent

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MiniOpenClaw Gateway Implementation Overview</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+      }
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, sans-serif;
+        background: linear-gradient(180deg, #020617, var(--bg));
+        color: var(--text);
+        line-height: 1.5;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 48px 20px 80px;
+      }
+      h1, h2, h3 { line-height: 1.2; }
+      .card {
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 16px 0;
+      }
+      .pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        margin-right: 8px;
+        background: rgba(56, 189, 248, 0.12);
+        color: var(--accent);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+      }
+      .ok { color: var(--ok); }
+      .warn { color: var(--warn); }
+      code {
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        background: rgba(148, 163, 184, 0.12);
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+      ul { padding-left: 20px; }
+      .flow { display: grid; gap: 12px; }
+      .step {
+        padding: 14px 16px;
+        border-left: 4px solid var(--accent);
+        background: rgba(15, 23, 42, 0.75);
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="card">
+        <span class="pill">Telegram MVP</span>
+        <span class="pill">Approvals</span>
+        <span class="pill">Proactivity</span>
+        <h1>What the implementation is doing</h1>
+        <p>
+          This implementation adds a <strong>gateway-side control plane</strong> around the existing agent.
+          The agent still focuses on model + tool execution, while Telegram, approvals, and reminders are handled outside it.
+        </p>
+      </header>
+
+      <section class="card">
+        <h2>1. Telegram message flow</h2>
+        <div class="flow">
+          <div class="step">Telegram long-polling receives a private chat message.</div>
+          <div class="step">The gateway checks the sender against <code>gateway.telegram.allowedUserIds</code>.</div>
+          <div class="step">The chat/user pair is mapped to a persistent session via conversation bindings.</div>
+          <div class="step">Commands like <code>/new</code>, <code>/session</code>, <code>/remind</code>, <code>/approvals</code>, <code>/approve</code>, and <code>/deny</code> are handled directly in the gateway.</div>
+          <div class="step">Normal text is sent into the agent for a turn in the bound session.</div>
+          <div class="step">The reply is chunked into Telegram-safe message sizes and sent back.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. Dangerous-action policy</h2>
+        <p>Before a tool runs, the gateway policy classifies it as <code>allow</code>, <code>ask</code>, or <code>deny</code>.</p>
+        <ul>
+          <li><strong class="ok">Allow:</strong> read-only tools like <code>read</code>, <code>grep</code>, <code>glob</code>, <code>websearch</code>, <code>webfetch</code></li>
+          <li><strong class="warn">Ask:</strong> <code>write</code>, <code>edit</code>, and mutating <code>bash</code></li>
+          <li><strong>Deny:</strong> obviously destructive or exfiltration-like bash commands</li>
+        </ul>
+        <p>
+          For bash, a risk classifier distinguishes safe read-only commands from mutating or high-risk ones.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>3. Approval workflow</h2>
+        <div class="flow">
+          <div class="step">If a Telegram-requested tool needs approval, the gateway creates a persisted pending approval record.</div>
+          <div class="step">The current turn stops with an approval-required response instead of running the tool.</div>
+          <div class="step">The user can inspect pending items with <code>/approvals</code>.</div>
+          <div class="step">The user resolves one with <code>/approve &lt;id&gt;</code> or <code>/deny &lt;id&gt;</code>.</div>
+          <div class="step">A new follow-up turn is injected into the same session saying the action was approved or denied.</div>
+        </div>
+        <p>
+          This avoids full paused-turn resumption while still letting the agent continue from the approval outcome.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>4. Reminders and proactivity</h2>
+        <p>
+          The gateway supports <strong>opt-in one-shot reminders</strong> created via <code>/remind</code>.
+        </p>
+        <ul>
+          <li>Tasks are persisted in a scheduled-task store.</li>
+          <li>A scheduler periodically scans for due tasks.</li>
+          <li>Due tasks are claimed, executed, and only marked complete after success.</li>
+          <li>If execution fails, the claim is released so the reminder can retry later.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>5. Fail-fast behavior</h2>
+        <ul>
+          <li>Explicit session lookups now fail instead of silently creating a new session.</li>
+          <li>Pending approvals cannot be resolved by the wrong Telegram actor.</li>
+          <li>Telegram polling uses abortable fetch so shutdown can stop an in-flight long poll promptly.</li>
+          <li>JSON decoding is allowed to fail loudly instead of silently masking invalid state.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>6. Main code areas</h2>
+        <ul>
+          <li><code>src/gateway/telegram/*</code> — Telegram transport, commands, polling, formatting</li>
+          <li><code>src/gateway/approvals/service.ts</code> — approval orchestration</li>
+          <li><code>src/gateway/proactivity/*</code> — scheduler and reminder execution</li>
+          <li><code>src/lib/conversation-bindings.ts</code> — Telegram chat → session mapping</li>
+          <li><code>src/lib/policy/*</code> — risk and tool policy logic</li>
+          <li><code>src/lib/proactivity/*</code> — scheduled task persistence</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

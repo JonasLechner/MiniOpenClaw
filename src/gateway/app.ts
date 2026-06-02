@@ -1,10 +1,28 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type { RuntimeState } from "../lib/runtime.js";
 import { createNewSession, ensureCurrentSession, getSessionById, listSessions } from "../lib/sessions.js";
+import { createMainSessionAgent } from "./agent-runner.js";
+import { createGatewayScheduler } from "./proactivity/scheduler.js";
 import { toSessionResponse } from "./session-response.js";
+import { buildTelegramGatewayApp } from "./telegram/app.js";
 
 export function buildGateway(runtime: RuntimeState): FastifyInstance {
   const app = Fastify({ logger: true });
+  const mainSessionAgent = createMainSessionAgent(runtime);
+  const telegramApp = buildTelegramGatewayApp(runtime, mainSessionAgent);
+  const scheduler = telegramApp
+    ? createGatewayScheduler(runtime, telegramApp.streamer, mainSessionAgent)
+    : undefined;
+
+  app.addHook("onReady", async () => {
+    telegramApp?.start();
+    scheduler?.start();
+  });
+
+  app.addHook("onClose", async () => {
+    scheduler?.stop();
+    await telegramApp?.stop();
+  });
 
   app.get("/health", async () => ({ status: "ok" }));
 

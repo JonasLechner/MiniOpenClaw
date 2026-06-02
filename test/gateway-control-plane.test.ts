@@ -1,0 +1,109 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import type { RuntimePaths } from "../src/lib/config.js";
+import {
+  bindTelegramConversationToSession,
+  getTelegramConversationBindingByChatId,
+  resolveTelegramConversationBinding,
+} from "../src/lib/conversation-bindings.js";
+import {
+  createScheduledTask,
+  getRunnableScheduledTasks,
+  listScheduledTasks,
+  markScheduledTaskRan,
+  matchesCronExpression,
+} from "../src/lib/proactivity/scheduled-task-store.js";
+
+function createRuntimePaths(): RuntimePaths {
+  const root = mkdtempSync(join(tmpdir(), "miniopenclaw-control-plane-test-"));
+  return {
+    home: root,
+    configFile: join(root, "config.json"),
+    authFile: join(root, "auth.json"),
+    sessions: join(root, "sessions"),
+    workspace: join(root, "workspace"),
+    memory: join(root, "workspace", "memory"),
+    conversationBindings: join(root, "conversation-bindings.json"),
+    scheduledTasks: join(root, "scheduled-tasks.json"),
+  };
+}
+
+describe("gateway control-plane helpers", () => {
+  const roots: string[] = [];
+
+  afterEach(() => {
+    for (const root of roots.splice(0)) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("creates and updates telegram conversation bindings", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+
+    const binding = await resolveTelegramConversationBinding(paths, "chat-1", "user-1");
+    expect(binding.sessionId).toBeTypeOf("string");
+
+    const updated = await bindTelegramConversationToSession(paths, "chat-1", "user-1", "session-2");
+    expect(updated.sessionId).toBe("session-2");
+
+    const reloaded = await resolveTelegramConversationBinding(paths, "chat-1", "user-1");
+    expect(reloaded.sessionId).toBe("session-2");
+    expect((await getTelegramConversationBindingByChatId(paths, "chat-1")).sessionId).toBe("session-2");
+  });
+
+  it("keeps bindings from concurrent writes for different chats", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+
+    await Promise.all([
+      bindTelegramConversationToSession(paths, "chat-1", "user-1", "session-1"),
+      bindTelegramConversationToSession(paths, "chat-2", "user-2", "session-2"),
+    ]);
+
+    expect((await getTelegramConversationBindingByChatId(paths, "chat-1")).sessionId).toBe("session-1");
+    expect((await getTelegramConversationBindingByChatId(paths, "chat-2")).sessionId).toBe("session-2");
+  });
+
+  it("matches basic cron expressions", () => {
+    const date = new Date(2026, 4, 30, 12, 15, 0, 0);
+
+    expect(matchesCronExpression("15 12 * * *", date)).toBe(true);
+    expect(matchesCronExpression("*/5 * * * *", date)).toBe(true);
+    expect(matchesCronExpression("0 12 * * *", date)).toBe(false);
+    expect(matchesCronExpression("15 11 * * *", date)).toBe(false);
+  });
+
+  it("fails loudly on invalid cron expressions", () => {
+    const date = new Date(2026, 4, 30, 12, 15, 0, 0);
+
+    expect(() => matchesCronExpression("15 12 * *", date)).toThrow("expected 5 fields");
+    expect(() => matchesCronExpression("x 12 * * *", date)).toThrow("Invalid cron value");
+  });
+
+  it("runs cron jobs at most once per minute", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const now = new Date(2026, 4, 30, 12, 15, 0, 0);
+
+    const task = await createScheduledTask(paths, {
+      channel: "telegram",
+      chatId: "chat-1",
+      target: "main-session",
+      kind: "prompt",
+      prompt: "status check",
+      cron: "15 12 * * *",
+      enabled: true,
+    });
+
+    expect((await getRunnableScheduledTasks(paths, now)).map((entry) => entry.id)).toEqual([task.id]);
+
+    await markScheduledTaskRan(paths, task.id, now);
+    expect(await getRunnableScheduledTasks(paths, now)).toHaveLength(0);
+
+    const [stored] = await listScheduledTasks(paths);
+    expect(stored.lastRunAt).toBe(now.toISOString());
+  });
+});

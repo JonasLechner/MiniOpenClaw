@@ -27,6 +27,8 @@ function createRuntimePaths(): RuntimePaths {
     sessions: join(root, "sessions"),
     workspace: join(root, "workspace"),
     memory: join(root, "workspace", "memory"),
+    conversationBindings: join(root, "conversation-bindings.json"),
+    scheduledTasks: join(root, "scheduled-tasks.json"),
   };
 }
 

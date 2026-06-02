@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MiniOpenClaw Architecture</title>
+    <style>
+      :root {
+        --bg: #0a1022;
+        --grid: rgba(255,255,255,0.05);
+        --text: #edf2ff;
+        --muted: #9fb0d9;
+        --border: rgba(255,255,255,0.1);
+        --blue: #1d4ed8;
+        --green: #166534;
+        --gold: #92400e;
+        --red: #991b1b;
+        --purple: #5b21b6;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, sans-serif;
+        color: var(--text);
+        background:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+          radial-gradient(circle at top, #1a2452 0%, var(--bg) 50%);
+        background-size: 24px 24px, 24px 24px, auto;
+      }
+      .wrap { max-width: 1600px; margin: 0 auto; padding: 24px; }
+      .hero {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 24px;
+        margin-bottom: 20px;
+      }
+      h1 { margin: 0 0 8px; font-size: 40px; }
+      p { margin: 0; color: var(--muted); line-height: 1.5; }
+      .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+      .chip {
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.05);
+        font-size: 13px;
+      }
+      .board {
+        position: relative;
+        height: 1180px;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        overflow: auto;
+      }
+      .canvas {
+        position: relative;
+        width: 1550px;
+        height: 1180px;
+      }
+      .card {
+        position: absolute;
+        border-radius: 20px;
+        padding: 16px 18px;
+        border: 1px solid rgba(255,255,255,0.14);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+      }
+      .card h2 { margin: 0 0 10px; font-size: 22px; }
+      .card p, .card li { font-size: 15px; }
+      .card ul { margin: 8px 0 0; padding-left: 18px; }
+      .blue { background: linear-gradient(180deg, rgba(29,78,216,0.35), rgba(29,78,216,0.18)); }
+      .green { background: linear-gradient(180deg, rgba(22,101,52,0.35), rgba(22,101,52,0.18)); }
+      .gold { background: linear-gradient(180deg, rgba(146,64,14,0.35), rgba(146,64,14,0.18)); }
+      .red { background: linear-gradient(180deg, rgba(153,27,27,0.35), rgba(153,27,27,0.18)); }
+      .purple { background: linear-gradient(180deg, rgba(91,33,182,0.35), rgba(91,33,182,0.18)); }
+      .mini { font-size: 13px; color: var(--muted); }
+      code {
+        background: rgba(255,255,255,0.08);
+        padding: 2px 6px;
+        border-radius: 8px;
+      }
+      svg.lines { position: absolute; inset: 0; }
+      .legend {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 20px;
+      }
+      .legend .item {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 14px;
+        background: rgba(255,255,255,0.03);
+      }
+      @media (max-width: 1200px) {
+        .legend { grid-template-columns: 1fr 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero">
+        <h1>MiniOpenClaw — raw HTML architecture map</h1>
+        <p>
+          Pure HTML/CSS/SVG diagram of the current runtime after the cron/session changes.
+          No Mermaid. No embedded parser.
+        </p>
+        <div class="chips">
+          <div class="chip">Telegram gateway</div>
+          <div class="chip">one main session</div>
+          <div class="chip">/new swaps main session</div>
+          <div class="chip">cron target = main-session | detached</div>
+          <div class="chip">approvals removed</div>
+        </div>
+      </div>
+
+      <div class="board">
+        <div class="canvas">
+          <svg class="lines" viewBox="0 0 1550 1180" aria-hidden="true">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#dbe5ff" />
+              </marker>
+            </defs>
+
+            <path d="M 230 170 C 320 170, 350 170, 430 170" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 700 170 C 780 170, 820 170, 900 170" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 1180 170 C 1250 170, 1270 170, 1340 170" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 1180 250 C 1250 250, 1280 310, 1280 370" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 520 290 C 520 360, 520 390, 520 460" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 770 540 C 850 540, 880 540, 960 540" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 1180 540 C 1260 540, 1290 540, 1370 540" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 420 860 C 520 860, 570 860, 680 860" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 910 860 C 1020 860, 1070 860, 1180 860" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 1180 730 C 1180 670, 1180 630, 1180 590" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+            <path d="M 1180 990 C 1180 1050, 1080 1080, 980 1080" stroke="#dbe5ff" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+          </svg>
+
+          <div class="card blue" style="left:40px;top:80px;width:190px;">
+            <h2>Telegram user</h2>
+            <p>Private chat with the bot.</p>
+            <ul>
+              <li><code>/help</code></li>
+              <li><code>/session</code></li>
+              <li><code>/new</code></li>
+            </ul>
+          </div>
+
+          <div class="card blue" style="left:430px;top:70px;width:270px;">
+            <h2>Telegram gateway</h2>
+            <p>Polling transport.</p>
+            <ul>
+              <li>checks allowlist</li>
+              <li>serializes per-chat work</li>
+              <li>routes commands vs normal prompts</li>
+            </ul>
+          </div>
+
+          <div class="card green" style="left:900px;top:60px;width:280px;">
+            <h2>Conversation binding</h2>
+            <p><code>chatId + userId → sessionId</code></p>
+            <p class="mini">Stored in <code>conversation-bindings.json</code></p>
+          </div>
+
+          <div class="card green" style="left:1340px;top:70px;width:170px;">
+            <h2>Main session</h2>
+            <p>Current active session for manual chat.</p>
+          </div>
+
+          <div class="card purple" style="left:360px;top:430px;width:320px;">
+            <h2><code>/new</code> behavior</h2>
+            <ul>
+              <li>creates a fresh session</li>
+              <li>updates the Telegram binding</li>
+              <li>old sessions still exist</li>
+              <li>future manual chat uses the new main session</li>
+            </ul>
+          </div>
+
+          <div class="card blue" style="left:680px;top:450px;width:280px;">
+            <h2>Manual prompt run</h2>
+            <p>Normal text from Telegram is injected into the current main session.</p>
+          </div>
+
+          <div class="card blue" style="left:960px;top:440px;width:220px;">
+            <h2>Agent core</h2>
+            <ul>
+              <li>generic model/tool loop</li>
+              <li>no approval layer</li>
+              <li>missing explicit session fails fast</li>
+            </ul>
+          </div>
+
+          <div class="card blue" style="left:1370px;top:460px;width:140px;">
+            <h2>Reply</h2>
+            <p>Chunked Telegram-safe output.</p>
+          </div>
+
+          <div class="card gold" style="left:40px;top:780px;width:380px;">
+            <h2>Cron scheduler</h2>
+            <ul>
+              <li>reads <code>scheduled-tasks.json</code></li>
+              <li>matches 5-field cron expressions</li>
+              <li>runs at most once per minute</li>
+              <li>marks <code>lastRunAt</code> on success</li>
+            </ul>
+          </div>
+
+          <div class="card gold" style="left:680px;top:770px;width:230px;">
+            <h2>Task target</h2>
+            <ul>
+              <li><code>main-session</code></li>
+              <li><code>detached</code></li>
+            </ul>
+          </div>
+
+          <div class="card gold" style="left:1180px;top:720px;width:300px;">
+            <h2><code>target: "main-session"</code></h2>
+            <p>Resolve the current binding by <code>chatId</code> at run time, then inject the cron prompt into whatever session is currently the main one.</p>
+          </div>
+
+          <div class="card gold" style="left:1180px;top:960px;width:300px;">
+            <h2><code>target: "detached"</code></h2>
+            <p>Create a fresh temporary session, run the prompt there, send the result to Telegram, then discard that session context.</p>
+          </div>
+
+          <div class="card red" style="left:650px;top:1030px;width:330px;">
+            <h2>Removed from runtime</h2>
+            <ul>
+              <li>approval store/service</li>
+              <li>tool policy gating</li>
+              <li><code>/approve</code>, <code>/deny</code>, <code>/approvals</code></li>
+              <li><code>/remind</code></li>
+              <li>due-task claim/release flow</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="item"><strong>Blue</strong><br><span class="mini">active Telegram/manual runtime path</span></div>
+        <div class="item"><strong>Green</strong><br><span class="mini">persistent main-session state</span></div>
+        <div class="item"><strong>Gold</strong><br><span class="mini">cron scheduling and execution paths</span></div>
+        <div class="item"><strong>Red</strong><br><span class="mini">features intentionally removed</span></div>
+      </div>
+    </div>
+  </body>
+</html>

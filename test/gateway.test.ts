@@ -21,6 +21,8 @@ function createRuntimePaths(): RuntimePaths {
     sessions: join(root, "sessions"),
     workspace: join(root, "workspace"),
     memory: join(root, "workspace", "memory"),
+    conversationBindings: join(root, "conversation-bindings.json"),
+    scheduledTasks: join(root, "scheduled-tasks.json"),
   };
 }
 
@@ -35,7 +37,11 @@ beforeEach(() => {
   paths = createRuntimePaths();
   runtimeStateMock.mockReturnValue({
     config: {
-      gateway: { host: "127.0.0.1", port: 3000 },
+      gateway: {
+        host: "127.0.0.1",
+        port: 3000,
+        telegram: { enabled: false, token: undefined, polling: true, allowedUserIds: [] },
+      },
       agent: { provider: "openai", modelId: "gpt-test", reasoning: undefined },
       sandbox: {
         enabled: true,

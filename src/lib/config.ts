@@ -10,6 +10,12 @@ export type UserConfig = {
   gateway?: {
     host?: string;
     port?: number;
+    telegram?: {
+      enabled?: boolean;
+      token?: string;
+      polling?: boolean;
+      allowedUserIds?: string[];
+    };
   };
   agent?: {
     provider?: string;
@@ -32,6 +38,12 @@ export type ResolvedConfig = {
   gateway: {
     host: string;
     port: number;
+    telegram: {
+      enabled: boolean;
+      token?: string;
+      polling: boolean;
+      allowedUserIds: string[];
+    };
   };
   agent: {
     provider?: string;
@@ -48,6 +60,8 @@ export type RuntimePaths = {
   sessions: string;
   workspace: string;
   memory: string;
+  conversationBindings: string;
+  scheduledTasks: string;
 };
 
 export type RuntimeConfig = {
@@ -64,6 +78,11 @@ const defaultConfig: UserConfig = {
   gateway: {
     host: "127.0.0.1",
     port: 3000,
+    telegram: {
+      enabled: false,
+      polling: true,
+      allowedUserIds: [],
+    },
   },
   agent: {},
   sandbox: {
@@ -105,6 +124,7 @@ function parseConfig(path: string): ResolvedConfig {
   const gateway = (config.gateway ?? {}) as Record<string, unknown>;
   const agent = (config.agent ?? {}) as Record<string, unknown>;
   const sandbox = (config.sandbox ?? {}) as Record<string, unknown>;
+  const telegram = (gateway.telegram ?? {}) as Record<string, unknown>;
 
   if (config.workspacePath !== undefined && typeof config.workspacePath !== "string") {
     throw new Error(`Invalid config file at ${path}: workspacePath must be a string.`);
@@ -120,6 +140,29 @@ function parseConfig(path: string): ResolvedConfig {
 
   if (gateway.port !== undefined && !isPositiveInteger(gateway.port)) {
     throw new Error(`Invalid config file at ${path}: gateway.port must be a positive integer.`);
+  }
+
+  if (gateway.telegram !== undefined && (typeof gateway.telegram !== "object" || Array.isArray(gateway.telegram))) {
+    throw new Error(`Invalid config file at ${path}: gateway.telegram must be an object.`);
+  }
+
+  if (telegram.enabled !== undefined && typeof telegram.enabled !== "boolean") {
+    throw new Error(`Invalid config file at ${path}: gateway.telegram.enabled must be a boolean.`);
+  }
+
+  if (telegram.token !== undefined && typeof telegram.token !== "string") {
+    throw new Error(`Invalid config file at ${path}: gateway.telegram.token must be a string.`);
+  }
+
+  if (telegram.polling !== undefined && typeof telegram.polling !== "boolean") {
+    throw new Error(`Invalid config file at ${path}: gateway.telegram.polling must be a boolean.`);
+  }
+
+  if (
+    telegram.allowedUserIds !== undefined
+    && (!Array.isArray(telegram.allowedUserIds) || telegram.allowedUserIds.some((value) => typeof value !== "string"))
+  ) {
+    throw new Error(`Invalid config file at ${path}: gateway.telegram.allowedUserIds must be an array of strings.`);
   }
 
   if (config.agent !== undefined && (typeof config.agent !== "object" || Array.isArray(config.agent))) {
@@ -175,6 +218,12 @@ function parseConfig(path: string): ResolvedConfig {
     gateway: {
       host: (gateway.host as string | undefined) ?? defaultConfig.gateway!.host!,
       port: (gateway.port as number | undefined) ?? defaultConfig.gateway!.port!,
+      telegram: {
+        enabled: (telegram.enabled as boolean | undefined) ?? defaultConfig.gateway!.telegram!.enabled!,
+        token: telegram.token as string | undefined,
+        polling: (telegram.polling as boolean | undefined) ?? defaultConfig.gateway!.telegram!.polling!,
+        allowedUserIds: (telegram.allowedUserIds as string[] | undefined) ?? defaultConfig.gateway!.telegram!.allowedUserIds!,
+      },
     },
     agent: {
       provider: agent.provider as string | undefined,
@@ -225,6 +274,8 @@ export function loadRuntimeConfig(): RuntimeConfig {
     sessions: join(runtimeHome, "sessions"),
     workspace,
     memory: join(workspace, "memory"),
+    conversationBindings: join(runtimeHome, "conversation-bindings.json"),
+    scheduledTasks: join(runtimeHome, "scheduled-tasks.json"),
   };
 
   return { config, paths };

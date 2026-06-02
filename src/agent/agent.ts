@@ -11,6 +11,7 @@ import {
   appendUserMessageEvent,
   createNewSession,
   ensureCurrentSession,
+  getSessionById,
   getSessionMessages,
   type Session,
 } from "../lib/sessions.js";
@@ -59,9 +60,19 @@ export class Agent {
   }
 
   static async create(): Promise<Agent> {
-    const runtime = initializeRuntime();
+    return this.createForSession();
+  }
+
+  static async createForSession(runtime = initializeRuntime(), sessionId?: string): Promise<Agent> {
     const auth = await resolveAgentAuth(runtime);
-    const session = await ensureCurrentSession(runtime.paths);
+    const session = sessionId
+      ? await getSessionById(runtime.paths, sessionId)
+      : await ensureCurrentSession(runtime.paths);
+
+    if (!session) {
+      throw new Error(`Unknown session ${sessionId}.`);
+    }
+
     const systemPrompt = await buildSystemPrompt(runtime.paths.workspace);
     const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
     const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
@@ -83,6 +94,15 @@ export class Agent {
     this.#switchSession(nextSession);
     this.#emit({ type: "session_switched", sessionId: nextSession.sessionId });
     return { sessionId: nextSession.sessionId };
+  }
+
+  async dispose(): Promise<void> {
+    await this.#disposeSandbox();
+    this.#listeners.clear();
+  }
+
+  async appendUserMessage(prompt: string): Promise<void> {
+    await appendUserMessageEvent(this.#session, prompt);
   }
 
   async runLoop(prompt: string, options?: PromptOptions): Promise<AgentTurnResult> {

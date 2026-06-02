@@ -64,6 +64,8 @@ function createRuntimePaths(): RuntimePaths {
     sessions: join(root, "sessions"),
     workspace: join(root, "workspace"),
     memory: join(root, "workspace", "memory"),
+    conversationBindings: join(root, "conversation-bindings.json"),
+    scheduledTasks: join(root, "scheduled-tasks.json"),
   };
 }
 
@@ -180,7 +182,11 @@ beforeEach(() => {
   paths = createRuntimePaths();
   runtimeStateMock.mockReturnValue({
     config: {
-      gateway: { host: "127.0.0.1", port: 3000 },
+      gateway: {
+        host: "127.0.0.1",
+        port: 3000,
+        telegram: { enabled: false, token: undefined, polling: true, allowedUserIds: [] },
+      },
       agent: { provider: "openai", modelId: "gpt-test", reasoning: undefined },
       sandbox: {
         enabled: true,
@@ -425,6 +431,11 @@ describe("Agent", () => {
       expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
       expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash" }),
     ]);
+  });
+
+  it("fails fast when an explicit session id does not exist", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    await expect(Agent.createForSession(runtimeStateMock(), "missing-session")).rejects.toThrow("Unknown session missing-session.");
   });
 
   it("exposes an Agent wrapper with persistent listeners", async () => {
