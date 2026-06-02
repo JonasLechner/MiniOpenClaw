@@ -1,13 +1,13 @@
-import { getTelegramConversationBindingByChatId } from "../../lib/conversation-bindings.js";
-import type { RuntimeState } from "../../lib/runtime.js";
-import type { ScheduledTask } from "../../lib/proactivity/scheduled-task-types.js";
-import { runPromptInDetachedSession, type MainSessionAgent } from "../agent-runner.js";
-import { logConversationMessage } from "../conversation-log.js";
-import type { TelegramMessageStreamer } from "../telegram/message-streamer.js";
+import { getTelegramConversationBindingByChatId } from "../core/conversation-bindings.js";
+import type { RuntimeState } from "../core/runtime.js";
+import type { ScheduledTask } from "./types.js";
+import { runPromptInDetachedSession, type MainSessionAgent } from "../gateway/agent-runner.js";
+import { logConversationMessage } from "../gateway/conversation-log.js";
+import type { TelegramMessageStreamer } from "../transports/telegram/message-streamer.js";
 
 function buildDetachedTaskContextMessage(task: ScheduledTask, resultText: string): string {
   return [
-    "[SYSTEM: A detached scheduled task completed and its result was sent to the user in Telegram. Keep this in conversation context for future follow-up questions.]",
+    "[SYSTEM: Detached task completed and its result was sent to the user via the chat gateway. Keep this in context for follow-up questions.]",
     "",
     `Task ID: ${task.id}`,
     `Task target: ${task.target}`,

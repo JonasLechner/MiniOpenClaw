@@ -60,7 +60,7 @@ describe("CliContainerEngine cleanup", () => {
   });
 
   it("treats a missing container as already stopped without parsing stderr text", async () => {
-    const { CliContainerEngine } = await import("../src/lib/container-engine/docker.js");
+    const { CliContainerEngine } = await import("../src/sandbox/container-engine/docker.js");
     const engine = new CliContainerEngine("docker");
 
     spawnQueue.push({ code: 1, stderr: "different localized message" });
@@ -73,7 +73,7 @@ describe("CliContainerEngine cleanup", () => {
   });
 
   it("treats a container that disappears during rm as already removed", async () => {
-    const { CliContainerEngine } = await import("../src/lib/container-engine/docker.js");
+    const { CliContainerEngine } = await import("../src/sandbox/container-engine/docker.js");
     const engine = new CliContainerEngine("docker");
 
     spawnQueue.push(
@@ -92,7 +92,7 @@ describe("CliContainerEngine cleanup", () => {
   });
 
   it("fails fast when rm fails and the container still exists", async () => {
-    const { CliContainerEngine } = await import("../src/lib/container-engine/docker.js");
+    const { CliContainerEngine } = await import("../src/sandbox/container-engine/docker.js");
     const engine = new CliContainerEngine("docker");
 
     spawnQueue.push(

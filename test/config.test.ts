@@ -24,7 +24,7 @@ it("defaults sandboxing to enabled for new config files", async () => {
     };
   });
 
-  const { loadRuntimeConfig } = await import("../src/lib/config.js");
+  const { loadRuntimeConfig } = await import("../src/core/config.js");
   const runtime = loadRuntimeConfig();
 
   expect(runtime.config.sandbox.enabled).toBe(true);

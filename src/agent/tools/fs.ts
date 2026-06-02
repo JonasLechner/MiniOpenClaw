@@ -1,5 +1,5 @@
 import type { ToolRunContext } from "./types.js";
-import { isWithinWorkspacePath } from "../../lib/workspace/host-workspace.js";
+import { isWithinWorkspacePath } from "../../core/host-workspace.js";
 
 export { isWithinWorkspacePath };
 

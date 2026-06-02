@@ -1,10 +1,10 @@
-import { getRunnableScheduledTasks, markScheduledTaskRan } from "../../lib/proactivity/scheduled-task-store.js";
-import type { RuntimeState } from "../../lib/runtime.js";
-import type { MainSessionAgent } from "../agent-runner.js";
-import type { TelegramMessageStreamer } from "../telegram/message-streamer.js";
+import { getRunnableScheduledTasks, markScheduledTaskRan } from "./task-store.js";
+import type { RuntimeState } from "../core/runtime.js";
+import type { MainSessionAgent } from "../gateway/agent-runner.js";
+import type { TelegramMessageStreamer } from "../transports/telegram/message-streamer.js";
 import { runScheduledTask } from "./runner.js";
 
-const DEFAULT_PROACTIVITY_POLL_INTERVAL_MS = 60_000;
+const DEFAULT_JOBS_POLL_INTERVAL_MS = 60_000;
 
 export type GatewayScheduler = {
   start(): void;
@@ -18,7 +18,7 @@ export function createGatewayScheduler(
 ): GatewayScheduler {
   let timer: NodeJS.Timeout | undefined;
   let running = false;
-  const intervalMs = DEFAULT_PROACTIVITY_POLL_INTERVAL_MS;
+  const intervalMs = DEFAULT_JOBS_POLL_INTERVAL_MS;
 
   async function tick(): Promise<void> {
     if (running) return;

@@ -2,19 +2,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { RuntimePaths } from "../src/lib/config.js";
+import type { RuntimePaths } from "../src/core/config.js";
 import {
   bindTelegramConversationToSession,
   getTelegramConversationBindingByChatId,
   resolveTelegramConversationBinding,
-} from "../src/lib/conversation-bindings.js";
+} from "../src/core/conversation-bindings.js";
 import {
   createScheduledTask,
   getRunnableScheduledTasks,
   listScheduledTasks,
   markScheduledTaskRan,
   matchesCronExpression,
-} from "../src/lib/proactivity/scheduled-task-store.js";
+} from "../src/jobs/task-store.js";
 
 function createRuntimePaths(): RuntimePaths {
   const root = mkdtempSync(join(tmpdir(), "miniopenclaw-control-plane-test-"));

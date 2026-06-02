@@ -1,9 +1,9 @@
-import { buildSystemPrompt } from "../lib/agent-context.js";
-import type { Sandbox, SandboxFactory } from "../lib/sandbox.js";
-import { createSandboxFactory, resolveSandboxEngineKind } from "../lib/sandbox/factory.js";
-import { initializeRuntime, type RuntimeState } from "../lib/runtime.js";
-import type { Workspace } from "../lib/workspace.js";
-import { createHostWorkspace } from "../lib/workspace/host-workspace.js";
+import { buildSystemPrompt } from "../core/agent-context.js";
+import type { Sandbox, SandboxFactory } from "../sandbox/sandbox.js";
+import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
+import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
+import type { Workspace } from "../core/workspace.js";
+import { createHostWorkspace } from "../core/host-workspace.js";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
@@ -14,7 +14,7 @@ import {
   getSessionById,
   getSessionMessages,
   type Session,
-} from "../lib/sessions.js";
+} from "../core/sessions.js";
 import { resolveAgentAuth, type AgentAuth } from "./auth.js";
 import { AgentLoopExecutionError, runAgentLoop, type AgentLoopResult } from "./agent-loop.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.js";

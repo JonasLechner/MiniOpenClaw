@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TelegramUpdate } from "../src/gateway/telegram/api.js";
-import { createTelegramPolling } from "../src/gateway/telegram/polling.js";
+import type { TelegramUpdate } from "../src/transports/telegram/api.js";
+import { createTelegramPolling } from "../src/transports/telegram/polling.js";
 
 const pendingRequests = new Set<(reason?: unknown) => void>();
 

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { Sandbox, SandboxExecOptions, SandboxExecResult } from "../sandbox.js";
+import type { Sandbox, SandboxExecOptions, SandboxExecResult } from "./sandbox.js";
 
 export class HostSandbox implements Sandbox {
   readonly #workspacePath: string;

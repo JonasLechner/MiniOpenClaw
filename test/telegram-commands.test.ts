@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { RuntimePaths } from "../src/lib/config.js";
-import type { RuntimeState } from "../src/lib/runtime.js";
-import { createNewSession } from "../src/lib/sessions.js";
-import type { ConversationBinding } from "../src/lib/conversation-bindings.js";
-import { handleTelegramCommand } from "../src/gateway/telegram/commands.js";
+import type { RuntimePaths } from "../src/core/config.js";
+import type { RuntimeState } from "../src/core/runtime.js";
+import { createNewSession } from "../src/core/sessions.js";
+import type { ConversationBinding } from "../src/core/conversation-bindings.js";
+import { handleTelegramCommand } from "../src/transports/telegram/commands.js";
 
 function createRuntimePaths(): RuntimePaths {
   const root = mkdtempSync(join(tmpdir(), "miniopenclaw-telegram-commands-test-"));
@@ -108,6 +108,7 @@ describe("telegram commands", () => {
     });
 
     expect(result.handled).toBe(true);
+    if (!result.handled) throw new Error("expected command to be handled");
     expect(result).toMatchObject({ sessionId: expect.any(String) });
     expect(result.sessionId).not.toBe(existingSession.sessionId);
     expect(sendText).toHaveBeenCalledWith("chat-1", expect.stringContaining(result.sessionId!));

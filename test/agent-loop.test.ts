@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 
-import type { RuntimePaths } from "../src/lib/config.js";
-import type { RuntimeState } from "../src/lib/runtime.js";
-import { getSessionById, getSessionMessages, listSessions } from "../src/lib/sessions.js";
+import type { RuntimePaths } from "../src/core/config.js";
+import type { RuntimeState } from "../src/core/runtime.js";
+import { getSessionById, getSessionMessages, listSessions } from "../src/core/sessions.js";
 
 const streamSimpleMock = vi.fn();
 const completeMock = vi.fn();
@@ -42,7 +42,7 @@ vi.mock("@earendil-works/pi-ai", () => ({
   },
 }));
 
-vi.mock("../src/lib/runtime.js", () => ({
+vi.mock("../src/core/runtime.js", () => ({
   initializeRuntime: runtimeStateMock,
 }));
 
@@ -50,7 +50,7 @@ vi.mock("../src/agent/auth.js", () => ({
   resolveAgentAuth: resolveAgentAuthMock,
 }));
 
-vi.mock("../src/lib/sandbox/factory.js", () => ({
+vi.mock("../src/sandbox/factory.js", () => ({
   createSandboxFactory: createSandboxFactoryMock,
   resolveSandboxEngineKind: resolveSandboxEngineKindMock,
 }));

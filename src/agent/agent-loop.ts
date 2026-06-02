@@ -7,10 +7,10 @@ import {
   type ToolResultMessage,
   validateToolCall,
 } from "@earendil-works/pi-ai";
-import type { Sandbox } from "../lib/sandbox.js";
-import type { Workspace } from "../lib/workspace.js";
-import { createAgentContext } from "../lib/agent-context.js";
-import { getAssistantVisibleText } from "../lib/messages.js";
+import type { Sandbox } from "../sandbox/sandbox.js";
+import type { Workspace } from "../core/workspace.js";
+import { createAgentContext } from "../core/agent-context.js";
+import { getAssistantVisibleText } from "../core/messages.js";
 import { exposedTools, toolMap } from "./tools/index.js";
 import type { ToolRunContext } from "./tools/types.js";
 import type { AgentEvent, AgentTurnResult } from "./events.js";

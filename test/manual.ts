@@ -1,6 +1,6 @@
 import { readTool, writeTool } from "../src/agent/tools/index.js";
-import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
-import { createHostWorkspace } from "../src/lib/workspace/host-workspace.js";
+import { HostSandbox } from "../src/sandbox/host-sandbox.js";
+import { createHostWorkspace } from "../src/core/host-workspace.js";
 
 const toolContext = (workspacePath: string) => ({ workspace: createHostWorkspace(workspacePath), sandbox: new HostSandbox(workspacePath) });
 

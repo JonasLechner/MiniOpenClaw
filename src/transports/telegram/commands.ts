@@ -1,6 +1,6 @@
-import { createNewSession } from "../../lib/sessions.js";
-import { bindTelegramConversationToSession, type ConversationBinding } from "../../lib/conversation-bindings.js";
-import type { RuntimeState } from "../../lib/runtime.js";
+import { createNewSession } from "../../core/sessions.js";
+import { bindTelegramConversationToSession, type ConversationBinding } from "../../core/conversation-bindings.js";
+import type { RuntimeState } from "../../core/runtime.js";
 import type { TelegramMessageStreamer } from "./message-streamer.js";
 
 export type TelegramCommandContext = {

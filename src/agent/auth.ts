@@ -5,7 +5,7 @@ import {
   getOAuthProvider,
   type OAuthCredentials,
 } from "@earendil-works/pi-ai/oauth";
-import type { RuntimeState } from "../lib/runtime.js";
+import type { RuntimeState } from "../core/runtime.js";
 
 export type AgentModelSelection = {
   provider: string;

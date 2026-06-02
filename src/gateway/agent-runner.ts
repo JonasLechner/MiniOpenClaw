@@ -1,7 +1,7 @@
 import { Agent } from "../agent/agent.js";
 import type { AgentEventListener, AgentTurnResult } from "../agent/events.js";
-import type { RuntimeState } from "../lib/runtime.js";
-import { createNewSession } from "../lib/sessions.js";
+import type { RuntimeState } from "../core/runtime.js";
+import { createNewSession } from "../core/sessions.js";
 import { logConversationToolCall, type ConversationLogSource } from "./conversation-log.js";
 
 export type PromptLogContext = {

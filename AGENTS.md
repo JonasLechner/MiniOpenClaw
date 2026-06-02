@@ -3,7 +3,15 @@
 ## Project
 Minimal TypeScript project using `npm`.
 
-This is a long-running personal agent/assistant. The agent is expected to keep session state over time and is not expected to restart often.
+MiniOpenClaw is an always-on local personal-assistant backend. It should own runs, sessions, approvals, jobs, skills, and transports.
+
+What we are building, in short:
+- Primary: Telegram, sharing the same current session
+- Core runtime: sequential tool-calling agent loop with clear stop conditions
+- Storage: append-only JSONL session logs plus human-readable Markdown memory in the workspace
+- Safety: workspace-bounded file access and approval-gated `bash`
+- Extensibility: pi-compatible global skills
+- Cron jobs/heartbeats and async subagent profiles
 
 **Work in progress — backwards compatibility is not needed.**
 

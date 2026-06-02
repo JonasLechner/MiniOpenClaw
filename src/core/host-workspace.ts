@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import type { Workspace, WorkspaceDirEntry } from "../workspace.js";
+import type { Workspace, WorkspaceDirEntry } from "./workspace.js";
 
 interface PathApi {
   dirname(filePath: string): string;

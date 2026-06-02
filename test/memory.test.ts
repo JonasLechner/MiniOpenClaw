@@ -10,7 +10,7 @@ import {
   retrieveMemoryFiles,
   updateSessionSummary,
   writeMemoryEntry,
-} from "../src/lib/memory.js";
+} from "../src/core/memory.js";
 
 async function withMemoryRoot(run: (memoryRoot: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), "miniopenclaw-memory-"));

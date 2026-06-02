@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai";
 import { join, relative } from "path";
-import type { Workspace } from "../../lib/workspace.js";
+import type { Workspace } from "../../core/workspace.js";
 import { resolveWorkspacePath } from "./fs.js";
 import { requireToolContext, type ToolDefinition } from "./types.js";
 

@@ -1,4 +1,4 @@
-import { initializeRuntime } from "../lib/runtime.js";
+import { initializeRuntime } from "../core/runtime.js";
 import { buildGateway } from "./app.js";
 import { logGatewayListening } from "./log.js";
 

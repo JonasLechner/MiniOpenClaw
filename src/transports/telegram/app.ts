@@ -1,7 +1,7 @@
-import { resolveTelegramConversationBinding } from "../../lib/conversation-bindings.js";
-import type { RuntimeState } from "../../lib/runtime.js";
-import type { MainSessionAgent } from "../agent-runner.js";
-import { logConversationMessage } from "../conversation-log.js";
+import { resolveTelegramConversationBinding } from "../../core/conversation-bindings.js";
+import type { RuntimeState } from "../../core/runtime.js";
+import type { MainSessionAgent } from "../../gateway/agent-runner.js";
+import { logConversationMessage } from "../../gateway/conversation-log.js";
 import { handleTelegramCommand } from "./commands.js";
 import { TelegramApiClient } from "./api.js";
 import { TelegramMessageStreamer } from "./message-streamer.js";

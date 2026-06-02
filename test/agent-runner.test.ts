@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RuntimeState } from "../src/core/runtime.js";
 
 const createForSessionMock = vi.fn();
 const createNewSessionMock = vi.fn(async () => ({ sessionId: "detached-session" }));
@@ -12,7 +13,7 @@ vi.mock("../src/agent/agent.js", () => ({
   },
 }));
 
-vi.mock("../src/lib/sessions.js", () => ({
+vi.mock("../src/core/sessions.js", () => ({
   createNewSession: createNewSessionMock,
 }));
 
@@ -80,7 +81,7 @@ describe("gateway agent runner", () => {
   it("disposes detached session agents after each run", async () => {
     createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
 
-    const runtime = { paths: {} } as never;
+    const runtime = { paths: {} } as unknown as RuntimeState;
     const { runPromptInDetachedSession } = await import("../src/gateway/agent-runner.js");
 
     await runPromptInDetachedSession(runtime, "hello", { source: "scheduled-detached", chatId: "chat-1", taskId: "task-1" });

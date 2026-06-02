@@ -1,5 +1,5 @@
-import type { ContainerEngine } from "../container-engine.js";
-import type { Sandbox, SandboxConfig, SandboxExecOptions, SandboxExecResult } from "../sandbox.js";
+import type { ContainerEngine } from "./container-engine.js";
+import type { Sandbox, SandboxConfig, SandboxExecOptions, SandboxExecResult } from "./sandbox.js";
 
 const WORKSPACE_MOUNT_PATH = "/workspace";
 

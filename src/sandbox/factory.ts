@@ -1,6 +1,6 @@
-import type { ContainerEngine, ContainerEngineKind } from "../container-engine.js";
-import type { Sandbox, SandboxConfig, SandboxFactory } from "../sandbox.js";
-import { resolveContainerEngine, resolveContainerEngineKind } from "../container-engine/resolve.js";
+import type { ContainerEngine, ContainerEngineKind } from "./container-engine.js";
+import type { Sandbox, SandboxConfig, SandboxFactory } from "./sandbox.js";
+import { resolveContainerEngine, resolveContainerEngineKind } from "./container-engine/resolve.js";
 import { ContainerSandbox } from "./container-sandbox.js";
 import { HostSandbox } from "./host-sandbox.js";
 

@@ -1,6 +1,6 @@
 import type { Tool as PiTool } from "@earendil-works/pi-ai";
-import type { Sandbox } from "../../lib/sandbox.js";
-import type { Workspace } from "../../lib/workspace.js";
+import type { Sandbox } from "../../sandbox/sandbox.js";
+import type { Workspace } from "../../core/workspace.js";
 
 export interface ToolRunContext {
   workspace: Workspace;

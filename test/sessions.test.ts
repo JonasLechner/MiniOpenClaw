@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import { createAgentContext } from "../src/lib/agent-context.js";
-import type { RuntimePaths } from "../src/lib/config.js";
+import { createAgentContext } from "../src/core/agent-context.js";
+import type { RuntimePaths } from "../src/core/config.js";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
@@ -16,7 +16,7 @@ import {
   getSessionMessages,
   listSessions,
   SESSION_FORMAT_VERSION,
-} from "../src/lib/sessions.js";
+} from "../src/core/sessions.js";
 
 function createRuntimePaths(): RuntimePaths {
   const root = mkdtempSync(join(tmpdir(), "miniopenclaw-test-"));

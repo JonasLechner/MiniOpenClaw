@@ -4,12 +4,12 @@ const getRunnableScheduledTasksMock = vi.fn();
 const markScheduledTaskRanMock = vi.fn();
 const runScheduledTaskMock = vi.fn();
 
-vi.mock("../src/lib/proactivity/scheduled-task-store.js", () => ({
+vi.mock("../src/jobs/task-store.js", () => ({
   getRunnableScheduledTasks: getRunnableScheduledTasksMock,
   markScheduledTaskRan: markScheduledTaskRanMock,
 }));
 
-vi.mock("../src/gateway/proactivity/runner.js", () => ({
+vi.mock("../src/jobs/runner.js", () => ({
   runScheduledTask: runScheduledTaskMock,
 }));
 
@@ -29,7 +29,7 @@ describe("gateway scheduler", () => {
 
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const { createGatewayScheduler } = await import("../src/gateway/proactivity/scheduler.js");
+    const { createGatewayScheduler } = await import("../src/jobs/scheduler.js");
     const scheduler = createGatewayScheduler({ paths: {} } as never, { sendText: vi.fn() } as never, {} as never);
 
     scheduler.start();

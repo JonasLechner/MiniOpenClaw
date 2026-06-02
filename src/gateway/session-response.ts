@@ -1,4 +1,4 @@
-import type { Session } from "../lib/sessions.js";
+import type { Session } from "../core/sessions.js";
 
 export type SessionResponse = {
   sessionId: string;

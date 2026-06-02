@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveContainerEngineKind } from "../src/lib/container-engine/resolve.js";
+import { resolveContainerEngineKind } from "../src/sandbox/container-engine/resolve.js";
 
 describe("resolveContainerEngineKind", () => {
   it("prefers Docker on Windows in auto mode", async () => {

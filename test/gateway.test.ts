@@ -2,13 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RuntimePaths } from "../src/lib/config.js";
-import type { RuntimeState } from "../src/lib/runtime.js";
-import { appendUserMessageEvent, createNewSession } from "../src/lib/sessions.js";
+import type { RuntimePaths } from "../src/core/config.js";
+import type { RuntimeState } from "../src/core/runtime.js";
+import { appendUserMessageEvent, createNewSession } from "../src/core/sessions.js";
 
 const runtimeStateMock = vi.fn<() => RuntimeState>();
 
-vi.mock("../src/lib/runtime.js", () => ({
+vi.mock("../src/core/runtime.js", () => ({
   initializeRuntime: runtimeStateMock,
 }));
 

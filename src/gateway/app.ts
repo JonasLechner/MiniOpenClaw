@@ -1,11 +1,11 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import type { RuntimeState } from "../lib/runtime.js";
-import { createNewSession, ensureCurrentSession, getSessionById, listSessions } from "../lib/sessions.js";
+import type { RuntimeState } from "../core/runtime.js";
+import { createNewSession, ensureCurrentSession, getSessionById, listSessions } from "../core/sessions.js";
 import { createMainSessionAgent } from "./agent-runner.js";
 import { logGatewayError, logGatewayRequest, markGatewayRequestStart } from "./log.js";
-import { createGatewayScheduler } from "./proactivity/scheduler.js";
+import { createGatewayScheduler } from "../jobs/scheduler.js";
 import { toSessionResponse } from "./session-response.js";
-import { buildTelegramGatewayApp } from "./telegram/app.js";
+import { buildTelegramGatewayApp } from "../transports/telegram/app.js";
 
 export function buildGateway(runtime: RuntimeState): FastifyInstance {
   const app = Fastify({ logger: false });

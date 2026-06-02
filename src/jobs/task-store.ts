@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { RuntimePaths } from "../config.js";
-import { readJsonFile, writeJsonFile } from "../json-store.js";
-import type { ScheduledTask } from "./scheduled-task-types.js";
+import type { RuntimePaths } from "../core/config.js";
+import { readJsonFile, writeJsonFile } from "../core/json-store.js";
+import type { ScheduledTask } from "./types.js";
 
 async function loadTasks(paths: RuntimePaths): Promise<ScheduledTask[]> {
   return readJsonFile(paths.scheduledTasks, [] as ScheduledTask[]);

@@ -1,6 +1,6 @@
 import { complete } from "@earendil-works/pi-ai";
-import { updateSessionSummary } from "../lib/memory.js";
-import { getAssistantVisibleText } from "../lib/messages.js";
+import { updateSessionSummary } from "../core/memory.js";
+import { getAssistantVisibleText } from "../core/messages.js";
 import type { AgentAuth } from "./auth.js";
 
 type SessionMemoryInput = {

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const getTelegramConversationBindingByChatIdMock = vi.fn();
 const runPromptInDetachedSessionMock = vi.fn();
 
-vi.mock("../src/lib/conversation-bindings.js", () => ({
+vi.mock("../src/core/conversation-bindings.js", () => ({
   getTelegramConversationBindingByChatId: getTelegramConversationBindingByChatIdMock,
 }));
 
@@ -19,7 +19,7 @@ describe("runScheduledTask", () => {
   it("uses the current main session binding for main-session prompt jobs", async () => {
     getTelegramConversationBindingByChatIdMock.mockResolvedValue({ sessionId: "session-current" });
 
-    const { runScheduledTask } = await import("../src/gateway/proactivity/runner.js");
+    const { runScheduledTask } = await import("../src/jobs/runner.js");
     const streamer = { sendText: vi.fn(async () => {}) };
     const mainSessionAgent = {
       runPrompt: vi.fn(async () => ({ text: "main reply", stopReason: "stop" })),
@@ -52,7 +52,7 @@ describe("runScheduledTask", () => {
     runPromptInDetachedSessionMock.mockResolvedValue({ text: "detached reply", stopReason: "stop" });
     getTelegramConversationBindingByChatIdMock.mockResolvedValue({ sessionId: "session-current" });
 
-    const { runScheduledTask } = await import("../src/gateway/proactivity/runner.js");
+    const { runScheduledTask } = await import("../src/jobs/runner.js");
     const streamer = { sendText: vi.fn(async () => {}) };
     const mainSessionAgent = {
       runPrompt: vi.fn(),
@@ -86,7 +86,7 @@ describe("runScheduledTask", () => {
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledTimes(1);
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledWith(
       "session-current",
-      expect.stringContaining("detached scheduled task completed"),
+      expect.stringContaining("Detached task completed"),
     );
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledWith(
       "session-current",
