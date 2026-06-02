@@ -7,6 +7,7 @@ export type TelegramCommandContext = {
   runtime: RuntimeState;
   binding: ConversationBinding;
   streamer: TelegramMessageStreamer;
+  stopActiveRun?: () => boolean;
 };
 
 export type TelegramCommandResult =
@@ -19,7 +20,8 @@ export async function handleTelegramCommand(
 ): Promise<TelegramCommandResult> {
   if (!text.startsWith("/")) return { handled: false };
 
-  const [command] = text.trim().split(/\s+/);
+  const [rawCommand] = text.trim().split(/\s+/);
+  const command = rawCommand?.split("@")[0];
 
   if (command === "/help" || command === "/start") {
     await context.streamer.sendText(
@@ -29,6 +31,7 @@ export async function handleTelegramCommand(
         "/help - show this help",
         "/new - start a new session",
         "/session - show the current session id",
+        "/stop - abort the current run",
       ].join("\n"),
     );
     return { handled: true };
@@ -48,6 +51,15 @@ export async function handleTelegramCommand(
 
   if (command === "/session") {
     await context.streamer.sendText(context.binding.chatId, `Current session: ${context.binding.sessionId}`);
+    return { handled: true };
+  }
+
+  if (command === "/stop") {
+    const stopped = context.stopActiveRun?.() ?? false;
+    await context.streamer.sendText(
+      context.binding.chatId,
+      stopped ? "Stopping current run…" : "No active run to stop.",
+    );
     return { handled: true };
   }
 

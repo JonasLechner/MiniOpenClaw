@@ -84,18 +84,20 @@ export function logConversationMessage(entry: Omit<ConversationLogEntry, "event"
   } satisfies ConversationLogEntry;
 
   const pretty = [
-    formatTimestamp(payload.timestamp),
-    color("msg", ansi.gray),
-    formatSource(payload.source),
-    formatRole(payload.role),
-    formatMeta({
-      chat: payload.chatId,
-      user: payload.userId,
-      task: payload.taskId,
-      stop: payload.stopReason,
-    }),
+    [
+      formatTimestamp(payload.timestamp),
+      color("msg", ansi.gray),
+      formatSource(payload.source),
+      formatRole(payload.role),
+      formatMeta({
+        chat: payload.chatId,
+        user: payload.userId,
+        task: payload.taskId,
+        stop: payload.stopReason,
+      }),
+    ].join(" "),
     payload.text,
-  ].join(" ");
+  ].join("\n");
 
   writeLogLine(pretty, payload);
 }

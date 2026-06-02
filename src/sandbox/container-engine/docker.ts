@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -14,6 +15,8 @@ interface ProcessResult {
   code: number | null;
   output: string;
   timedOut: boolean;
+  aborted: boolean;
+  abortError?: Error;
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -21,7 +24,21 @@ const REPOSITORY_ROOT = resolve(MODULE_DIR, "../../..");
 const DEFAULT_SANDBOX_IMAGE = "miniopenclaw-sandbox:local";
 const DEFAULT_SANDBOX_DOCKERFILE = resolve(REPOSITORY_ROOT, "docker", "sandbox.Dockerfile");
 
-function runProcess(command: string, args: string[], timeout?: number): Promise<ProcessResult> {
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function runProcess(
+  command: string,
+  args: string[],
+  timeout?: number,
+  signal?: AbortSignal,
+  onAbort?: () => Promise<void>,
+): Promise<ProcessResult> {
+  if (signal?.aborted) {
+    return Promise.resolve({ code: null, output: "", timedOut: false, aborted: true });
+  }
+
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -29,7 +46,23 @@ function runProcess(command: string, args: string[], timeout?: number): Promise<
 
     let output = "";
     let timedOut = false;
+    let aborted = false;
+    let settled = false;
+    let abortPromise: Promise<void> | undefined;
     let timeoutHandle: NodeJS.Timeout | undefined;
+
+    const cleanup = () => {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+      signal?.removeEventListener("abort", abort);
+    };
+
+    const abort = () => {
+      aborted = true;
+      abortPromise = onAbort?.();
+      child.kill("SIGKILL");
+    };
 
     child.stdout.on("data", (chunk: Buffer | string) => {
       output += chunk.toString();
@@ -40,9 +73,9 @@ function runProcess(command: string, args: string[], timeout?: number): Promise<
     });
 
     child.on("error", (error) => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
+      if (settled) return;
+      settled = true;
+      cleanup();
       reject(error);
     });
 
@@ -53,18 +86,46 @@ function runProcess(command: string, args: string[], timeout?: number): Promise<
       }, timeout * 1000);
     }
 
-    child.on("close", (code) => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
+    signal?.addEventListener("abort", abort, { once: true });
 
-      resolve({ code, output, timedOut });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+
+      abortPromise
+        ?.then(() => resolve({ code, output, timedOut, aborted }))
+        .catch((error: unknown) => {
+          resolve({
+            code,
+            output,
+            timedOut,
+            aborted,
+            abortError: error instanceof Error ? error : new Error(String(error)),
+          });
+        });
+      if (!abortPromise) {
+        resolve({ code, output, timedOut, aborted });
+      }
     });
   });
 }
 
-async function runChecked(command: string, args: string[], timeout?: number): Promise<string> {
-  const result = await runProcess(command, args, timeout);
+async function runChecked(
+  command: string,
+  args: string[],
+  timeout?: number,
+  signal?: AbortSignal,
+  onAbort?: () => Promise<void>,
+): Promise<string> {
+  const result = await runProcess(command, args, timeout, signal, onAbort);
+
+  if (result.aborted) {
+    if (result.abortError) {
+      throw new Error(`Command aborted, but cleanup failed: ${result.abortError.message}`, { cause: result.abortError });
+    }
+    throw new DOMException("Command aborted", "AbortError");
+  }
 
   if (result.timedOut) {
     throw new Error(`Command timed out after ${timeout} seconds\n\n${result.output}`.trimEnd());
@@ -164,16 +225,41 @@ export class CliContainerEngine implements ContainerEngine {
   }
 
   async execContainer(containerName: string, options: ContainerExecOptions): Promise<{ output: string }> {
+    const markerPath = `/tmp/miniopenclaw-exec-${randomUUID()}.pid`;
+    const wrappedCommand = [
+      `rm -f ${shellQuote(markerPath)}`,
+      `setsid bash -lc ${shellQuote(`echo $$ > ${shellQuote(markerPath)}; exec bash -lc ${shellQuote(options.command)}`)}`,
+      `status=$?`,
+      `rm -f ${shellQuote(markerPath)}`,
+      `exit $status`,
+    ].join("; ");
+
     const args = ["exec"];
 
     if (options.workdir) {
       args.push("--workdir", options.workdir);
     }
 
-    args.push(containerName, "bash", "-lc", options.command);
+    args.push(containerName, "bash", "-lc", wrappedCommand);
+
+    const killActiveCommand = async () => {
+      await runChecked(this.#binary, [
+        "exec",
+        containerName,
+        "bash",
+        "-lc",
+        [
+          `if [ -f ${shellQuote(markerPath)} ]; then`,
+          `pid=$(cat ${shellQuote(markerPath)})`,
+          `kill -KILL -"$pid" 2>/dev/null || kill -KILL "$pid"`,
+          `fi`,
+          `rm -f ${shellQuote(markerPath)}`,
+        ].join("; "),
+      ]);
+    };
 
     return {
-      output: await runChecked(this.#binary, args, options.timeout),
+      output: await runChecked(this.#binary, args, options.timeout, options.signal, killActiveCommand),
     };
   }
 

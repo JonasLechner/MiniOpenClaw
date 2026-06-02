@@ -84,6 +84,34 @@ describe("telegram commands", () => {
     expect(helpText).not.toContain("/approve");
   });
 
+  it("stops an active run", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+
+    const binding: ConversationBinding = {
+      channel: "telegram",
+      chatId: "chat-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sendText = vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {});
+    const stopActiveRun = vi.fn(() => true);
+    const result = await handleTelegramCommand("/stop@MiniOpenClawBot", {
+      runtime,
+      binding,
+      streamer: { sendText } as never,
+      stopActiveRun,
+    });
+
+    expect(result).toEqual({ handled: true });
+    expect(stopActiveRun).toHaveBeenCalledTimes(1);
+    expect(sendText).toHaveBeenCalledWith("chat-1", "Stopping current run…");
+  });
+
   it("switches the binding to a newly created session", async () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);

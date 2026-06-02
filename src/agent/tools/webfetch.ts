@@ -40,7 +40,7 @@ export const webFetchTool: ToolDefinition<WebFetchInput, WebFetchOutput> = {
     url: Type.String(),
     format: Type.Optional(Type.Union([Type.Literal("text"), Type.Literal("html")])),
   }),
-  async run(input: WebFetchInput) {
+  async run(input: WebFetchInput, context) {
     const rawUrl = input.url.trim();
     if (!rawUrl) {
       throw new Error("url must not be empty");
@@ -61,6 +61,7 @@ export const webFetchTool: ToolDefinition<WebFetchInput, WebFetchOutput> = {
       headers: {
         "user-agent": "MiniOpenClaw/1.0",
       },
+      signal: context?.signal,
     });
 
     if (!response.ok) {

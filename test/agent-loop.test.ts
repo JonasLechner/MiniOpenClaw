@@ -396,7 +396,7 @@ describe("Agent", () => {
       },
     });
     expect(session ? getSessionMessages(session) : undefined).toEqual([
-      expect.objectContaining({ role: "user", content: "run pwd" }),
+      expect.objectContaining({ role: "user", content: expect.stringMatching(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] run pwd$/) }),
       expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
       expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash" }),
       expect.objectContaining({ role: "assistant", stopReason: "stop" }),
@@ -427,7 +427,7 @@ describe("Agent", () => {
       "error",
     ]);
     expect(session ? getSessionMessages(session) : undefined).toEqual([
-      expect.objectContaining({ role: "user", content: "run pwd" }),
+      expect.objectContaining({ role: "user", content: expect.stringMatching(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] run pwd$/) }),
       expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
       expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash" }),
     ]);

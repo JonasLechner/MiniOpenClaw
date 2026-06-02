@@ -54,6 +54,7 @@ export async function runScheduledTask(
     return;
   }
 
+  const binding = await getTelegramConversationBindingByChatId(runtime.paths, task.chatId);
   logConversationMessage({
     role: "user",
     source: "scheduled-detached",
@@ -65,7 +66,7 @@ export async function runScheduledTask(
     source: "scheduled-detached",
     chatId: task.chatId,
     taskId: task.id,
-  });
+  }, { sandboxSessionId: binding.sessionId });
   const resultText = result.text || "Done.";
   logConversationMessage({
     role: "assistant",
@@ -77,6 +78,5 @@ export async function runScheduledTask(
   });
   await streamer.sendText(task.chatId, resultText);
 
-  const binding = await getTelegramConversationBindingByChatId(runtime.paths, task.chatId);
   await mainSessionAgent.appendUserMessage(binding.sessionId, buildDetachedTaskContextMessage(task, resultText));
 }

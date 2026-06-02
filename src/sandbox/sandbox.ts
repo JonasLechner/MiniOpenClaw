@@ -1,5 +1,6 @@
 export interface SandboxExecOptions {
   timeout?: number;
+  signal?: AbortSignal;
 }
 
 export interface SandboxExecResult {

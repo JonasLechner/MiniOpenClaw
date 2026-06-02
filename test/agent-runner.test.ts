@@ -53,6 +53,33 @@ describe("gateway agent runner", () => {
     expect(createForSessionMock).toHaveBeenNthCalledWith(2, runtime, "session-2");
   });
 
+  it("aborts the active run without disposing the agent", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let releaseRunLoop: (() => void) | undefined;
+    runLoopMock.mockImplementationOnce((_prompt: string, options?: { signal?: AbortSignal }) => {
+      capturedSignal = options?.signal;
+      return new Promise((resolve) => {
+        releaseRunLoop = () => resolve({ text: "Stopped.", stopReason: "aborted" });
+      });
+    });
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+
+    const runtime = { paths: {} } as never;
+    const { createMainSessionAgent } = await import("../src/gateway/agent-runner.js");
+    const mainSessionAgent = createMainSessionAgent(runtime);
+
+    const runningTurn = mainSessionAgent.runPrompt("session-1", "first", { source: "telegram", chatId: "chat-1" });
+
+    await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+    expect(mainSessionAgent.stopActiveRun()).toBe(true);
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(disposeMock).not.toHaveBeenCalled();
+    expect(mainSessionAgent.stopActiveRun()).toBe(false);
+
+    releaseRunLoop?.();
+    await expect(runningTurn).resolves.toMatchObject({ stopReason: "aborted" });
+  });
+
   it("serializes append-only mutations behind active turns", async () => {
     let releaseRunLoop: (() => void) | undefined;
     runLoopMock.mockImplementationOnce(() => new Promise((resolve) => {
@@ -88,7 +115,23 @@ describe("gateway agent runner", () => {
 
     expect(createNewSessionMock).toHaveBeenCalledWith(runtime.paths);
     expect(createForSessionMock).toHaveBeenCalledTimes(1);
-    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "detached-session");
+    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "detached-session", { sandboxSessionId: undefined });
     expect(disposeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("can run detached sessions against the main session sandbox", async () => {
+    createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, dispose: disposeMock });
+
+    const runtime = { paths: {} } as unknown as RuntimeState;
+    const { runPromptInDetachedSession } = await import("../src/gateway/agent-runner.js");
+
+    await runPromptInDetachedSession(
+      runtime,
+      "hello",
+      { source: "scheduled-detached", chatId: "chat-1", taskId: "task-1" },
+      { sandboxSessionId: "main-session" },
+    );
+
+    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "detached-session", { sandboxSessionId: "main-session" });
   });
 });

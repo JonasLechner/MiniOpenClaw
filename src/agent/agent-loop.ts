@@ -46,6 +46,46 @@ export class AgentLoopExecutionError extends Error {
   }
 }
 
+function createAbortedAssistantMessage(context: AgentLoopContext): AssistantMessage {
+  const model = context.model as { provider?: string; id?: string };
+  return {
+    role: "assistant",
+    content: [{ type: "text", text: "Stopped." }],
+    api: "openai-responses",
+    provider: model.provider ?? "unknown",
+    model: model.id ?? "unknown",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "aborted",
+    errorMessage: "Aborted by user",
+    timestamp: Date.now(),
+  };
+}
+
+async function finishAborted(
+  context: AgentLoopContext,
+  generatedMessages: Array<AssistantMessage | ToolResultMessage>,
+  emit: AgentEventSink,
+): Promise<AgentLoopResult> {
+  const message = createAbortedAssistantMessage(context);
+  generatedMessages.push(message);
+  const result: AgentTurnResult = {
+    text: getAssistantVisibleText(message),
+    stopReason: message.stopReason,
+    errorMessage: message.errorMessage,
+  };
+  await emit({ type: "message_end", sessionId: context.sessionId, message, text: result.text });
+  await emit({ type: "turn_end", sessionId: context.sessionId, result });
+  await emit({ type: "agent_end", sessionId: context.sessionId, result });
+  return { message, generatedMessages, result };
+}
+
 export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSink): Promise<AgentLoopResult> {
   const messages = [...context.messages];
   const generatedMessages: Array<AssistantMessage | ToolResultMessage> = [];
@@ -55,6 +95,10 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
     await emit({ type: "turn_start", sessionId: context.sessionId, prompt: context.prompt });
 
     while (true) {
+      if (context.signal?.aborted) {
+        return await finishAborted(context, generatedMessages, emit);
+      }
+
       const llmContext: Context = {
         ...createAgentContext(messages, context.systemPrompt),
         tools: exposedTools,
@@ -122,6 +166,7 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
           const toolContext: ToolRunContext = {
             workspace: context.workspace,
             sandbox: context.sandbox,
+            signal: context.signal,
           };
 
           const toolResult: ToolResultMessage = {
@@ -162,9 +207,16 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
             result: toolResult,
           });
         }
+
+        if (context.signal?.aborted) {
+          return await finishAborted(context, generatedMessages, emit);
+        }
       }
     }
   } catch (error) {
+    if (context.signal?.aborted) {
+      return await finishAborted(context, generatedMessages, emit);
+    }
     throw new AgentLoopExecutionError(error, generatedMessages);
   }
 }

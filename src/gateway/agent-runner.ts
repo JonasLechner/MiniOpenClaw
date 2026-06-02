@@ -15,6 +15,7 @@ export type MainSessionAgent = {
   runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext): Promise<AgentTurnResult>;
   bindSession(sessionId: string): Promise<void>;
   appendUserMessage(sessionId: string, prompt: string): Promise<void>;
+  stopActiveRun(): boolean;
   dispose(): Promise<void>;
 };
 
@@ -58,6 +59,7 @@ function createToolCallLogger(logContext: PromptLogContext): AgentEventListener 
 export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent {
   let currentSessionId: string | undefined;
   let currentAgentPromise: Promise<Agent> | undefined;
+  let activeAbortController: AbortController | undefined;
   let lane = Promise.resolve();
 
   async function clearCurrentAgent(): Promise<void> {
@@ -99,7 +101,18 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
     runPrompt(sessionId: string, prompt: string, logContext: PromptLogContext): Promise<AgentTurnResult> {
       return enqueue(async () => {
         const agent = await getAgent(sessionId);
-        return agent.runLoop(prompt, { onEvent: createToolCallLogger(logContext) });
+        const controller = new AbortController();
+        activeAbortController = controller;
+        try {
+          return await agent.runLoop(prompt, {
+            onEvent: createToolCallLogger(logContext),
+            signal: controller.signal,
+          });
+        } finally {
+          if (activeAbortController === controller) {
+            activeAbortController = undefined;
+          }
+        }
       });
     },
     bindSession(sessionId: string): Promise<void> {
@@ -113,7 +126,15 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
         await agent.appendUserMessage(prompt);
       });
     },
+    stopActiveRun(): boolean {
+      if (!activeAbortController || activeAbortController.signal.aborted) {
+        return false;
+      }
+      activeAbortController.abort();
+      return true;
+    },
     dispose(): Promise<void> {
+      activeAbortController?.abort();
       return enqueue(async () => {
         await clearCurrentAgent();
       });
@@ -125,9 +146,10 @@ export async function runPromptInDetachedSession(
   runtime: RuntimeState,
   prompt: string,
   logContext: PromptLogContext,
+  options: { sandboxSessionId?: string } = {},
 ): Promise<AgentTurnResult> {
   const session = await createNewSession(runtime.paths);
-  const agent = await Agent.createForSession(runtime, session.sessionId);
+  const agent = await Agent.createForSession(runtime, session.sessionId, { sandboxSessionId: options.sandboxSessionId });
 
   try {
     return await agent.runLoop(prompt, { onEvent: createToolCallLogger(logContext) });

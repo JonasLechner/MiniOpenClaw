@@ -25,6 +25,10 @@ export type PromptOptions = {
   signal?: AbortSignal;
 };
 
+export type AgentCreateOptions = {
+  sandboxSessionId?: string;
+};
+
 export class Agent {
   readonly provider: string;
   readonly modelId: string;
@@ -38,6 +42,8 @@ export class Agent {
   #sandboxFactory: SandboxFactory;
   #workspace: Workspace;
   #sandbox: Sandbox | undefined;
+  #sandboxSessionId: string;
+  #ownsSandbox: boolean;
   #listeners = new Set<AgentEventListener>();
 
   private constructor(
@@ -46,6 +52,7 @@ export class Agent {
     session: Session,
     systemPrompt: string,
     sandboxFactory: SandboxFactory,
+    sandboxSessionId: string,
   ) {
     this.provider = auth.provider;
     this.modelId = auth.modelId;
@@ -57,13 +64,15 @@ export class Agent {
     this.#reasoning = runtime.config.agent.reasoning;
     this.#sandboxFactory = sandboxFactory;
     this.#workspace = createHostWorkspace(runtime.paths.workspace);
+    this.#sandboxSessionId = sandboxSessionId;
+    this.#ownsSandbox = sandboxSessionId === session.sessionId;
   }
 
   static async create(): Promise<Agent> {
     return this.createForSession();
   }
 
-  static async createForSession(runtime = initializeRuntime(), sessionId?: string): Promise<Agent> {
+  static async createForSession(runtime = initializeRuntime(), sessionId?: string, options: AgentCreateOptions = {}): Promise<Agent> {
     const auth = await resolveAgentAuth(runtime);
     const session = sessionId
       ? await getSessionById(runtime.paths, sessionId)
@@ -76,7 +85,7 @@ export class Agent {
     const systemPrompt = await buildSystemPrompt(runtime.paths.workspace);
     const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
     const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
-    return new Agent(auth, runtime, session, systemPrompt, sandboxFactory);
+    return new Agent(auth, runtime, session, systemPrompt, sandboxFactory, options.sandboxSessionId ?? session.sessionId);
   }
 
   get sessionId(): string {
@@ -170,20 +179,27 @@ export class Agent {
 
   #switchSession(nextSession: Session): void {
     this.#session = nextSession;
+    this.#sandboxSessionId = nextSession.sessionId;
+    this.#ownsSandbox = true;
   }
 
   #getSandbox(): Sandbox {
     if (!this.#sandbox) {
-      this.#sandbox = this.#sandboxFactory.create(this.#session.sessionId, this.#runtimePaths.workspace);
+      this.#sandbox = this.#sandboxFactory.create(this.#sandboxSessionId, this.#runtimePaths.workspace);
     }
 
     return this.#sandbox;
   }
 
   async #disposeSandbox(): Promise<void> {
+    if (!this.#ownsSandbox) {
+      this.#sandbox = undefined;
+      return;
+    }
+
     // Recreate the sandbox handle if needed so we can clean up session-scoped containers
     // that may outlive this process and were never instantiated in memory here.
-    const sandbox = this.#sandbox ?? this.#sandboxFactory.create(this.#session.sessionId, this.#runtimePaths.workspace);
+    const sandbox = this.#sandbox ?? this.#sandboxFactory.create(this.#sandboxSessionId, this.#runtimePaths.workspace);
     this.#sandbox = undefined;
     await sandbox.dispose?.("remove");
   }

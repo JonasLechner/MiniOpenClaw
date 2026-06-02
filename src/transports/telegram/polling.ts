@@ -22,7 +22,9 @@ export function createTelegramPolling(
 
         for (const update of updates) {
           offset = update.update_id + 1;
-          await onUpdate(update);
+          void onUpdate(update).catch((error: unknown) => {
+            console.error("telegram update handling failed:", error);
+          });
         }
       } catch (error) {
         if (stopped && error instanceof Error && error.name === "AbortError") {

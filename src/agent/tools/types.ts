@@ -5,6 +5,7 @@ import type { Workspace } from "../../core/workspace.js";
 export interface ToolRunContext {
   workspace: Workspace;
   sandbox: Sandbox;
+  signal?: AbortSignal;
 }
 
 export function requireToolContext(context?: ToolRunContext): ToolRunContext {

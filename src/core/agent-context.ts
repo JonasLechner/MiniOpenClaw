@@ -26,7 +26,9 @@ reading files, executing commands, editing code, and writing new files.
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
-  parts.push(`\n\nCurrent date: ${year}-${month}-${day}`);
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  parts.push(`\n\nCurrent date and time: ${year}-${month}-${day} ${hours}:${minutes}`);
   parts.push(`Current working directory: ${workspacePath}`);
 
   if (appendSystemPrompt) {

@@ -60,7 +60,7 @@ export const webSearchTool: ToolDefinition<WebSearchInput, WebSearchOutput> = {
     query: Type.String(),
     limit: Type.Optional(Type.Number()),
   }),
-  async run(input: WebSearchInput) {
+  async run(input: WebSearchInput, context) {
     const query = input.query.trim();
     if (!query) {
       throw new Error("query must not be empty");
@@ -78,6 +78,7 @@ export const webSearchTool: ToolDefinition<WebSearchInput, WebSearchOutput> = {
       headers: {
         "user-agent": "MiniOpenClaw/1.0",
       },
+      signal: context?.signal,
     });
 
     if (!response.ok) {

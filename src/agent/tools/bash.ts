@@ -66,7 +66,7 @@ export const bashTool: ToolDefinition<BashInput, BashOutput> = {
     let fullOutput: string;
 
     try {
-      fullOutput = (await sandbox.exec(input.command, { timeout: input.timeout })).output;
+      fullOutput = (await sandbox.exec(input.command, { timeout: input.timeout, signal: context?.signal })).output;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const truncated = truncateTail(message);

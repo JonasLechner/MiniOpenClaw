@@ -134,7 +134,8 @@ describe("sessions", () => {
     const context = createAgentContext(getSessionMessages(persisted!), "test");
     expect(context.systemPrompt).toBe("test");
     expect(context.messages).toHaveLength(3);
-    expect(context.messages[0]).toMatchObject({ role: "user", content: "hello" });
+    expect(context.messages[0]).toMatchObject({ role: "user" });
+    expect(context.messages[0]?.content).toMatch(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] hello$/);
     expect(context.messages[1]).toMatchObject({ role: "assistant", stopReason: "stop" });
     expect(context.messages[2]).toMatchObject({ role: "toolResult", toolCallId: "call_123", toolName: "bash" });
   });
@@ -162,6 +163,6 @@ describe("sessions", () => {
       second.sessionId,
       first.sessionId,
     ]);
-    expect(sessions[0]?.preview).toBe("newer");
+    expect(sessions[0]?.preview).toMatch(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] newer$/);
   });
 });

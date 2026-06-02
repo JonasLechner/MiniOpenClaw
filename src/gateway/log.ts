@@ -21,6 +21,30 @@ type GatewayLogEvent =
       address: string;
     }
   | {
+      event: "gateway_sandbox_start";
+      timestamp: string;
+      sessionId: string;
+      engine: string;
+      image?: string;
+    }
+  | {
+      event: "gateway_sandbox_ready";
+      timestamp: string;
+      sessionId: string;
+      engine: string;
+      image?: string;
+      durationMs: number;
+    }
+  | {
+      event: "gateway_sandbox_error";
+      timestamp: string;
+      sessionId: string;
+      engine: string;
+      image?: string;
+      durationMs: number;
+      message: string;
+    }
+  | {
       event: "gateway_request";
       timestamp: string;
       method: string;
@@ -77,6 +101,67 @@ export function logGatewayListening(address: string): void {
     `${formatTimestamp(payload.timestamp)} ${color("gateway", ansi.blue)} ${color("listening", ansi.green)} ${payload.address}`,
     payload,
   );
+}
+
+export function logGatewaySandboxStart(sessionId: string, engine: string, image?: string): void {
+  const payload: GatewayLogEvent = {
+    event: "gateway_sandbox_start",
+    timestamp: new Date().toISOString(),
+    sessionId,
+    engine,
+    image,
+  };
+
+  const pretty = [
+    formatTimestamp(payload.timestamp),
+    color("sandbox", ansi.blue),
+    color("starting", ansi.yellow),
+    formatMeta({ session: payload.sessionId, engine: payload.engine, image: payload.image }),
+  ].join(" ");
+
+  writeLogLine(pretty, payload);
+}
+
+export function logGatewaySandboxReady(sessionId: string, engine: string, durationMs: number, image?: string): void {
+  const payload: GatewayLogEvent = {
+    event: "gateway_sandbox_ready",
+    timestamp: new Date().toISOString(),
+    sessionId,
+    engine,
+    image,
+    durationMs,
+  };
+
+  const pretty = [
+    formatTimestamp(payload.timestamp),
+    color("sandbox", ansi.blue),
+    color("ready", ansi.green),
+    formatMeta({ session: payload.sessionId, engine: payload.engine, image: payload.image, ms: payload.durationMs }),
+  ].join(" ");
+
+  writeLogLine(pretty, payload);
+}
+
+export function logGatewaySandboxError(sessionId: string, engine: string, durationMs: number, error: Error, image?: string): void {
+  const payload: GatewayLogEvent = {
+    event: "gateway_sandbox_error",
+    timestamp: new Date().toISOString(),
+    sessionId,
+    engine,
+    image,
+    durationMs,
+    message: error.message,
+  };
+
+  const pretty = [
+    formatTimestamp(payload.timestamp),
+    color("sandbox", ansi.blue),
+    color("error", ansi.red),
+    formatMeta({ session: payload.sessionId, engine: payload.engine, image: payload.image, ms: payload.durationMs }),
+    payload.message,
+  ].join(" ");
+
+  writeLogLine(pretty, payload);
 }
 
 export function logGatewayRequest(request: FastifyRequest, reply: FastifyReply): void {

@@ -48,7 +48,7 @@ describe("runScheduledTask", () => {
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "main reply");
   });
 
-  it("uses a detached session for detached prompt jobs and injects the result into the current main session", async () => {
+  it("uses a detached session with the current main session sandbox and injects the result into the main session", async () => {
     runPromptInDetachedSessionMock.mockResolvedValue({ text: "detached reply", stopReason: "stop" });
     getTelegramConversationBindingByChatIdMock.mockResolvedValue({ sessionId: "session-current" });
 
@@ -72,6 +72,7 @@ describe("runScheduledTask", () => {
       updatedAt: "now",
     }, mainSessionAgent as never);
 
+    expect(getTelegramConversationBindingByChatIdMock).toHaveBeenCalledWith({}, "chat-1");
     expect(runPromptInDetachedSessionMock).toHaveBeenCalledWith(
       { paths: {} },
       "hello detached",
@@ -80,9 +81,9 @@ describe("runScheduledTask", () => {
         chatId: "chat-1",
         taskId: "job-2",
       },
+      { sandboxSessionId: "session-current" },
     );
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "detached reply");
-    expect(getTelegramConversationBindingByChatIdMock).toHaveBeenCalledWith({}, "chat-1");
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledTimes(1);
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledWith(
       "session-current",

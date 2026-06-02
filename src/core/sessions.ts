@@ -156,6 +156,19 @@ async function appendSessionEvent(session: Session, event: SessionEvent): Promis
   session.events.push(event);
 }
 
+function formatPromptTimestamp(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function withPromptTimestamp(prompt: string): string {
+  return `[${formatPromptTimestamp()}] ${prompt}`;
+}
+
 async function createSession(paths: RuntimePaths, details?: unknown): Promise<Session> {
   await ensureSessionsDir(paths);
 
@@ -234,7 +247,7 @@ export async function getSessionById(paths: RuntimePaths, sessionId: string): Pr
 export async function appendUserMessageEvent(session: Session, prompt: string): Promise<UserMessageEvent> {
   const message: UserMessage = {
     role: "user",
-    content: prompt,
+    content: withPromptTimestamp(prompt),
     timestamp: Date.now(),
   };
   const event: UserMessageEvent = {

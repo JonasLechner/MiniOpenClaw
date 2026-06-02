@@ -50,10 +50,12 @@ export class ContainerSandbox implements Sandbox {
 
   async exec(command: string, options?: SandboxExecOptions): Promise<SandboxExecResult> {
     await this.ensure();
+
     return this.#engine.execContainer(this.#containerName, {
       command,
       workdir: WORKSPACE_MOUNT_PATH,
       timeout: options?.timeout,
+      signal: options?.signal,
     });
   }
 

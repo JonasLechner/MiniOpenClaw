@@ -62,6 +62,23 @@ test("bashTool rejects non-zero exit codes and includes output", async () => {
   });
 });
 
+test("bashTool abort kills host commands that ignore SIGTERM", async () => {
+  await withTempDir(async (dir) => {
+    const controller = new AbortController();
+    const running = bashTool.run(
+      { command: 'trap "" TERM; sleep 999' },
+      { ...toolContext(dir), signal: controller.signal },
+    );
+
+    setTimeout(() => controller.abort(), 100);
+
+    await assert.rejects(
+      () => running,
+      /Command aborted/,
+    );
+  });
+});
+
 test("bashTool rejects timed out commands", async () => {
   await withTempDir(async (dir) => {
     const node = JSON.stringify(process.execPath);

@@ -6,6 +6,7 @@ type SpawnResult = {
   stderr?: string;
   code?: number | null;
   error?: Error;
+  neverClose?: boolean;
 };
 
 const spawnQueue: SpawnResult[] = [];
@@ -23,25 +24,30 @@ vi.mock("node:child_process", () => ({
     const child = new EventEmitter() as EventEmitter & {
       stdout: EventEmitter;
       stderr: EventEmitter;
-      kill: () => void;
+      kill: (signal?: NodeJS.Signals) => boolean;
     };
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
-    child.kill = () => {};
+    child.kill = () => {
+      queueMicrotask(() => child.emit("close", null));
+      return true;
+    };
 
-    queueMicrotask(() => {
-      if (result.error) {
-        child.emit("error", result.error);
-        return;
-      }
-      if (result.stdout) {
-        child.stdout.emit("data", Buffer.from(result.stdout));
-      }
-      if (result.stderr) {
-        child.stderr.emit("data", Buffer.from(result.stderr));
-      }
-      child.emit("close", result.code ?? 0);
-    });
+    if (!result.neverClose) {
+      queueMicrotask(() => {
+        if (result.error) {
+          child.emit("error", result.error);
+          return;
+        }
+        if (result.stdout) {
+          child.stdout.emit("data", Buffer.from(result.stdout));
+        }
+        if (result.stderr) {
+          child.stderr.emit("data", Buffer.from(result.stderr));
+        }
+        child.emit("close", result.code ?? 0);
+      });
+    }
 
     return child;
   }),
@@ -89,6 +95,47 @@ describe("CliContainerEngine cleanup", () => {
       ["rm", "-f", "miniopenclaw-test"],
       ["inspect", "-f", "{{.State.Running}}", "miniopenclaw-test"],
     ]);
+  });
+
+  it("wraps exec commands so abort can kill only the active in-container process group", async () => {
+    const { CliContainerEngine } = await import("../src/sandbox/container-engine/docker.js");
+    const engine = new CliContainerEngine("docker");
+
+    spawnQueue.push({ code: 0, stdout: "ok\n" });
+
+    await expect(engine.execContainer("miniopenclaw-test", { command: "echo ok", workdir: "/workspace" })).resolves.toEqual({
+      output: "ok\n",
+    });
+
+    expect(spawnCalls).toHaveLength(1);
+    expect(spawnCalls[0]?.args).toEqual(expect.arrayContaining(["exec", "--workdir", "/workspace", "miniopenclaw-test", "bash", "-lc"]));
+    const wrappedCommand = spawnCalls[0]?.args.at(-1) ?? "";
+    expect(wrappedCommand).toContain("setsid bash -lc");
+    expect(wrappedCommand).toContain("/tmp/miniopenclaw-exec-");
+    expect(wrappedCommand).toContain("exec bash -lc");
+  });
+
+  it("runs abort cleanup for docker exec without stopping the container", async () => {
+    const { CliContainerEngine } = await import("../src/sandbox/container-engine/docker.js");
+    const engine = new CliContainerEngine("docker");
+    const controller = new AbortController();
+
+    spawnQueue.push(
+      { neverClose: true },
+      { code: 0 },
+    );
+
+    const running = engine.execContainer("miniopenclaw-test", {
+      command: "sleep 999",
+      signal: controller.signal,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+
+    await expect(running).rejects.toThrow("Command aborted");
+    expect(spawnCalls.map((call) => call.args[0])).toEqual(["exec", "exec"]);
+    expect(spawnCalls.map((call) => call.args).some((args) => args.includes("stop"))).toBe(false);
+    expect(spawnCalls[1]?.args.at(-1)).toContain("kill -KILL");
   });
 
   it("fails fast when rm fails and the container still exists", async () => {

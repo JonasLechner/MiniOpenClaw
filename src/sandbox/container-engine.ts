@@ -17,6 +17,7 @@ export interface ContainerExecOptions {
   command: string;
   workdir?: string;
   timeout?: number;
+  signal?: AbortSignal;
 }
 
 export interface ContainerInspectResult {

@@ -47,7 +47,12 @@ export function buildTelegramGatewayApp(
 
   async function handleTextMessage(chatId: string, userId: string, text: string): Promise<void> {
     const binding = await resolveTelegramConversationBinding(runtime.paths, chatId, userId);
-    const commandResult = await handleTelegramCommand(text, { runtime, binding, streamer });
+    const commandResult = await handleTelegramCommand(text, {
+      runtime,
+      binding,
+      streamer,
+      stopActiveRun: () => mainSessionAgent.stopActiveRun(),
+    });
     if (commandResult.handled) {
       if (commandResult.sessionId) {
         await mainSessionAgent.bindSession(commandResult.sessionId);
@@ -89,12 +94,28 @@ export function buildTelegramGatewayApp(
       return;
     }
 
-    await enqueue(String(message.chat.id), async () => {
+    const chatId = String(message.chat.id);
+    const userId = String(message.from.id);
+    const text = message.text;
+
+    if (text.trim().split(/\s+/)[0]?.split("@")[0] === "/stop") {
       try {
-        await handleTextMessage(String(message.chat.id), String(message.from!.id), message.text!);
+        await handleTextMessage(chatId, userId, text);
       } catch (error) {
         await streamer.sendText(
-          String(message.chat.id),
+          chatId,
+          error instanceof Error ? `Error: ${error.message}` : `Error: ${String(error)}`,
+        );
+      }
+      return;
+    }
+
+    await enqueue(chatId, async () => {
+      try {
+        await handleTextMessage(chatId, userId, text);
+      } catch (error) {
+        await streamer.sendText(
+          chatId,
           error instanceof Error ? `Error: ${error.message}` : `Error: ${String(error)}`,
         );
       }
