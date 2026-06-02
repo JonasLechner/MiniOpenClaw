@@ -21,6 +21,7 @@ export type UserConfig = {
     provider?: string;
     modelId?: string;
     reasoning?: string;
+    availableModels?: Record<string, string[]>;
   };
   sandbox?: {
     enabled?: boolean;
@@ -49,6 +50,7 @@ export type ResolvedConfig = {
     provider?: string;
     modelId?: string;
     reasoning?: string;
+    availableModels?: Record<string, string[]>;
   };
   sandbox: SandboxConfig;
 };
@@ -185,6 +187,34 @@ function parseConfig(path: string): ResolvedConfig {
     throw new Error(`Invalid config file at ${path}: agent.reasoning must be a string.`);
   }
 
+  if (agent.availableModels !== undefined) {
+    if (typeof agent.availableModels !== "object" || Array.isArray(agent.availableModels) || agent.availableModels === null) {
+      throw new Error(`Invalid config file at ${path}: agent.availableModels must be an object mapping provider ids to arrays of model ids.`);
+    }
+
+    for (const [providerId, modelIds] of Object.entries(agent.availableModels)) {
+      if (!Array.isArray(modelIds) || modelIds.some((value) => typeof value !== "string")) {
+        throw new Error(`Invalid config file at ${path}: agent.availableModels.${providerId} must be an array of strings.`);
+      }
+    }
+  }
+
+  const availableModels = agent.availableModels as Record<string, string[]> | undefined;
+
+  if (agent.provider !== undefined && availableModels !== undefined && !(agent.provider in availableModels)) {
+    throw new Error(`Invalid config file at ${path}: agent.provider must be a key in agent.availableModels.`);
+  }
+
+  if (
+    agent.provider !== undefined
+    && agent.modelId !== undefined
+    && availableModels !== undefined
+    && agent.provider in availableModels
+    && !availableModels[agent.provider].includes(agent.modelId)
+  ) {
+    throw new Error(`Invalid config file at ${path}: agent.modelId must be listed in agent.availableModels.${agent.provider}.`);
+  }
+
   if (sandbox.enabled !== undefined && typeof sandbox.enabled !== "boolean") {
     throw new Error(`Invalid config file at ${path}: sandbox.enabled must be a boolean.`);
   }
@@ -229,6 +259,7 @@ function parseConfig(path: string): ResolvedConfig {
       provider: agent.provider as string | undefined,
       modelId: agent.modelId as string | undefined,
       reasoning: agent.reasoning as string | undefined,
+      availableModels: agent.availableModels as Record<string, string[]> | undefined,
     },
     sandbox: {
       enabled: (sandbox.enabled as boolean | undefined) ?? defaultConfig.sandbox!.enabled!,

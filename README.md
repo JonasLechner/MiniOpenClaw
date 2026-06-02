@@ -41,7 +41,11 @@ MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the defau
   },
   "agent": {
     "provider": "openai-codex",
-    "modelId": "gpt-5.4-mini"
+    "modelId": "gpt-5.4-mini",
+    "availableModels": {
+      "github-copilot": ["gpt-5.4-mini"],
+      "openai-codex": ["gpt-5.4", "gpt-5.4-mini"]
+    }
   },
   "sandbox": {
     "enabled": true,
@@ -154,7 +158,11 @@ When chatting over Telegram, the agent can also use the `subagent` tool to launc
   },
   "agent": {
     "provider": "openai-codex",
-    "modelId": "gpt-5.4-mini"
+    "modelId": "gpt-5.4-mini",
+    "availableModels": {
+      "github-copilot": ["gpt-5.4-mini"],
+      "openai-codex": ["gpt-5.4", "gpt-5.4-mini"]
+    }
   },
   "sandbox": {
     "enabled": true,
