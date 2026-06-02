@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssistantMessage, Message, UserMessage } from "@earendil-works/pi-ai";
 import type { RuntimePaths } from "./config.js";
+import { getAssistantThinkingBlocks, getAssistantVisibleText } from "./messages.js";
 
 export const SESSION_FORMAT_VERSION = 1;
 
@@ -68,18 +69,6 @@ function createSessionId(): string {
 function createSessionFilePath(paths: RuntimePaths, createdAt: string, sessionId: string): string {
   const fileTimestamp = createdAt.replace(/[:.]/g, "-");
   return join(paths.sessions, `${fileTimestamp}_${sessionId}.jsonl`);
-}
-
-function getVisibleText(message: AssistantMessage): string {
-  return message.content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("\n")
-    .trim();
-}
-
-function getThinkingBlocks(message: AssistantMessage): string[] {
-  return message.content.filter((block) => block.type === "thinking").map((block) => block.thinking);
 }
 
 function isContextMessageEvent(event: SessionEvent): event is UserMessageEvent | AssistantMessageEvent {
@@ -256,8 +245,8 @@ export async function appendAssistantMessageEvent(
     sessionId: record.header.sessionId,
     timestamp: new Date().toISOString(),
     message,
-    visibleText: getVisibleText(message),
-    thinking: getThinkingBlocks(message),
+    visibleText: getAssistantVisibleText(message),
+    thinking: getAssistantThinkingBlocks(message),
   };
 
   await appendSessionEvent(record, event);

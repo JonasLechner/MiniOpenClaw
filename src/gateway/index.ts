@@ -3,11 +3,11 @@ import { buildGateway } from "./app.js";
 
 export async function main(): Promise<void> {
   const runtime = initializeRuntime();
-  const app = buildGateway();
+  const app = buildGateway(runtime);
 
   await app.listen({
-    port: runtime.config.gateway?.port ?? 3000,
-    host: runtime.config.gateway?.host ?? "127.0.0.1",
+    port: runtime.config.gateway?.port,
+    host: runtime.config.gateway?.host,
   });
 }
 

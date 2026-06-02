@@ -45,7 +45,7 @@ beforeEach(() => {
 describe("gateway session endpoints", () => {
   it("creates and returns the current session on first use", async () => {
     const { buildGateway } = await import("../src/gateway/app.js");
-    const app = buildGateway();
+    const app = buildGateway(runtimeStateMock());
 
     const response = await app.inject({ method: "GET", url: "/sessions/current" });
     expect(response.statusCode).toBe(200);
@@ -66,7 +66,7 @@ describe("gateway session endpoints", () => {
     await appendUserMessageEvent(second, "newer");
 
     const { buildGateway } = await import("../src/gateway/app.js");
-    const app = buildGateway();
+    const app = buildGateway(runtimeStateMock());
 
     const listResponse = await app.inject({ method: "GET", url: "/sessions" });
     expect(listResponse.statusCode).toBe(200);

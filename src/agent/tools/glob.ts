@@ -1,7 +1,8 @@
 import { promises as fs } from "fs";
+import { Type } from "@earendil-works/pi-ai";
 import { join, relative } from "path";
 import { resolveWorkspacePath } from "./fs.js";
-import type { Tool } from "./types.js";
+import type { ToolDefinition } from "./types.js";
 
 export interface GlobInput {
   path: string;
@@ -88,8 +89,15 @@ async function collectEntries(
   }
 }
 
-export const globTool: Tool<GlobInput, GlobOutput> = {
+export const globTool: ToolDefinition<GlobInput, GlobOutput> = {
   name: "glob",
+  description: "Find files matching a glob pattern under a workspace directory.",
+  parameters: Type.Object({
+    path: Type.String(),
+    pattern: Type.String(),
+    caseSensitive: Type.Optional(Type.Boolean()),
+    includeDirectories: Type.Optional(Type.Boolean()),
+  }),
   async run(input: GlobInput, context) {
     const path = await resolveWorkspacePath(input.path, context);
     const matcher = globToRegex(input.pattern, input.caseSensitive ?? true);

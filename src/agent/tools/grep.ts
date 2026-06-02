@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
+import { Type } from "@earendil-works/pi-ai";
 import { resolveWorkspacePath } from "./fs.js";
-import type { Tool } from "./types.js";
+import type { ToolDefinition } from "./types.js";
 
 export interface GrepInput {
   path: string;
@@ -38,8 +39,17 @@ function createMatcher(input: GrepInput): (line: string) => boolean {
   };
 }
 
-export const grepTool: Tool<GrepInput, GrepOutput> = {
+export const grepTool: ToolDefinition<GrepInput, GrepOutput> = {
   name: "grep",
+  description: "Search lines in a file inside the workspace.",
+  parameters: Type.Object({
+    path: Type.String(),
+    pattern: Type.String(),
+    startLine: Type.Optional(Type.Number()),
+    endLine: Type.Optional(Type.Number()),
+    caseSensitive: Type.Optional(Type.Boolean()),
+    useRegex: Type.Optional(Type.Boolean()),
+  }),
   async run(input: GrepInput, context) {
     if (input.startLine !== undefined && input.startLine < 1) {
       throw new Error("startLine must be greater than 0");

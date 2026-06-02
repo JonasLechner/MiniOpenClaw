@@ -1,5 +1,6 @@
 import { stream, type AssistantMessage, type Context, type Message, validateToolCall } from "@earendil-works/pi-ai";
-import { createAgentContext, DEFAULT_SYSTEM_PROMPT } from "../lib/agent-context.js";
+import { createAgentContext } from "../lib/agent-context.js";
+import { getAssistantVisibleText } from "../lib/messages.js";
 import { exposedTools, toolMap } from "./tools/index.js";
 import type { AgentEvent, AgentTurnResult } from "./events.js";
 
@@ -8,7 +9,7 @@ export type AgentEventSink = (event: AgentEvent) => void | Promise<void>;
 export type AgentLoopContext = {
   sessionId: string;
   prompt: string;
-  systemPrompt?: string;
+  systemPrompt: string;
   messages: Message[];
   model: unknown;
   apiKey: string;
@@ -20,22 +21,13 @@ export type AgentLoopResult = {
   result: AgentTurnResult;
 };
 
-function getVisibleText(message: AssistantMessage): string {
-  return message.content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("\n")
-    .trim();
-}
-
 export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSink): Promise<AgentLoopResult> {
   await emit({ type: "agent_start", sessionId: context.sessionId, prompt: context.prompt });
   await emit({ type: "turn_start", sessionId: context.sessionId, prompt: context.prompt });
 
   while (true) {
     const llmContext: Context = {
-      ...createAgentContext(context.messages),
-      systemPrompt: context.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
+      ...createAgentContext(context.messages, context.systemPrompt),
       tools: exposedTools,
     };
 
@@ -59,7 +51,7 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
     context.messages.push(message);
 
     const result: AgentTurnResult = {
-      text: getVisibleText(message),
+      text: getAssistantVisibleText(message),
       stopReason: message.stopReason,
       errorMessage: message.errorMessage,
     };

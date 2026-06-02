@@ -1,11 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import { ensureRuntimeFiles } from "../lib/config.js";
-import { initializeRuntime } from "../lib/runtime.js";
+import type { RuntimeState } from "../lib/runtime.js";
 import { createNewSession, ensureCurrentSession, getSessionById, listSessions } from "../lib/sessions.js";
+import { toSessionResponse } from "./session-response.js";
 
-export function buildGateway(): FastifyInstance {
-  const runtime = initializeRuntime();
-  ensureRuntimeFiles(runtime.paths);
+export function buildGateway(runtime: RuntimeState): FastifyInstance {
   const app = Fastify({ logger: true });
 
   app.get("/health", async () => ({ status: "ok" }));
@@ -16,22 +14,12 @@ export function buildGateway(): FastifyInstance {
 
   app.get("/sessions/current", async () => {
     const session = await ensureCurrentSession(runtime.paths);
-    return {
-      sessionId: session.header.sessionId,
-      createdAt: session.header.createdAt,
-      path: session.path,
-      events: session.events,
-    };
+    return toSessionResponse(session);
   });
 
   app.post("/sessions/new", async () => {
     const session = await createNewSession(runtime.paths);
-    return {
-      sessionId: session.header.sessionId,
-      createdAt: session.header.createdAt,
-      path: session.path,
-      events: session.events,
-    };
+    return toSessionResponse(session);
   });
 
   app.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/events", async (request, reply) => {
@@ -42,12 +30,7 @@ export function buildGateway(): FastifyInstance {
       return { error: `Unknown session ${request.params.sessionId}` };
     }
 
-    return {
-      sessionId: session.header.sessionId,
-      createdAt: session.header.createdAt,
-      path: session.path,
-      events: session.events,
-    };
+    return toSessionResponse(session);
   });
 
   return app;

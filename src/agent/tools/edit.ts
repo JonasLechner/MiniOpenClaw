@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
+import { Type } from "@earendil-works/pi-ai";
 import { resolveWorkspacePath } from "./fs.js";
-import type { Tool } from "./types.js";
+import type { ToolDefinition } from "./types.js";
 
 export interface EditInput {
   path: string;
@@ -14,8 +15,15 @@ export interface EditOutput {
   replacements: number;
 }
 
-export const editTool: Tool<EditInput, EditOutput> = {
+export const editTool: ToolDefinition<EditInput, EditOutput> = {
   name: "edit",
+  description: "Replace a line range in a file inside the workspace.",
+  parameters: Type.Object({
+    path: Type.String(),
+    startLine: Type.Number(),
+    endLine: Type.Number(),
+    newText: Type.String(),
+  }),
   async run(input: EditInput, context) {
     if (input.startLine < 1 || input.endLine < 1) {
       throw new Error("line numbers must be greater than 0");

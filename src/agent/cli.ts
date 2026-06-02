@@ -1,9 +1,9 @@
 import readline from "node:readline/promises";
 import { stdout as output, stdin as input } from "node:process";
-import { createAgentLoop } from "./loop.js";
+import { Agent } from "./agent.js";
 
 async function main(): Promise<void> {
-  const agent = await createAgentLoop();
+  const agent = await Agent.create();
   const rl = readline.createInterface({ input, output });
 
   console.log(`Using ${agent.provider}/${agent.modelId}`);

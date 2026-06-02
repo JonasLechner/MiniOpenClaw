@@ -1,4 +1,5 @@
-import type { Tool } from "./types.js";
+import { Type } from "@earendil-works/pi-ai";
+import type { ToolDefinition } from "./types.js";
 
 export interface WebSearchInput {
   query: string;
@@ -52,8 +53,13 @@ function parseResults(html: string, limit: number): WebSearchResult[] {
   return results;
 }
 
-export const webSearchTool: Tool<WebSearchInput, WebSearchOutput> = {
+export const webSearchTool: ToolDefinition<WebSearchInput, WebSearchOutput> = {
   name: "websearch",
+  description: "Search the web for a query and return result summaries.",
+  parameters: Type.Object({
+    query: Type.String(),
+    limit: Type.Optional(Type.Number()),
+  }),
   async run(input: WebSearchInput) {
     const query = input.query.trim();
     if (!query) {

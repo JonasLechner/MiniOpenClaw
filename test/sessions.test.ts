@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import { createAgentContext, DEFAULT_SYSTEM_PROMPT } from "../src/lib/agent-context.js";
+import { createAgentContext } from "../src/lib/agent-context.js";
 import type { RuntimePaths } from "../src/lib/config.js";
 import {
   appendAssistantMessageEvent,
@@ -114,8 +114,8 @@ describe("sessions", () => {
       thinking: ["first thought", "second thought"],
     });
 
-    const context = createAgentContext(persisted!.messages);
-    expect(context.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT);
+    const context = createAgentContext(persisted!.messages, "test");
+    expect(context.systemPrompt).toBe("test");
     expect(context.messages).toHaveLength(2);
     expect(context.messages[0]).toMatchObject({ role: "user", content: "hello" });
     expect(context.messages[1]).toMatchObject({ role: "assistant", stopReason: "stop" });

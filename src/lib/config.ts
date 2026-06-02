@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
@@ -32,16 +33,6 @@ const runtimeHome = join(homedir(), ".mini-openclaw");
 const configFile = join(runtimeHome, "config.json");
 const authFile = join(runtimeHome, "auth.json");
 const defaultWorkspace = join(runtimeHome, "workspace");
-const memoryCategories = ["projects", "decisions", "preferences", "session-summaries"] as const;
-const defaultMemoryIndex = {
-  version: 1,
-  strategy: {
-    rebuild: "lazy",
-    ranking: "keyword-first",
-  },
-  generatedAt: new Date(0).toISOString(),
-  entries: [],
-};
 const defaultConfig: UserConfig = {
   gateway: {
     host: "127.0.0.1",
@@ -50,11 +41,11 @@ const defaultConfig: UserConfig = {
   agent: {},
 };
 
-function ensureDir(path: string): void {
+export function ensureDir(path: string): void {
   mkdirSync(path, { recursive: true });
 }
 
-function ensureJsonFile(path: string, defaultValue: object): void {
+export function ensureJsonFile(path: string, defaultValue: object): void {
   if (existsSync(path)) return;
 
   ensureDir(dirname(path));
@@ -126,6 +117,18 @@ function resolveWorkspacePath(config: UserConfig): string {
     : resolve(runtimeHome, config.workspacePath);
 }
 
+export async function readOptionalFile(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
 export function loadRuntimeConfig(): RuntimeConfig {
   ensureDir(runtimeHome);
 
@@ -141,18 +144,4 @@ export function loadRuntimeConfig(): RuntimeConfig {
   };
 
   return { config, paths };
-}
-
-export function ensureRuntimeFiles(paths: RuntimePaths): void {
-  ensureDir(paths.home);
-  ensureDir(paths.sessions);
-  ensureDir(paths.workspace);
-  ensureDir(paths.memory);
-
-  for (const category of memoryCategories) {
-    ensureDir(join(paths.memory, category));
-  }
-
-  ensureJsonFile(join(paths.memory, "index.json"), defaultMemoryIndex);
-  ensureJsonFile(paths.authFile, {});
 }

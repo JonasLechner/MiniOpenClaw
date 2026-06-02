@@ -1,4 +1,6 @@
-import { complete, type AssistantMessage, type Message } from "@earendil-works/pi-ai";
+import type { Message } from "@earendil-works/pi-ai";
+import { buildSystemPrompt } from "../lib/agent-context.js";
+import { initializeRuntime, type RuntimeState } from "../lib/runtime.js";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
@@ -7,142 +9,42 @@ import {
   ensureCurrentSession,
   type SessionRecord,
 } from "../lib/sessions.js";
-import { retrieveMemoryFiles, updateSessionSummary } from "../lib/memory.js";
+import { resolveAgentAuth, type AgentAuth } from "./auth.js";
 import { runAgentLoop } from "./agent-loop.js";
-import { loadAgentEnvironment, type AgentEnvironment } from "./environment.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.js";
+import { persistSessionSummary } from "./session-memory.js";
 
 export type PromptOptions = {
   onEvent?: AgentEventListener;
 };
 
-function stripFrontmatter(content: string): string {
-  return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
-}
-
-function getVisibleText(message: AssistantMessage): string {
-  return message.content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("\n")
-    .trim();
-}
-
-function sanitizeGeneratedKeywords(values: unknown): string[] {
-  if (!Array.isArray(values)) return [];
-
-  return [...new Set(values.map((value) => String(value).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
-}
-
-function parseMemoryMetadataResponse(text: string): { summary?: string; keywords: string[] } {
-  const normalized = text.trim();
-  if (!normalized) return { keywords: [] };
-
-  const parseJson = (value: string): { summary?: string; keywords: string[] } => {
-    const parsed = JSON.parse(value) as { summary?: unknown; keywords?: unknown };
-    return {
-      summary: typeof parsed.summary === "string" ? parsed.summary.replace(/\s+/g, " ").trim() || undefined : undefined,
-      keywords: sanitizeGeneratedKeywords(parsed.keywords),
-    };
-  };
-
-  try {
-    return parseJson(normalized);
-  } catch {
-    const match = normalized.match(/\{[\s\S]*\}/);
-    if (!match) return { keywords: [] };
-
-    try {
-      return parseJson(match[0]);
-    } catch {
-      return { keywords: [] };
-    }
-  }
-}
-
-async function generateMemoryMetadata(
-  model: AgentEnvironment["auth"]["model"],
-  apiKey: string,
-  memory: { category: string; title: string; summary: string; body: string },
-): Promise<{ summary?: string; keywords: string[] }> {
-  const result = await complete(
-    model as Parameters<typeof complete>[0],
-    {
-      systemPrompt:
-        "Generate memory metadata for retrieval. Return JSON only in the shape {\"summary\":\"...\",\"keywords\":[\"keyword\"]}. Write one concise meaningful summary sentence and 5-10 short lowercase keywords. Base both on the full memory content. Avoid ids, turn counts, hashes, timestamps, filler words, roles, and duplicates.",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: [
-                "Generate a summary and keywords for this memory entry.",
-                `Category: ${memory.category}`,
-                `Title: ${memory.title}`,
-                `Summary: ${memory.summary}`,
-                "Body:",
-                memory.body || "[empty]",
-              ].join("\n"),
-            },
-          ],
-          timestamp: Date.now(),
-        },
-      ],
-    },
-    { apiKey },
-  );
-
-  return parseMemoryMetadataResponse(getVisibleText(result));
-}
-
-function buildMemoryPromptBlock(
-  memories: Array<{ entry: { title: string; category: string; summary: string }; content: string }>,
-): string | undefined {
-  if (memories.length === 0) return undefined;
-
-  return [
-    "Relevant memory retrieved for this turn:",
-    ...memories.map((memory, index) => {
-      const excerpt = stripFrontmatter(memory.content).slice(0, 600).trim();
-      return [
-        `Memory ${index + 1}:`,
-        `- Title: ${memory.entry.title}`,
-        `- Category: ${memory.entry.category}`,
-        `- Summary: ${memory.entry.summary}`,
-        "- Content:",
-        excerpt || "[empty]",
-      ].join("\n");
-    }),
-    "Use memory only when relevant and do not claim uncertain memory as fact.",
-  ].join("\n\n");
-}
-
 export class Agent {
   readonly provider: string;
   readonly modelId: string;
 
-  #model: AgentEnvironment["auth"]["model"];
+  #model: AgentAuth["model"];
   #apiKey: string;
   #session: SessionRecord;
-  #runtimePaths: AgentEnvironment["runtime"]["paths"];
-  #systemPrompt: string | undefined;
+  #runtimePaths: RuntimeState["paths"];
+  #systemPrompt: string;
   #listeners = new Set<AgentEventListener>();
 
-  private constructor(environment: AgentEnvironment, session: SessionRecord) {
-    this.provider = environment.auth.provider;
-    this.modelId = environment.auth.modelId;
-    this.#model = environment.auth.model;
-    this.#apiKey = environment.auth.apiKey;
+  private constructor(auth: AgentAuth, runtime: RuntimeState, session: SessionRecord, systemPrompt: string) {
+    this.provider = auth.provider;
+    this.modelId = auth.modelId;
+    this.#model = auth.model;
+    this.#apiKey = auth.apiKey;
     this.#session = session;
-    this.#runtimePaths = environment.runtime.paths;
-    this.#systemPrompt = undefined;
+    this.#runtimePaths = runtime.paths;
+    this.#systemPrompt = systemPrompt;
   }
 
   static async create(): Promise<Agent> {
-    const environment = await loadAgentEnvironment();
-    const session = await ensureCurrentSession(environment.runtime.paths);
-    return new Agent(environment, session);
+    const runtime = initializeRuntime();
+    const auth = await resolveAgentAuth(runtime);
+    const session = await ensureCurrentSession(runtime.paths);
+    const systemPrompt = await buildSystemPrompt(runtime.paths.workspace);
+    return new Agent(auth, runtime, session, systemPrompt);
   }
 
   get sessionId(): string {
@@ -166,15 +68,11 @@ export class Agent {
     const userEvent = await appendUserMessageEvent(this.#session, prompt);
 
     try {
-      const retrievedMemories = await retrieveMemoryFiles(this.#runtimePaths.memory, prompt, 3);
-      const memoryPromptBlock = buildMemoryPromptBlock(retrievedMemories);
-      const systemPrompt = [this.#systemPrompt, memoryPromptBlock].filter(Boolean).join("\n\n");
-
       const loopResult = await runAgentLoop(
         {
           sessionId,
           prompt,
-          systemPrompt: systemPrompt || undefined,
+          systemPrompt: this.#systemPrompt,
           messages: this.#session.messages as Message[],
           model: this.#model,
           apiKey: this.#apiKey,
@@ -184,18 +82,13 @@ export class Agent {
       );
 
       await appendAssistantMessageEvent(this.#session, loopResult.message);
-      let metadataPromise: Promise<{ summary?: string; keywords: string[] }> | undefined;
-      const getMetadata = (memory: { category: string; title: string; summary: string; body: string }) => {
-        metadataPromise ??= generateMemoryMetadata(this.#model, this.#apiKey, memory);
-        return metadataPromise;
-      };
-
-      await updateSessionSummary(this.#runtimePaths.memory, {
+      await persistSessionSummary({
         sessionId,
         prompt,
         responseText: loopResult.result.text,
-        generateSummary: async (memory) => (await getMetadata(memory)).summary,
-        generateKeywords: async (memory) => (await getMetadata(memory)).keywords,
+        memoryRoot: this.#runtimePaths.memory,
+        model: this.#model,
+        apiKey: this.#apiKey,
       });
       return loopResult.result;
     } catch (error) {

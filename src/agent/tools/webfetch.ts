@@ -1,4 +1,5 @@
-import type { Tool } from "./types.js";
+import { Type } from "@earendil-works/pi-ai";
+import type { ToolDefinition } from "./types.js";
 
 export interface WebFetchInput {
   url: string;
@@ -32,8 +33,13 @@ function stripHtml(value: string): string {
     .trim();
 }
 
-export const webFetchTool: Tool<WebFetchInput, WebFetchOutput> = {
+export const webFetchTool: ToolDefinition<WebFetchInput, WebFetchOutput> = {
   name: "webfetch",
+  description: "Fetch a web page and return either extracted text or raw HTML.",
+  parameters: Type.Object({
+    url: Type.String(),
+    format: Type.Optional(Type.Union([Type.Literal("text"), Type.Literal("html")])),
+  }),
   async run(input: WebFetchInput) {
     const rawUrl = input.url.trim();
     if (!rawUrl) {

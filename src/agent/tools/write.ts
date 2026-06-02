@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
+import { Type } from "@earendil-works/pi-ai";
 import { resolveWorkspacePath } from "./fs.js";
-import type { Tool } from "./types.js";
+import type { ToolDefinition } from "./types.js";
 
 export interface WriteInput {
   path: string;
@@ -12,8 +13,13 @@ export interface WriteOutput {
   bytesWritten: number;
 }
 
-export const writeTool: Tool<WriteInput, WriteOutput> = {
+export const writeTool: ToolDefinition<WriteInput, WriteOutput> = {
   name: "write",
+  description: "Write text to a file inside the workspace.",
+  parameters: Type.Object({
+    path: Type.String(),
+    content: Type.String(),
+  }),
   async run(input: WriteInput, context) {
     const path = await resolveWorkspacePath(input.path, context);
     await fs.writeFile(path, input.content, "utf8");
