@@ -14,6 +14,7 @@ import {
   listScheduledTasks,
   markScheduledTaskRan,
   matchesCronExpression,
+  validateCronExpression,
 } from "../src/jobs/task-store.js";
 
 function createRuntimePaths(): RuntimePaths {
@@ -81,6 +82,53 @@ describe("gateway control-plane helpers", () => {
 
     expect(() => matchesCronExpression("15 12 * *", date)).toThrow("expected 5 fields");
     expect(() => matchesCronExpression("x 12 * * *", date)).toThrow("Invalid cron value");
+    expect(() => matchesCronExpression("0 99 * * *", date)).toThrow("expected 0-23");
+    expect(() => validateCronExpression("*/0 * * * *")).toThrow("Invalid cron step");
+  });
+
+  it("rejects invalid cron expressions before persisting scheduled tasks", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+
+    await expect(createScheduledTask(paths, {
+      channel: "telegram",
+      chatId: "chat-1",
+      target: "main-session",
+      kind: "prompt",
+      prompt: "bad",
+      cron: "* * *",
+      enabled: true,
+    })).rejects.toThrow("expected 5 fields");
+
+    expect(await listScheduledTasks(paths)).toEqual([]);
+  });
+
+  it("does not let rejected invalid cron input poison later scheduler reads", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const now = new Date(2026, 4, 30, 12, 15, 0, 0);
+
+    await expect(createScheduledTask(paths, {
+      channel: "telegram",
+      chatId: "chat-1",
+      target: "main-session",
+      kind: "prompt",
+      prompt: "bad",
+      cron: "x * * * *",
+      enabled: true,
+    })).rejects.toThrow("Invalid cron value");
+
+    const task = await createScheduledTask(paths, {
+      channel: "telegram",
+      chatId: "chat-1",
+      target: "main-session",
+      kind: "prompt",
+      prompt: "status check",
+      cron: "15 12 * * *",
+      enabled: true,
+    });
+
+    expect((await getRunnableScheduledTasks(paths, now)).map((entry) => entry.id)).toEqual([task.id]);
   });
 
   it("runs cron jobs at most once per minute", async () => {

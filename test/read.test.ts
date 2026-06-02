@@ -66,22 +66,56 @@ test("readTool reads a single line", async () => {
   }
 });
 
-test("readTool truncates a single oversized line while making progress", async () => {
+test("readTool gives a bash fallback for a single oversized line", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-read-"));
 
   try {
-    const filePath = join(dir, "single-line.txt");
+    const filePath = join(dir, "single-line with 'quotes' and $(shell).txt");
     const longLine = "x".repeat(DEFAULT_MAX_OUTPUT_BYTES + 100);
     await writeFile(filePath, longLine, "utf8");
 
     const content = await readTool.run({ path: filePath }, toolContext(dir));
 
     assert.equal(content.content[0].type, "text");
-    assert.ok(content.content[0].text.length > 0);
-    assert.ok(content.content[0].text.startsWith("x"));
-    assert.match(content.content[0].text, /Use startLine=2 to continue\./);
-    assert.equal(content.details?.truncation?.truncatedBy, "bytes");
-    assert.equal(content.details?.truncation?.outputLines, 1);
+    assert.match(content.content[0].text, /Line 1 is \d+KB, exceeds 50KB limit/);
+    assert.match(content.content[0].text, /sed -n '1p'/);
+    assert.match(content.content[0].text, /'[^']*single-line with '\\''quotes'\\'' and \$\(shell\)\.txt'/);
+    assert.equal(content.details?.truncation, undefined);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("readTool rejects startLine beyond end of file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-read-"));
+
+  try {
+    const filePath = join(dir, "sample.txt");
+    await writeFile(filePath, "A\nB\n", "utf8");
+
+    await assert.rejects(
+      () => readTool.run({ path: filePath, startLine: 99 }, toolContext(dir)),
+      /beyond end of file/,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("readTool returns supported images as image content", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-read-"));
+
+  try {
+    const filePath = join(dir, "sample.png");
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+    await writeFile(filePath, png);
+
+    const content = await readTool.run({ path: filePath }, toolContext(dir));
+
+    assert.equal(content.content[0].type, "text");
+    assert.equal(content.content[0].text, "Read image file [image/png]");
+    assert.equal(content.content[1].type, "image");
+    assert.equal(content.content[1].mimeType, "image/png");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

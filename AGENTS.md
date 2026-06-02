@@ -1,6 +1,8 @@
 # AGENTS.md
 
 ## Project
+**Work in progress — backwards compatibility is not important in this project.**
+
 Minimal TypeScript project using `npm`.
 
 MiniOpenClaw is an always-on local personal-assistant backend. It should own runs, sessions, approvals, jobs, skills, and transports.
@@ -13,7 +15,6 @@ What we are building, in short:
 - Extensibility: pi-compatible global skills
 - Cron jobs/heartbeats and async subagent profiles
 
-**Work in progress — backwards compatibility is not needed.**
 
 ## Commands
 - Build: `npm run build`

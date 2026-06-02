@@ -1,8 +1,10 @@
+import { checkAuthAvailable } from "../agent/auth.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import { ensureCurrentSession } from "../core/sessions.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
 import { buildGateway } from "./app.js";
 import {
+  logGatewayAuthWarning,
   logGatewayListening,
   logGatewaySandboxError,
   logGatewaySandboxReady,
@@ -33,6 +35,16 @@ async function launchGatewaySandbox(runtime: RuntimeState): Promise<void> {
 export async function main(): Promise<void> {
   const runtime = initializeRuntime();
   await launchGatewaySandbox(runtime);
+
+  if (!checkAuthAvailable(runtime)) {
+    const provider = runtime.config.agent.provider;
+    if (!provider) {
+      console.log("No agent provider configured. Set agent.provider and agent.modelId in ~/.mini-openclaw/config.json");
+    } else {
+      logGatewayAuthWarning(provider, runtime.paths.authFile);
+    }
+  }
+
   const app = buildGateway(runtime);
 
   const address = await app.listen({

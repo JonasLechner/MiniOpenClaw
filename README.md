@@ -15,10 +15,114 @@ All runtime files live in `~/.mini-openclaw/`:
 
 No `.env` file is used.
 
+## Getting Started
+
+### 1. Install dependencies
+
+```bash
+npm install
+npm run build
+```
+
+### 2. Runtime directory and config
+
+MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. You only need to edit `~/.mini-openclaw/config.json` if you want to change defaults. Example config:
+
+```json
+{
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 3000,
+    "telegram": {
+      "enabled": false,
+      "polling": true,
+      "allowedUserIds": []
+    }
+  },
+  "agent": {
+    "provider": "openai-codex",
+    "modelId": "gpt-5.4-mini"
+  },
+  "sandbox": {
+    "enabled": true,
+    "engine": "auto",
+    "image": "miniopenclaw-sandbox:local",
+    "network": "none"
+  }
+}
+```
+
+### 3. Set up Telegram (optional)
+
+To chat with the agent over Telegram:
+
+1. Message [@BotFather](https://t.me/BotFather) on Telegram and create a new bot with `/newbot`. Copy the bot token.
+2. Find your Telegram user ID — the easiest way is to message [@userinfobot](https://t.me/userinfobot) and it will reply with your numeric ID.
+3. Update `~/.mini-openclaw/config.json`:
+
+```json
+{
+  "gateway": {
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_BOT_TOKEN",
+      "polling": true,
+      "allowedUserIds": ["YOUR_USER_ID"]
+    }
+  }
+}
+```
+
+Only users in `allowedUserIds` can interact with the bot. If the list is empty and Telegram is enabled, the bot accepts messages from anyone.
+
+### 4. Set up authentication
+
+Authenticate once with the dedicated auth command:
+
+```bash
+npm run auth
+```
+
+It lists available OAuth providers and requires an explicit selection. In non-interactive environments, pass the provider id explicitly (for example `npm run auth -- openai-codex`). After selecting, it opens a browser prompt and saves tokens to `~/.mini-openclaw/auth.json`.
+
+If you prefer an API key, create or edit `~/.mini-openclaw/auth.json` instead:
+
+```json
+{
+  "openai-codex": {
+    "type": "apiKey",
+    "apiKey": "sk-..."
+  }
+}
+```
+
+### 5. Start the system
+
+Authenticate first (if using an OAuth provider):
+
+```bash
+npm run auth
+```
+
+Start the gateway (includes Telegram polling if enabled):
+
+```bash
+npm start
+```
+
+In a second terminal, start the agent TUI:
+
+```bash
+npm run start:agent
+```
+
+Both the gateway and agent will warn or fail early if authentication is missing, pointing you to `npm run auth`.
+
 ## Commands
 
 - `npm install` — install dependencies
 - `npm run build` — compile to `dist/`
+- `npm run auth` — authenticate with a selected OAuth provider
 - `npm start` — start the gateway
 - `npm run start:gateway` — start the gateway
 - `npm run start:agent` — start the agent TUI
@@ -69,28 +173,6 @@ This project is intended to keep session state over time rather than behave like
 
 `npm run start:agent` launches the local TUI and requires an interactive TTY.
 For non-interactive access, use the gateway.
-
-
-The example config above uses the `openai-codex` OAuth provider. On first run you will be
-prompted to authenticate in your browser. OAuth tokens are stored in
-`~/.mini-openclaw/auth.json`.
-
-For API-key providers, add credentials to `~/.mini-openclaw/auth.json`:
-
-```json
-{
-  "openai": {
-    "type": "apiKey",
-    "apiKey": "your-api-key"
-  }
-}
-```
-
-Start the TUI with:
-
-```bash
-npm run start:agent
-```
 
 ## Sandbox image
 

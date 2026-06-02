@@ -1,6 +1,7 @@
+import { promises as fs } from "node:fs";
 import { Type } from "@earendil-works/pi-ai";
 import { requireToolContext, textToolResult, type ToolDefinition, type ToolRunResult } from "./types.js";
-import { truncateHead, truncationNotice, type TruncationDetails } from "./truncate.js";
+import { DEFAULT_MAX_OUTPUT_BYTES, truncateHead, type TruncationDetails } from "./truncate.js";
 
 export interface ReadInput {
   path: string;
@@ -12,9 +13,37 @@ export interface ReadDetails {
   truncation?: TruncationDetails;
 }
 
+const supportedImageMimeTypes = new Map<string, string>([
+  ["ffd8ff", "image/jpeg"],
+  ["89504e47", "image/png"],
+  ["47494638", "image/gif"],
+  ["52494646", "image/webp"],
+]);
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error("Operation aborted");
+  }
+}
+
+function detectSupportedImageMimeType(buffer: Buffer): string | undefined {
+  const header = buffer.subarray(0, 12).toString("hex");
+  for (const [signature, mimeType] of supportedImageMimeTypes) {
+    if (header.startsWith(signature)) {
+      if (mimeType === "image/webp" && buffer.subarray(8, 12).toString("ascii") !== "WEBP") return undefined;
+      return mimeType;
+    }
+  }
+  return undefined;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 export const readTool: ToolDefinition<ReadInput, ToolRunResult<ReadDetails>> = {
   name: "read",
-  description: "Read a file inside the workspace, optionally by line range.",
+  description: "Read a file inside the workspace, optionally by line range. Supports text files and images (jpg, png, gif, webp).",
   parameters: Type.Object({
     path: Type.String(),
     startLine: Type.Optional(Type.Number()),
@@ -22,7 +51,24 @@ export const readTool: ToolDefinition<ReadInput, ToolRunResult<ReadDetails>> = {
   }),
   async run(input: ReadInput, context) {
     const toolContext = requireToolContext(context);
-    const content = await toolContext.workspace.readFile(input.path);
+    throwIfAborted(toolContext.signal);
+
+    const path = await toolContext.workspace.resolvePath(input.path);
+    await fs.access(path);
+    const buffer = await fs.readFile(path);
+    throwIfAborted(toolContext.signal);
+
+    const mimeType = detectSupportedImageMimeType(buffer);
+    if (mimeType) {
+      return {
+        content: [
+          { type: "text", text: `Read image file [${mimeType}]` },
+          { type: "image", data: buffer.toString("base64"), mimeType },
+        ],
+      };
+    }
+
+    const content = buffer.toString("utf8");
     const allLines = content.split(/\r?\n/);
     if (/\r?\n$/.test(content)) {
       allLines.pop();
@@ -44,6 +90,10 @@ export const readTool: ToolDefinition<ReadInput, ToolRunResult<ReadDetails>> = {
       }
 
       const startIndex = startLine - 1;
+      if (startIndex >= allLines.length) {
+        throw new Error(`startLine ${startLine} is beyond end of file (${allLines.length} lines total)`);
+      }
+
       const endIndex = input.endLine ?? allLines.length;
       selectedContent = allLines.slice(startIndex, endIndex).join("\n");
 
@@ -52,11 +102,22 @@ export const readTool: ToolDefinition<ReadInput, ToolRunResult<ReadDetails>> = {
       }
     }
 
+    const firstSelectedLine = selectedContent.split(/\r?\n/, 1)[0] ?? "";
+    if (Buffer.byteLength(firstSelectedLine, "utf8") > DEFAULT_MAX_OUTPUT_BYTES) {
+      const sizeKb = Math.round(Buffer.byteLength(firstSelectedLine, "utf8") / 1024);
+      return textToolResult(
+        `[Line ${startLine} is ${sizeKb}KB, exceeds ${Math.round(DEFAULT_MAX_OUTPUT_BYTES / 1024)}KB limit. Use bash to inspect a slice: sed -n '${startLine}p' ${shellQuote(input.path)} | head -c ${DEFAULT_MAX_OUTPUT_BYTES}]`,
+      );
+    }
+
     const truncated = truncateHead(selectedContent);
     const nextLine = startLine + truncated.details.outputLines;
-    const notice = truncationNotice(truncated.details, `Use startLine=${nextLine} to continue.`);
+    const endLine = nextLine - 1;
+    const notice = truncated.details.truncated
+      ? `\n\n[Showing lines ${startLine}-${endLine} of ${allLines.length} (${truncated.details.truncatedBy === "lines" ? `${truncated.details.maxLines} line limit` : `${Math.round(truncated.details.maxBytes / 1024)}KB limit`}). Use startLine=${nextLine} to continue.]`
+      : continuationNotice;
 
-    return textToolResult(`${truncated.content}${notice || continuationNotice}`, {
+    return textToolResult(`${truncated.content}${notice}`, {
       truncation: truncated.details.truncated ? truncated.details : undefined,
     });
   },

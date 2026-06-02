@@ -8,6 +8,7 @@
     "start": "node dist/gateway/index.js",
     "start:gateway": "node dist/gateway/index.js",
     "start:agent": "bun dist/agent/cli.js",
+    "auth": "bun dist/auth-cli.js",
     "dev": "tsc --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

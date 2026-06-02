@@ -11,12 +11,25 @@ async function saveTasks(paths: RuntimePaths, tasks: ScheduledTask[]): Promise<v
   await writeJsonFile(paths.scheduledTasks, tasks);
 }
 
+function assertCronValueInRange(value: number, min: number, max: number, part: string): void {
+  if (value < min || value > max) {
+    throw new Error(`Invalid cron value ${part}: expected ${min}-${max}.`);
+  }
+}
+
 function parseCronField(field: string, min: number, max: number, value: number): boolean {
   if (field === "*") return true;
+  if (field === "") throw new Error("Invalid cron value: empty field");
 
   for (const part of field.split(",")) {
+    if (part === "") throw new Error(`Invalid cron value: ${field}`);
+
     if (part.includes("/")) {
-      const [base, stepText] = part.split("/");
+      const [base, stepText, extra] = part.split("/");
+      if (extra !== undefined || base === undefined || stepText === undefined || base === "" || stepText === "") {
+        throw new Error(`Invalid cron step: ${part}`);
+      }
+
       const step = Number(stepText);
       if (!Number.isInteger(step) || step <= 0) {
         throw new Error(`Invalid cron step: ${part}`);
@@ -27,23 +40,29 @@ function parseCronField(field: string, min: number, max: number, value: number):
         continue;
       }
 
-      const [rangeStartText, rangeEndText] = base.split("-");
+      const [rangeStartText, rangeEndText, rangeExtra] = base.split("-");
       const rangeStart = Number(rangeStartText);
       const rangeEnd = Number(rangeEndText);
-      if (!Number.isInteger(rangeStart) || !Number.isInteger(rangeEnd)) {
+      if (rangeExtra !== undefined || !Number.isInteger(rangeStart) || !Number.isInteger(rangeEnd)) {
         throw new Error(`Invalid cron range: ${part}`);
       }
+      assertCronValueInRange(rangeStart, min, max, part);
+      assertCronValueInRange(rangeEnd, min, max, part);
+      if (rangeStart > rangeEnd) throw new Error(`Invalid cron range: ${part}`);
       if (value >= rangeStart && value <= rangeEnd && (value - rangeStart) % step === 0) return true;
       continue;
     }
 
     if (part.includes("-")) {
-      const [startText, endText] = part.split("-");
+      const [startText, endText, extra] = part.split("-");
       const start = Number(startText);
       const end = Number(endText);
-      if (!Number.isInteger(start) || !Number.isInteger(end)) {
+      if (extra !== undefined || !Number.isInteger(start) || !Number.isInteger(end)) {
         throw new Error(`Invalid cron range: ${part}`);
       }
+      assertCronValueInRange(start, min, max, part);
+      assertCronValueInRange(end, min, max, part);
+      if (start > end) throw new Error(`Invalid cron range: ${part}`);
       if (value >= start && value <= end) return true;
       continue;
     }
@@ -52,11 +71,8 @@ function parseCronField(field: string, min: number, max: number, value: number):
     if (!Number.isInteger(exact)) {
       throw new Error(`Invalid cron value: ${part}`);
     }
+    assertCronValueInRange(exact, min, max, part);
     if (value === exact) return true;
-  }
-
-  if (value < min || value > max) {
-    throw new Error(`Cron value ${value} outside allowed range ${min}-${max}.`);
   }
 
   return false;
@@ -69,11 +85,17 @@ export function matchesCronExpression(cron: string, date: Date): boolean {
   }
 
   const [minute, hour, dayOfMonth, month, dayOfWeek] = fields;
-  return parseCronField(minute, 0, 59, date.getMinutes())
-    && parseCronField(hour, 0, 23, date.getHours())
-    && parseCronField(dayOfMonth, 1, 31, date.getDate())
-    && parseCronField(month, 1, 12, date.getMonth() + 1)
-    && parseCronField(dayOfWeek, 0, 6, date.getDay());
+  const minuteMatches = parseCronField(minute, 0, 59, date.getMinutes());
+  const hourMatches = parseCronField(hour, 0, 23, date.getHours());
+  const dayOfMonthMatches = parseCronField(dayOfMonth, 1, 31, date.getDate());
+  const monthMatches = parseCronField(month, 1, 12, date.getMonth() + 1);
+  const dayOfWeekMatches = parseCronField(dayOfWeek, 0, 6, date.getDay());
+
+  return minuteMatches && hourMatches && dayOfMonthMatches && monthMatches && dayOfWeekMatches;
+}
+
+export function validateCronExpression(cron: string): void {
+  matchesCronExpression(cron, new Date());
 }
 
 function toMinuteKey(date: Date): string {
@@ -84,6 +106,7 @@ export async function createScheduledTask(
   paths: RuntimePaths,
   task: Omit<ScheduledTask, "id" | "createdAt" | "updatedAt" | "lastRunAt">,
 ): Promise<ScheduledTask> {
+  validateCronExpression(task.cron);
   const tasks = await loadTasks(paths);
   const now = new Date().toISOString();
   const created: ScheduledTask = {
@@ -123,4 +146,21 @@ export async function markScheduledTaskRan(paths: RuntimePaths, taskId: string, 
   task.lastRunAt = now.toISOString();
   task.updatedAt = now.toISOString();
   await saveTasks(paths, tasks);
+}
+
+export async function setScheduledTaskEnabled(
+  paths: RuntimePaths,
+  taskId: string,
+  enabled: boolean,
+): Promise<ScheduledTask> {
+  const tasks = await loadTasks(paths);
+  const task = tasks.find((entry) => entry.id === taskId);
+  if (!task) {
+    throw new Error(`Unknown scheduled task ${taskId}.`);
+  }
+
+  task.enabled = enabled;
+  task.updatedAt = new Date().toISOString();
+  await saveTasks(paths, tasks);
+  return task;
 }

@@ -1,9 +1,12 @@
+import { createReadStream } from "node:fs";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { getModel } from "@earendil-works/pi-ai";
 import {
   getOAuthApiKey,
   getOAuthProvider,
   type OAuthCredentials,
+  type OAuthProviderInterface,
 } from "@earendil-works/pi-ai/oauth";
 import type { RuntimeState } from "../core/runtime.js";
 
@@ -32,6 +35,20 @@ type AuthFile = Record<string, AuthEntry>;
 
 export class AgentAuthError extends Error {}
 
+export function checkAuthAvailable(runtime: RuntimeState): boolean {
+  const provider = runtime.config.agent.provider;
+  if (!provider) return false;
+
+  const auth = loadAuthFile(runtime.paths.authFile);
+  const entry = auth[provider];
+
+  if (!getOAuthProvider(provider)) {
+    return isApiKeyCredentials(entry) && !!entry.apiKey;
+  }
+
+  return isOAuthCredentials(entry);
+}
+
 export function pickProviderAndModel(runtime: RuntimeState): AgentModelSelection {
   const provider = runtime.config.agent.provider;
   const modelId = runtime.config.agent.modelId;
@@ -58,6 +75,49 @@ function isApiKeyCredentials(value: AuthEntry | undefined): value is ApiKeyCrede
 
 function isOAuthCredentials(value: AuthEntry | undefined): value is OAuthAuthEntry {
   return value !== undefined && value.type !== "apiKey";
+}
+
+function readLine(prompt: string): Promise<string> {
+  return new Promise((resolve) => {
+    let input: NodeJS.ReadableStream;
+    try {
+      input = createReadStream("/dev/tty");
+    } catch {
+      input = process.stdin;
+    }
+    const rl = createInterface({ input, output: process.stdout });
+    rl.question(prompt, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+export async function runOAuthLogin(provider: OAuthProviderInterface, authPath: string): Promise<OAuthCredentials> {
+  console.log(`\nAuthenticating with ${provider.name}...`);
+
+  const credentials = await provider.login({
+    onAuth: (info) => {
+      console.log(`\nPlease open this URL in your browser to authenticate:\n  ${info.url}`);
+      if (info.instructions) {
+        console.log(`\n${info.instructions}`);
+      }
+    },
+    onPrompt: async (prompt) => {
+      const answer = await readLine(`\n${prompt.message}${prompt.placeholder ? ` (${prompt.placeholder})` : ""}: `);
+      return answer;
+    },
+    onProgress: (message) => {
+      console.log(`  ${message}`);
+    },
+  });
+
+  const auth = loadAuthFile(authPath);
+  auth[provider.id] = { ...credentials, type: "oauth" };
+  saveAuthFile(authPath, auth);
+
+  console.log(`Authentication saved to ${authPath}\n`);
+  return credentials;
 }
 
 async function resolveApiKey(provider: string, authPath: string): Promise<string | undefined> {
@@ -105,7 +165,7 @@ export async function resolveAgentAuth(runtime: RuntimeState): Promise<AgentAuth
   if (!apiKey) {
     if (getOAuthProvider(provider)) {
       throw new AgentAuthError(
-        `No auth found for provider "${provider}". Complete OAuth or copy OAuth credentials into ${runtime.paths.authFile}`,
+        `No auth found for provider "${provider}". Run "npm run auth" to authenticate interactively, or add credentials to ${runtime.paths.authFile}.`,
       );
     }
     throw new AgentAuthError(

@@ -60,6 +60,13 @@ type GatewayLogEvent =
       url: string;
       message: string;
       remoteAddress?: string;
+    }
+  | {
+      event: "gateway_auth_warning";
+      timestamp: string;
+      method: string;
+      url: string;
+      message: string;
     };
 
 function color(text: string, value: string): string {
@@ -207,6 +214,28 @@ export function logGatewayError(request: FastifyRequest, error: Error): void {
     payload.url,
     formatMeta({ ip: payload.remoteAddress }),
     payload.message,
+  ].join(" ");
+
+  writeLogLine(pretty, payload);
+}
+
+export function logGatewayAuthWarning(provider: string, authFile: string): void {
+  const timestamp = new Date().toISOString();
+  const message = `No authentication configured for provider "${provider}". Run "npm run auth" to authenticate interactively, or add an API key to ${authFile}.`;
+
+  const payload: GatewayLogEvent = {
+    event: "gateway_auth_warning",
+    timestamp,
+    method: "-",
+    url: "-",
+    message,
+  };
+
+  const pretty = [
+    formatTimestamp(timestamp),
+    color("auth", ansi.blue),
+    color("warning", ansi.yellow),
+    message,
   ].join(" ");
 
   writeLogLine(pretty, payload);

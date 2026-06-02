@@ -1,8 +1,26 @@
+import { readFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import { TelegramApiClient } from "./api.js";
 import { chunkTelegramText } from "./formatter.js";
 
 const STREAM_EDIT_INTERVAL_MS = 800;
 const STREAM_PREVIEW_MAX_LENGTH = 3900;
+
+function imageMimeTypeForPath(path: string): string {
+  switch (extname(path).toLowerCase()) {
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".png":
+      return "image/png";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    default:
+      return "application/octet-stream";
+  }
+}
 
 function previewText(text: string): string {
   const trimmed = text.trim();
@@ -92,6 +110,12 @@ export class TelegramMessageStreamer {
     for (const chunk of chunkTelegramText(text)) {
       await this.#api.sendMessage(chatId, chunk);
     }
+  }
+
+  async sendImage(chatId: string, path: string, caption?: string): Promise<void> {
+    const data = await readFile(path);
+    const blob = new Blob([data], { type: imageMimeTypeForPath(path) });
+    await this.#api.sendPhoto(chatId, blob, basename(path), caption);
   }
 
   async startStream(chatId: string): Promise<TelegramStreamingMessage> {
