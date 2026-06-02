@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssistantMessage, Message, UserMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Message, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
 import type { RuntimePaths } from "./config.js";
 import { getAssistantThinkingBlocks, getAssistantVisibleText } from "./messages.js";
 
@@ -32,6 +32,11 @@ export type AssistantMessageEvent = SessionEventBase & {
   thinking: string[];
 };
 
+export type ToolResultMessageEvent = SessionEventBase & {
+  type: "tool_result_message";
+  message: ToolResultMessage;
+};
+
 export type SystemEvent = SessionEventBase & {
   type: "system";
   name: string;
@@ -44,14 +49,18 @@ export type ErrorEvent = SessionEventBase & {
   details?: unknown;
 };
 
-export type SessionEvent = UserMessageEvent | AssistantMessageEvent | SystemEvent | ErrorEvent;
+export type SessionEvent =
+  | UserMessageEvent
+  | AssistantMessageEvent
+  | ToolResultMessageEvent
+  | SystemEvent
+  | ErrorEvent;
 
 export type Session = {
   sessionId: string;
   createdAt: string;
   path: string;
   events: SessionEvent[];
-  messages: Message[];
 };
 
 export type SessionSummary = {
@@ -72,21 +81,24 @@ function createSessionFilePath(paths: RuntimePaths, createdAt: string, sessionId
   return join(paths.sessions, `${fileTimestamp}_${sessionId}.jsonl`);
 }
 
-function isContextMessageEvent(event: SessionEvent): event is UserMessageEvent | AssistantMessageEvent {
-  return event.type === "user_message" || event.type === "assistant_message";
+function isContextMessageEvent(event: SessionEvent): event is UserMessageEvent | AssistantMessageEvent | ToolResultMessageEvent {
+  return event.type === "user_message" || event.type === "assistant_message" || event.type === "tool_result_message";
+}
+
+export function getSessionMessages(session: Pick<Session, "events">): Message[] {
+  return session.events.filter(isContextMessageEvent).map((event) => event.message);
 }
 
 async function ensureSessionsDir(paths: RuntimePaths): Promise<void> {
   await mkdir(paths.sessions, { recursive: true });
 }
 
-function toSession(header: SessionHeader, path: string, events: SessionEvent[], messages: Message[]): Session {
+function toSession(header: SessionHeader, path: string, events: SessionEvent[]): Session {
   return {
     sessionId: header.sessionId,
     createdAt: header.createdAt,
     path,
     events,
-    messages,
   };
 }
 
@@ -110,19 +122,15 @@ async function parseSessionFile(path: string): Promise<Session | undefined> {
   if (header.type !== "session" || !header.sessionId) return undefined;
 
   const events: SessionEvent[] = [];
-  const messages: Message[] = [];
 
   for (const line of lines.slice(1)) {
     const parsed = JSON.parse(line) as SessionEvent;
     if (parsed.sessionId !== header.sessionId) continue;
 
     events.push(parsed);
-    if (isContextMessageEvent(parsed)) {
-      messages.push(parsed.message);
-    }
   }
 
-  return toSession(header, path, events, messages);
+  return toSession(header, path, events);
 }
 
 async function getSessionFiles(paths: RuntimePaths): Promise<string[]> {
@@ -146,9 +154,6 @@ async function getSessionFiles(paths: RuntimePaths): Promise<string[]> {
 async function appendSessionEvent(session: Session, event: SessionEvent): Promise<void> {
   await writeFile(session.path, `${JSON.stringify(event)}\n`, { encoding: "utf8", flag: "a" });
   session.events.push(event);
-  if (isContextMessageEvent(event)) {
-    session.messages.push(event.message);
-  }
 }
 
 async function createSession(paths: RuntimePaths, details?: unknown): Promise<Session> {
@@ -166,7 +171,7 @@ async function createSession(paths: RuntimePaths, details?: unknown): Promise<Se
 
   await writeFile(path, `${JSON.stringify(header)}\n`, "utf8");
 
-  const session = toSession(header, path, [], []);
+  const session = toSession(header, path, []);
   await appendSessionEvent(session, {
     type: "system",
     sessionId,
@@ -210,7 +215,7 @@ export async function listSessions(paths: RuntimePaths): Promise<SessionSummary[
         path: session.path,
         createdAt: session.createdAt,
         updatedAt: stats.mtime.toISOString(),
-        messageCount: session.messages.length,
+        messageCount: getSessionMessages(session).length,
         preview: typeof preview === "string" ? preview : JSON.stringify(preview),
       };
     })
@@ -254,6 +259,21 @@ export async function appendAssistantMessageEvent(
     message,
     visibleText: getAssistantVisibleText(message),
     thinking: getAssistantThinkingBlocks(message),
+  };
+
+  await appendSessionEvent(session, event);
+  return event;
+}
+
+export async function appendToolResultMessageEvent(
+  session: Session,
+  message: ToolResultMessage,
+): Promise<ToolResultMessageEvent> {
+  const event: ToolResultMessageEvent = {
+    type: "tool_result_message",
+    sessionId: session.sessionId,
+    timestamp: new Date().toISOString(),
+    message,
   };
 
   await appendSessionEvent(session, event);

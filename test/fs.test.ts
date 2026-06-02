@@ -5,8 +5,9 @@ import { dirname, join, win32 } from "node:path";
 import { test } from "vitest";
 import { editTool, globTool, grepTool, readTool, writeTool } from "../src/agent/tools/index.js";
 import { isWithinWorkspacePath } from "../src/agent/tools/fs.js";
+import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath });
+const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
 
 interface SandboxFixture {
   root: string;

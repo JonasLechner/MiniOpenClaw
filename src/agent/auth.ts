@@ -33,8 +33,8 @@ type AuthFile = Record<string, AuthEntry>;
 export class AgentAuthError extends Error {}
 
 export function pickProviderAndModel(runtime: RuntimeState): AgentModelSelection {
-  const provider = runtime.config.agent?.provider;
-  const modelId = runtime.config.agent?.modelId;
+  const provider = runtime.config.agent.provider;
+  const modelId = runtime.config.agent.modelId;
 
   if (!provider || !modelId) {
     throw new AgentAuthError(`Set agent.provider and agent.modelId in ${runtime.paths.configFile}.`);

@@ -1,17 +1,19 @@
 import { mkdtempSync, readFileSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAgentContext } from "../src/lib/agent-context.js";
 import type { RuntimePaths } from "../src/lib/config.js";
 import {
   appendAssistantMessageEvent,
   appendErrorEvent,
+  appendToolResultMessageEvent,
   appendUserMessageEvent,
   createNewSession,
   ensureCurrentSession,
   getSessionById,
+  getSessionMessages,
   listSessions,
   SESSION_FORMAT_VERSION,
 } from "../src/lib/sessions.js";
@@ -59,6 +61,17 @@ function createAssistantMessage(): AssistantMessage {
   };
 }
 
+function createToolResultMessage(): ToolResultMessage {
+  return {
+    role: "toolResult",
+    toolCallId: "call_123",
+    toolName: "bash",
+    content: [{ type: "text", text: '{"output":"/workspace"}' }],
+    isError: false,
+    timestamp: Date.now(),
+  };
+}
+
 const tempRoots: string[] = [];
 
 afterEach(() => {
@@ -89,13 +102,14 @@ describe("sessions", () => {
     });
   });
 
-  it("records user, assistant, and error events and keeps context messages ready", async () => {
+  it("records user, assistant, tool result, and error events and keeps context messages ready", async () => {
     const paths = createRuntimePaths();
     tempRoots.push(paths.home);
     const session = await ensureCurrentSession(paths);
 
     await appendUserMessageEvent(session, "hello");
     await appendAssistantMessageEvent(session, createAssistantMessage());
+    await appendToolResultMessageEvent(session, createToolResultMessage());
     await appendErrorEvent(session, "boom", { code: "E_TEST" });
 
     const persisted = await getSessionById(paths, session.sessionId);
@@ -104,6 +118,7 @@ describe("sessions", () => {
       "system",
       "user_message",
       "assistant_message",
+      "tool_result_message",
       "error",
     ]);
 
@@ -114,11 +129,12 @@ describe("sessions", () => {
       thinking: ["first thought", "second thought"],
     });
 
-    const context = createAgentContext(persisted!.messages, "test");
+    const context = createAgentContext(getSessionMessages(persisted!), "test");
     expect(context.systemPrompt).toBe("test");
-    expect(context.messages).toHaveLength(2);
+    expect(context.messages).toHaveLength(3);
     expect(context.messages[0]).toMatchObject({ role: "user", content: "hello" });
     expect(context.messages[1]).toMatchObject({ role: "assistant", stopReason: "stop" });
+    expect(context.messages[2]).toMatchObject({ role: "toolResult", toolCallId: "call_123", toolName: "bash" });
   });
 
   it("uses the most recently updated session as current and lists sessions in that order", async () => {

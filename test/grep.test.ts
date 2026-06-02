@@ -4,8 +4,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { test } from "vitest";
 import { grepTool } from "../src/agent/tools/index.js";
+import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath });
+const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
 
 test("grepTool finds plain text matches", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-grep-"));

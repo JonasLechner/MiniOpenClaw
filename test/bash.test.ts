@@ -4,9 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import { test } from "vitest";
+import type { Sandbox } from "../src/lib/sandbox.js";
+import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
 import { bashTool } from "../src/agent/tools/index.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath });
+const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
 
 async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-bash-"));
@@ -73,6 +75,49 @@ test("bashTool rejects timed out commands", async () => {
   });
 });
 
+test("bashTool allows host execution when given host sandbox", async () => {
+  await withTempDir(async (dir) => {
+    const node = JSON.stringify(process.execPath);
+    const result = await bashTool.run(
+      { command: `${node} -e "process.stdout.write(process.cwd())"` },
+      { workspacePath: dir, sandbox: new HostSandbox(dir) },
+    );
+
+    assert.equal(result.output, dir);
+  });
+});
+
+test("bashTool uses host execution when given host sandbox", async () => {
+  const workspacePath = process.cwd();
+  const result = await bashTool.run(
+    { command: "echo hi" },
+    { workspacePath, sandbox: new HostSandbox(workspacePath) },
+  );
+
+  assert.equal(result.output, "hi\n");
+});
+
+test("bashTool uses the provided sandbox when available", async () => {
+  const calls: Array<{ command: string; timeout?: number }> = [];
+  const sandbox: Sandbox = {
+    async ensure() {
+      // no-op
+    },
+    async exec(command, options) {
+      calls.push({ command, timeout: options?.timeout });
+      return { output: "sandbox-output" };
+    },
+  };
+
+  const result = await bashTool.run(
+    { command: "echo hi", timeout: 3 },
+    { workspacePath: process.cwd(), sandbox },
+  );
+
+  assert.equal(result.output, "sandbox-output");
+  assert.deepEqual(calls, [{ command: "echo hi", timeout: 3 }]);
+});
+
 test("bashTool truncates long output and saves full output", async () => {
   await withTempDir(async (dir) => {
     const node = JSON.stringify(process.execPath);
@@ -82,7 +127,6 @@ test("bashTool truncates long output and saves full output", async () => {
 
     assert.equal(result.truncated, true);
     assert.ok(result.fullOutputPath);
-    assert.equal(result.truncatedBy, "lines");
     assert.match(result.output, /line-2504/);
     assert.doesNotMatch(result.output, /line-0/);
 

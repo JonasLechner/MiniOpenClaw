@@ -5,17 +5,30 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimePaths } from "../src/lib/config.js";
 import type { RuntimeState } from "../src/lib/runtime.js";
-import { getSessionById, listSessions } from "../src/lib/sessions.js";
+import { getSessionById, getSessionMessages, listSessions } from "../src/lib/sessions.js";
 
 const streamSimpleMock = vi.fn();
 const completeMock = vi.fn();
+const validateToolCallMock = vi.fn();
 const runtimeStateMock = vi.fn<() => RuntimeState>();
 const resolveAgentAuthMock = vi.fn();
+const sandboxEnsureMock = vi.fn(async () => {});
+const sandboxExecMock = vi.fn(async () => ({ output: "" }));
+const sandboxDisposeMock = vi.fn(async () => {});
+const sandboxFactoryCreateMock = vi.fn(() => ({
+  ensure: sandboxEnsureMock,
+  exec: sandboxExecMock,
+  dispose: sandboxDisposeMock,
+}));
+const createSandboxFactoryMock = vi.fn(async () => ({
+  create: sandboxFactoryCreateMock,
+}));
+const resolveSandboxEngineKindMock = vi.fn(async () => "podman");
 
 vi.mock("@earendil-works/pi-ai", () => ({
   streamSimple: streamSimpleMock,
   complete: completeMock,
-  validateToolCall: vi.fn(),
+  validateToolCall: validateToolCallMock,
   Type: {
     Object: (value: unknown) => value,
     String: () => ({ type: "string" }),
@@ -33,6 +46,11 @@ vi.mock("../src/lib/runtime.js", () => ({
 
 vi.mock("../src/agent/auth.js", () => ({
   resolveAgentAuth: resolveAgentAuthMock,
+}));
+
+vi.mock("../src/lib/sandbox/factory.js", () => ({
+  createSandboxFactory: createSandboxFactoryMock,
+  resolveSandboxEngineKind: resolveSandboxEngineKindMock,
 }));
 
 function createRuntimePaths(): RuntimePaths {
@@ -121,12 +139,56 @@ function createAssistantTextResponse(text: string) {
   };
 }
 
+function createToolUseEventStream(toolCall: { id: string; name: string; arguments: Record<string, unknown> }) {
+  const response = {
+    role: "assistant" as const,
+    content: [{ type: "toolCall" as const, id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments }],
+    api: "openai-responses" as const,
+    provider: "openai",
+    model: "gpt-test",
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0,
+      },
+    },
+    stopReason: "toolUse" as const,
+    timestamp: Date.now(),
+  };
+
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { type: "done" as const, reason: "toolUse" as const, message: response };
+    },
+    async result() {
+      return response;
+    },
+  };
+}
+
 beforeEach(() => {
   paths = createRuntimePaths();
   runtimeStateMock.mockReturnValue({
     config: {
       gateway: { host: "127.0.0.1", port: 3000 },
-      agent: { provider: "openai", modelId: "gpt-test" },
+      agent: { provider: "openai", modelId: "gpt-test", reasoning: undefined },
+      sandbox: {
+        enabled: true,
+        engine: "auto",
+        image: "miniopenclaw-sandbox:local",
+        network: "none",
+        memoryMb: undefined,
+        cpus: undefined,
+        pidsLimit: undefined,
+      },
     },
     paths,
   });
@@ -142,6 +204,14 @@ beforeEach(() => {
       '{"summary":"User prefers concise answers and cares about lint-related workflow.","keywords":["memory","lint","preference"]}',
     ),
   );
+  sandboxEnsureMock.mockClear();
+  sandboxExecMock.mockClear();
+  sandboxDisposeMock.mockClear();
+  sandboxExecMock.mockResolvedValue({ output: "" });
+  createSandboxFactoryMock.mockClear();
+  sandboxFactoryCreateMock.mockClear();
+  resolveSandboxEngineKindMock.mockClear();
+  validateToolCallMock.mockImplementation((_tools, call) => call.arguments);
 });
 
 describe("Agent", () => {
@@ -188,7 +258,8 @@ describe("Agent", () => {
     const { Agent } = await import("../src/agent/agent.js");
     const agent = await Agent.create();
 
-    await agent.runLoop("first prompt");    const firstSessionId = (await listSessions(paths))[0]?.sessionId;
+    await agent.runLoop("first prompt");
+    const firstSessionId = (await listSessions(paths))[0]?.sessionId;
 
     const fresh = await agent.newSession();
     await agent.runLoop("second prompt");
@@ -197,6 +268,54 @@ describe("Agent", () => {
     expect(fresh.sessionId).not.toBe(firstSessionId);
     expect(sessions[0]?.sessionId).toBe(fresh.sessionId);
     expect(sessions[1]?.sessionId).toBe(firstSessionId);
+  });
+
+  it("resolves sandbox engine once during startup and builds the factory from it", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+
+    await Agent.create();
+
+    expect(resolveSandboxEngineKindMock).toHaveBeenCalledTimes(1);
+    expect(resolveSandboxEngineKindMock).toHaveBeenCalledWith({
+      enabled: true,
+      engine: "auto",
+      image: "miniopenclaw-sandbox:local",
+      network: "none",
+      memoryMb: undefined,
+      cpus: undefined,
+      pidsLimit: undefined,
+    });
+    expect(createSandboxFactoryMock).toHaveBeenCalledTimes(1);
+    expect(createSandboxFactoryMock).toHaveBeenCalledWith({
+      enabled: true,
+      engine: "auto",
+      image: "miniopenclaw-sandbox:local",
+      network: "none",
+      memoryMb: undefined,
+      cpus: undefined,
+      pidsLimit: undefined,
+    }, "podman");
+  });
+  it("disposes the session sandbox when starting a new session", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    await agent.runLoop("first prompt");
+    await agent.newSession();
+
+    expect(sandboxDisposeMock).toHaveBeenCalledTimes(1);
+    expect(sandboxDisposeMock).toHaveBeenCalledWith("remove");
+  });
+
+  it("disposes the persisted session sandbox on newSession even before the sandbox is loaded in memory", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    await agent.newSession();
+
+    expect(sandboxFactoryCreateMock).toHaveBeenCalledTimes(1);
+    expect(sandboxDisposeMock).toHaveBeenCalledTimes(1);
+    expect(sandboxDisposeMock).toHaveBeenCalledWith("remove");
   });
 
   it("persists an error event and rethrows provider failures", async () => {
@@ -272,6 +391,77 @@ describe("Agent", () => {
     expect(llmContext.systemPrompt).toContain("remember my lint preference");
   });
   */
+
+  it("persists intermediate assistant tool calls and tool results with matching toolCallIds", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    streamSimpleMock
+      .mockImplementationOnce(() => createToolUseEventStream({ id: "call_123", name: "bash", arguments: { command: "pwd" } }))
+      .mockImplementationOnce(() => createFakeEventStream());
+    sandboxExecMock.mockResolvedValueOnce({ output: "/workspace\n" });
+
+    await agent.runLoop("run pwd");
+
+    const [sessionSummary] = await listSessions(paths);
+    const session = await getSessionById(paths, sessionSummary!.sessionId);
+    const assistantMessages = session?.events.filter((event) => event.type === "assistant_message") ?? [];
+    const toolResultEvent = session?.events.find((event) => event.type === "tool_result_message");
+
+    expect(assistantMessages).toHaveLength(2);
+    expect(assistantMessages[0]).toMatchObject({
+      type: "assistant_message",
+      message: {
+        stopReason: "toolUse",
+        content: [{ type: "toolCall", id: "call_123", name: "bash", arguments: { command: "pwd" } }],
+      },
+    });
+    expect(toolResultEvent).toMatchObject({
+      type: "tool_result_message",
+      message: {
+        role: "toolResult",
+        toolCallId: "call_123",
+        toolName: "bash",
+        isError: false,
+      },
+    });
+    expect(session ? getSessionMessages(session) : undefined).toEqual([
+      expect.objectContaining({ role: "user", content: "run pwd" }),
+      expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
+      expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash" }),
+      expect.objectContaining({ role: "assistant", stopReason: "stop" }),
+    ]);
+  });
+
+  it("persists tool loop messages before rethrowing a post-tool provider failure", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    streamSimpleMock
+      .mockImplementationOnce(() => createToolUseEventStream({ id: "call_123", name: "bash", arguments: { command: "pwd" } }))
+      .mockImplementationOnce(() => {
+        throw new Error("provider offline");
+      });
+    sandboxExecMock.mockResolvedValueOnce({ output: "/workspace\n" });
+
+    await expect(agent.runLoop("run pwd")).rejects.toThrow("provider offline");
+
+    const [sessionSummary] = await listSessions(paths);
+    const session = await getSessionById(paths, sessionSummary!.sessionId);
+
+    expect(session?.events.map((event) => event.type)).toEqual([
+      "system",
+      "user_message",
+      "assistant_message",
+      "tool_result_message",
+      "error",
+    ]);
+    expect(session ? getSessionMessages(session) : undefined).toEqual([
+      expect.objectContaining({ role: "user", content: "run pwd" }),
+      expect.objectContaining({ role: "assistant", stopReason: "toolUse" }),
+      expect.objectContaining({ role: "toolResult", toolCallId: "call_123", toolName: "bash" }),
+    ]);
+  });
 
   it("exposes an Agent wrapper with persistent listeners", async () => {
     const { Agent } = await import("../src/agent/agent.js");

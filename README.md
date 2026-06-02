@@ -1,6 +1,6 @@
 # MiniOpenClaw
 
-Minimal TypeScript repo with two entrypoints:
+Minimal TypeScript repo for a long-running personal agent with two entrypoints:
 
 - `src/gateway/index.ts` — Fastify gateway daemon
 - `src/agent/index.ts` — pi-ai agent CLI
@@ -41,6 +41,12 @@ No `.env` file is used.
   "agent": {
     "provider": "openai-codex",
     "modelId": "gpt-5.4-mini"
+  },
+  "sandbox": {
+    "enabled": true,
+    "engine": "auto",
+    "image": "miniopenclaw-sandbox:local",
+    "network": "none"
   }
 }
 ```
@@ -57,6 +63,7 @@ Endpoints:
 
 Sessions are stored as append-only JSONL files in `~/.mini-openclaw/sessions/`.
 The current session is inferred as the most recently updated session file.
+This project is intended to keep session state over time rather than behave like a short-lived coding-agent workflow.
 
 ## Agent
 
@@ -80,3 +87,21 @@ Start with:
 ```bash
 npm run start:agent
 ```
+
+## Sandbox image
+
+By default, the container sandbox now uses the local image tag `miniopenclaw-sandbox:local`.
+When Docker or Podman starts a sandbox and that image does not exist yet, MiniOpenClaw will build it from `docker/sandbox.Dockerfile`.
+Sandbox containers are session-scoped by default and may intentionally outlive the CLI process so they can be reused when the agent resumes.
+
+The default sandbox image includes common coding tools such as:
+
+- `bash`
+- `git`
+- `jq`
+- `rg`
+- `python3`
+- `curl`
+
+You can still override `sandbox.image` in `~/.mini-openclaw/config.json` to use your own image instead.
+If your image supports package installation, the agent can also install extra tools inside the container as needed.

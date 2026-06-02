@@ -36,7 +36,16 @@ beforeEach(() => {
   runtimeStateMock.mockReturnValue({
     config: {
       gateway: { host: "127.0.0.1", port: 3000 },
-      agent: { provider: "openai", modelId: "gpt-test" },
+      agent: { provider: "openai", modelId: "gpt-test", reasoning: undefined },
+      sandbox: {
+        enabled: true,
+        engine: "auto",
+        image: "miniopenclaw-sandbox:local",
+        network: "none",
+        memoryMb: undefined,
+        cpus: undefined,
+        pidsLimit: undefined,
+      },
     },
     paths,
   });

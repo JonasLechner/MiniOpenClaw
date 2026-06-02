@@ -1,7 +1,21 @@
 import type { Tool as PiTool } from "@earendil-works/pi-ai";
+import type { Sandbox } from "../../lib/sandbox.js";
 
 export interface ToolRunContext {
   workspacePath: string;
+  sandbox: Sandbox;
+}
+
+export function requireToolContext(context?: ToolRunContext): ToolRunContext {
+  if (!context) {
+    throw new Error("tool context is required");
+  }
+
+  return context;
+}
+
+export function requireSandbox(context?: ToolRunContext): Sandbox {
+  return requireToolContext(context).sandbox;
 }
 
 export interface ToolDefinition<Input, Output> {

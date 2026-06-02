@@ -4,8 +4,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { test } from "vitest";
 import { writeTool } from "../src/agent/tools/index.js";
+import { HostSandbox } from "../src/lib/sandbox/host-sandbox.js";
 
-const toolContext = (workspacePath: string) => ({ workspacePath });
+const toolContext = (workspacePath: string) => ({ workspacePath, sandbox: new HostSandbox(workspacePath) });
 
 test("writeTool writes a new file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "miniopenclaw-write-"));

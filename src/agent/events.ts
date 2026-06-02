@@ -1,4 +1,8 @@
-import type { AssistantMessage, AssistantMessageEvent as ProviderAssistantMessageEvent } from "@earendil-works/pi-ai";
+import type {
+  AssistantMessage,
+  AssistantMessageEvent as ProviderAssistantMessageEvent,
+  ToolResultMessage,
+} from "@earendil-works/pi-ai";
 
 export type AgentTurnResult = {
   text: string;
@@ -17,6 +21,20 @@ export type AgentEvent =
       providerEvent: Extract<ProviderAssistantMessageEvent, { type: "text_delta" }>;
     }
   | { type: "message_end"; sessionId: string; message: AssistantMessage; text: string }
+  | {
+      type: "tool_execution_start";
+      sessionId: string;
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+    }
+  | {
+      type: "tool_execution_end";
+      sessionId: string;
+      toolCallId: string;
+      toolName: string;
+      result: ToolResultMessage;
+    }
   | { type: "turn_end"; sessionId: string; result: AgentTurnResult }
   | { type: "agent_end"; sessionId: string; result: AgentTurnResult }
   | { type: "agent_error"; sessionId: string; message: string; error: Error }

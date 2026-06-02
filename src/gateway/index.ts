@@ -6,8 +6,8 @@ export async function main(): Promise<void> {
   const app = buildGateway(runtime);
 
   await app.listen({
-    port: runtime.config.gateway?.port,
-    host: runtime.config.gateway?.host,
+    port: runtime.config.gateway.port,
+    host: runtime.config.gateway.host,
   });
 }
 
