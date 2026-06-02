@@ -27,6 +27,7 @@ export type AgentLoopContext = {
   workspace: Workspace;
   sandbox: Sandbox;
   reasoning?: string;
+  signal?: AbortSignal;
 };
 
 export type AgentLoopResult = {
@@ -62,6 +63,7 @@ export async function runAgentLoop(context: AgentLoopContext, emit: AgentEventSi
       const eventStream = streamSimple(context.model as Parameters<typeof streamSimple>[0], llmContext, {
         apiKey: context.apiKey,
         reasoning: context.reasoning as ThinkingLevel | undefined,
+        signal: context.signal,
       });
 
       for await (const event of eventStream) {

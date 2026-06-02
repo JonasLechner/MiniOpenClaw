@@ -1,16 +1,10 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-async function waitFor(condition: () => boolean, timeout = 2000): Promise<void> {
-  const start = Date.now();
-  while (!condition()) {
-    if (Date.now() - start > timeout) throw new Error("Timeout waiting for condition");
-    await new Promise<void>((resolve) => setTimeout(resolve, 10));
-  }
-}
+
 import type { RuntimePaths } from "../src/lib/config.js";
 import type { RuntimeState } from "../src/lib/runtime.js";
 import { getSessionById, getSessionMessages, listSessions } from "../src/lib/sessions.js";
@@ -345,48 +339,6 @@ describe("Agent", () => {
     });
   });
 
-  it.skip("stores llm-generated keywords in the session summary", async () => {
-    const { Agent } = await import("../src/agent/agent.js");
-    const agent = await Agent.create();
-
-    completeMock.mockResolvedValueOnce(
-      createAssistantTextResponse(
-        '{"summary":"User prefers lint-conscious concise responses.","keywords":["lint","preference","style"]}',
-      ),
-    );
-
-    await agent.runLoop("remember my lint preference");
-
-    const [sessionSummary] = await listSessions(paths);
-    const memorySummary = await readFile(
-      join(paths.memory, "session-summaries", `session-${sessionSummary!.sessionId}-summary.md`),
-      "utf8",
-    );
-    expect(memorySummary).toContain("summary: User prefers lint-conscious concise responses.");
-    expect(memorySummary).toContain("keywords: [lint, preference, style]");
-  });
-
-  it.skip("generates session keywords from the full session summary body", async () => {
-    const { Agent } = await import("../src/agent/agent.js");
-    const agent = await Agent.create();
-
-    await agent.runLoop("my name is jonas");
-    await agent.runLoop("i like soccer");
-
-    // Wait for both background persistSessionSummary calls to finish
-    await waitFor(() => completeMock.mock.calls.length >= 2);
-
-    const keywordCall = [...completeMock.mock.calls]
-      .reverse()
-      .find((call) => String((call[1] as { systemPrompt?: string })?.systemPrompt).includes("Generate memory metadata for retrieval"));
-    expect(keywordCall).toBeDefined();
-    const context = keywordCall?.[1] as { messages: Array<{ content: Array<{ text: string }> }> };
-    const text = context.messages[0]?.content[0]?.text ?? "";
-    expect(text).toContain("my name is jonas");
-    expect(text).toContain("i like soccer");
-    expect(text).toContain("## Turn 1");
-    expect(text).toContain("## Turn 2");
-  });
 
   /*
   it("injects retrieved memory into the system prompt", async () => {

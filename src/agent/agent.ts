@@ -21,6 +21,7 @@ import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.j
 
 export type PromptOptions = {
   onEvent?: AgentEventListener;
+  signal?: AbortSignal;
 };
 
 export class Agent {
@@ -99,6 +100,7 @@ export class Agent {
         workspace: this.#workspace,
         sandbox: this.#getSandbox(),
         reasoning: this.#reasoning,
+        signal: options?.signal,
       }, (event) => this.#emit(event, options?.onEvent));
 
       await this.#persistGeneratedMessages(loopResult.generatedMessages);

@@ -1,9 +1,14 @@
+import { stdin as input, stdout as output } from "node:process";
 import readline from "node:readline/promises";
-import { stdout as output, stdin as input } from "node:process";
 import { Agent } from "./agent.js";
+import { TuiApp } from "./tui/app.js";
 
-async function main(): Promise<void> {
-  const agent = await Agent.create();
+async function runTui(agent: Agent): Promise<void> {
+  const app = new TuiApp(agent);
+  await app.start();
+}
+
+async function runReadline(agent: Agent): Promise<void> {
   const rl = readline.createInterface({ input, output });
 
   console.log(`Using ${agent.provider}/${agent.modelId}`);
@@ -49,6 +54,21 @@ async function main(): Promise<void> {
     }
   } finally {
     rl.close();
+  }
+}
+
+async function main(): Promise<void> {
+  const agent = await Agent.create();
+
+  if (input.isTTY) {
+    try {
+      await runTui(agent);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  } else {
+    await runReadline(agent);
   }
 }
 

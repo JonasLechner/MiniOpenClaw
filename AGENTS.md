@@ -3,7 +3,9 @@
 ## Project
 Minimal TypeScript project using `npm`.
 
-This is a long-running personal agent, not a coding-agent workflow. The agent is expected to keep session state over time and is not expected to restart often.
+This is a long-running personal agent/assistant. The agent is expected to keep session state over time and is not expected to restart often.
+
+**Work in progress — backwards compatibility is not needed.**
 
 ## Commands
 - Build: `npm run build`
