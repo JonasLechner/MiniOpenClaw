@@ -1,25 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { buildSystemPrompt } from "../core/agent-context.js";
-import { estimateSessionContextTokens, maybeCompactSession, type CompactionResult } from "../core/compaction.js";
+import type { CompactionResult } from "../core/compaction.js";
 import { createLogger } from "../core/log.js";
 import type { Sandbox, SandboxFactory } from "../sandbox/sandbox.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import type { Workspace } from "../core/workspace.js";
 import { createHostWorkspace } from "../core/host-workspace.js";
-import {
-  appendAssistantMessageEvent,
-  appendErrorEvent,
-  appendToolResultMessageEvent,
-  appendUserMessageEvent,
-  createNewSession,
-  ensureCurrentSession,
-  getSessionById,
-  getSessionMessages,
-  type Session,
-} from "../core/sessions.js";
+import { createNewSession, ensureCurrentSession, getSessionById, type Session } from "../core/sessions.js";
 import { resolveAgentAuth, type AgentAuth } from "./auth.js";
-import { AgentLoopExecutionError, runAgentLoop, type AgentLoopResult } from "./agent-loop.js";
+import { AgentLoopExecutionError, runAgentLoop } from "./agent-loop.js";
+import { runSessionCompaction } from "./session-compaction-service.js";
+import { SessionTranscriptStore } from "./session-transcript.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.js";
 // import { persistSessionSummary } from "./session-memory.js";
 
@@ -57,6 +49,7 @@ export class Agent {
   #reasoning: string | undefined;
   #sandboxFactory: SandboxFactory;
   #workspace: Workspace;
+  #transcript: SessionTranscriptStore;
   #sandbox: Sandbox | undefined;
   #sandboxSessionId: string;
   #ownsSandbox: boolean;
@@ -81,6 +74,7 @@ export class Agent {
     this.#reasoning = runtime.config.agent.reasoning;
     this.#sandboxFactory = sandboxFactory;
     this.#workspace = createHostWorkspace(runtime.paths.workspace);
+    this.#transcript = new SessionTranscriptStore(session);
     this.#sandboxSessionId = sandboxSessionId;
     this.#ownsSandbox = sandboxSessionId === session.sessionId;
   }
@@ -128,7 +122,7 @@ export class Agent {
   }
 
   async appendUserMessage(prompt: string): Promise<void> {
-    await appendUserMessageEvent(this.#session, prompt);
+    await this.#transcript.appendUserPrompt(prompt);
   }
 
   async compactSession(trigger: "automatic" | "manual", force = false): Promise<CompactionResult> {
@@ -139,7 +133,7 @@ export class Agent {
   async runLoop(prompt: string, options?: PromptOptions): Promise<AgentTurnResult> {
     const sessionId = this.#session.sessionId;
     const runId = options?.runId ?? randomUUID();
-    const userEvent = await appendUserMessageEvent(this.#session, prompt);
+    const userEvent = await this.#transcript.appendUserPrompt(prompt);
     const protectedEventIndex = this.#session.events.length - 1; // Protect only the current user prompt from pre-loop compaction.
 
     try {
@@ -160,7 +154,7 @@ export class Agent {
         runId,
         prompt,
         systemPrompt: this.#systemPrompt,
-        messages: getSessionMessages(this.#session),
+        messages: this.#transcript.getMessages(),
         model: this.#model,
         apiKey: this.#apiKey,
         workspace: this.#workspace,
@@ -170,7 +164,7 @@ export class Agent {
         toolContext: options?.toolContext,
       }, (event) => this.#emit(event, options?.onEvent));
 
-      await this.#persistGeneratedMessages(loopResult.generatedMessages);
+      await this.#transcript.persistGeneratedMessages(loopResult.generatedMessages);
 
       // Await any previous background persist so session summaries don't race on the same file
       // await this.#persistPromise;
@@ -188,11 +182,11 @@ export class Agent {
       return loopResult.result;
     } catch (error) {
       if (error instanceof AgentLoopExecutionError) {
-        await this.#persistGeneratedMessages(error.generatedMessages);
+        await this.#transcript.persistGeneratedMessages(error.generatedMessages);
       }
 
       const resolvedError = error instanceof Error ? error : new Error(String(error));
-      await appendErrorEvent(this.#session, resolvedError.message, {
+      await this.#transcript.appendRunError(resolvedError.message, {
         prompt,
         userTimestamp: userEvent.message.timestamp,
       });
@@ -222,67 +216,22 @@ export class Agent {
     transient?: AgentEventListener;
     runId: string;
   }): Promise<CompactionResult> {
-    const sessionId = this.#session.sessionId;
-    let started = false;
-
-    try {
-      const result = await maybeCompactSession({
-        model: this.#model,
-        apiKey: this.#apiKey,
-        session: this.#session,
-        trigger,
-        force,
-        protectedEventIndex,
-        onCompacting: () => {
-          if (started) return;
-          started = true;
-          this.#emit({ type: "compaction_start", sessionId, runId, trigger }, transient);
-        },
-      });
-
-      if (started) {
-        this.#emit({
-          type: "compaction_end",
-          sessionId,
-          runId,
-          trigger,
-          compacted: result.compacted,
-          estimatedTokensBefore: result.estimatedTokensBefore,
-          estimatedTokensAfter: result.estimatedTokensAfter,
-          warning: result.warning,
-        }, transient);
-      }
-
-      return result;
-    } catch (error) {
-      if (started) {
-        this.#emit({
-          type: "compaction_end",
-          sessionId,
-          runId,
-          trigger,
-          compacted: false,
-          estimatedTokensBefore: estimateSessionContextTokens(this.#session),
-          warning: error instanceof Error ? error.message : String(error),
-        }, transient);
-      }
-      throw error;
-    }
-  }
-
-  async #persistGeneratedMessages(messages: AgentLoopResult["generatedMessages"]): Promise<void> {
-    for (const message of messages) {
-      if (message.role === "assistant") {
-        await appendAssistantMessageEvent(this.#session, message);
-        continue;
-      }
-
-      await appendToolResultMessageEvent(this.#session, message);
-    }
+    return runSessionCompaction({
+      session: this.#session,
+      model: this.#model,
+      apiKey: this.#apiKey,
+      trigger,
+      runId,
+      force,
+      protectedEventIndex,
+      emit: (event) => this.#emitPersistent(event),
+      transient,
+    });
   }
 
   #switchSession(nextSession: Session): void {
     this.#session = nextSession;
+    this.#transcript.replaceSession(nextSession);
     this.#sandboxSessionId = nextSession.sessionId;
     this.#ownsSandbox = true;
   }
@@ -310,6 +259,10 @@ export class Agent {
 
   #emit(event: AgentEvent, transient?: AgentEventListener): void {
     transient?.(event);
+    this.#emitPersistent(event);
+  }
+
+  #emitPersistent(event: AgentEvent): void {
     for (const listener of this.#listeners) {
       listener(event);
     }
