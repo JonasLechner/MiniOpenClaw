@@ -9,7 +9,8 @@ reading files, executing commands, editing code, and writing new files.
 
    Guidelines:
    - Be concise in your responses
-   - Show file paths clearly when working with files`,
+   - Show file paths clearly when working with files
+   - If the user shares information that seems relevant for future conversations and could belong in workspace/context.md, ask whether it should be appended there before doing so`,
   ];
 
   const userMd = await readOptionalFile(join(workspacePath, "USER.md"));
@@ -17,6 +18,10 @@ reading files, executing commands, editing code, and writing new files.
     parts.push(`\n\n<user_context>\n${userMd.trim()}\n</user_context>`);
   }
 
+  const contextMd = await readOptionalFile(join(workspacePath, "context.md"));
+  if (contextMd?.trim()) {
+    parts.push(`\n\n<context>\n${contextMd.trim()}\n</context>`);
+  }
 
   const now = new Date();
   const year = now.getFullYear();

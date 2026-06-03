@@ -32,10 +32,14 @@ export class HostSandbox implements Sandbox {
       let aborted = false;
       let settled = false;
       let timeoutHandle: NodeJS.Timeout | undefined;
+      let timeoutKillHandle: NodeJS.Timeout | undefined;
 
       const cleanup = () => {
         if (timeoutHandle) {
           clearTimeout(timeoutHandle);
+        }
+        if (timeoutKillHandle) {
+          clearTimeout(timeoutKillHandle);
         }
         signal?.removeEventListener("abort", abort);
       };
@@ -73,6 +77,9 @@ export class HostSandbox implements Sandbox {
         timeoutHandle = setTimeout(() => {
           timedOut = true;
           killChild("SIGTERM");
+          timeoutKillHandle = setTimeout(() => {
+            killChild("SIGKILL");
+          }, 250);
         }, timeout * 1000);
       }
 

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -298,6 +298,47 @@ describe("Agent", () => {
       thinking: ["hidden chain"],
     });
 
+  });
+
+  it("asks before appending relevant durable user context", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    const result = await agent.runLoop("I prefer concise answers");
+
+    expect(result.text).toContain("Should I append this to workspace/context.md?");
+    expect(result.text).toContain("I prefer concise answers");
+    expect(streamSimpleMock).not.toHaveBeenCalled();
+  });
+
+  it("appends approved user context to context.md", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    await agent.runLoop("I am using Windows");
+    const result = await agent.runLoop("yes");
+
+    expect(result.text).toContain("Appended to workspace/context.md.");
+    expect(readFileSync(join(paths.workspace, "context.md"), "utf8")).toContain("I am using Windows");
+    expect(streamSimpleMock).not.toHaveBeenCalled();
+  });
+
+  it("appends context.md to every request", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    writeFileSync(join(paths.workspace, "context.md"), "first context", "utf8");
+    await agent.runLoop("first prompt");
+
+    writeFileSync(join(paths.workspace, "context.md"), "second context", "utf8");
+    await agent.runLoop("second prompt");
+
+    const firstContext = streamSimpleMock.mock.calls[0]?.[1] as { systemPrompt?: string };
+    const secondContext = streamSimpleMock.mock.calls[1]?.[1] as { systemPrompt?: string };
+
+    expect(firstContext.systemPrompt).toContain("<context>");
+    expect(firstContext.systemPrompt).toContain("first context");
+    expect(secondContext.systemPrompt).toContain("second context");
   });
 
   it("creates a new session that becomes the current session", async () => {
