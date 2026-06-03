@@ -12,6 +12,8 @@ All runtime files live in `~/.mini-openclaw/`:
 - `sessions/`
 - `workspace/`
 - `workspace/memory/`
+- `workspace/project/`
+- `workspace/context.md`
 
 No `.env` file is used.
 
@@ -26,7 +28,13 @@ npm run build
 
 ### 2. Runtime directory and config
 
-MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. You only need to edit `~/.mini-openclaw/config.json` if you want to change defaults. Example config:
+MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. On startup it also ensures these workspace paths exist:
+
+- `workspace/memory/`
+- `workspace/project/`
+- `workspace/context.md`
+
+You only need to edit `~/.mini-openclaw/config.json` if you want to change defaults. Example config:
 
 ```json
 {
