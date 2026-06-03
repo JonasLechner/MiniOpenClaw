@@ -171,6 +171,7 @@ export class Agent {
         toolContext: options?.toolContext,
       }, (event) => this.#emit(event, options?.onEvent));
 
+      this.#capturePendingContextAppend(loopResult.message, loopResult.result);
       await this.#transcript.persistGeneratedMessages(loopResult.generatedMessages);
       return loopResult.result;
     } catch (error) {
@@ -211,31 +212,23 @@ export class Agent {
       return this.#returnLocalAssistantResponse("Okay, I won't append it to workspace/context.md.", prompt, runId, transient);
     }
 
-    const candidate = this.#detectRelevantContext(prompt);
-    if (!candidate) return undefined;
-
-    this.#pendingContextAppend = candidate;
-    return this.#returnLocalAssistantResponse(
-      `That sounds like useful ongoing context. Should I append this to workspace/context.md?\n\n> ${candidate}`,
-      prompt,
-      runId,
-      transient,
-    );
+    return undefined;
   }
 
-  #detectRelevantContext(prompt: string): string | undefined {
-    const normalized = prompt.replace(/\s+/g, " ").trim();
-    if (!normalized || normalized.length > 240) return undefined;
+  #capturePendingContextAppend(message: AssistantMessage, result: AgentTurnResult): void {
+    const markerPattern = /<context_candidate>([\s\S]*?)<\/context_candidate>/i;
+    const textBlock = message.content.find((block) => block.type === "text");
+    if (!textBlock) return;
 
-    const looksRelevant = [
-      /^i\s+(prefer|like|use|am|work|usually|always|never)\b/i,
-      /\b(always|never)\b.*\b(before|when|for this project)\b/i,
-      /\b(for this project|in this project)\b/i,
-      /\bask before\b/i,
-      /\bkeep (it|the implementation|this) minimal\b/i,
-    ].some((pattern) => pattern.test(normalized));
+    const match = textBlock.text.match(markerPattern);
+    if (!match) return;
 
-    return looksRelevant ? normalized : undefined;
+    const candidate = match[1]?.replace(/\s+/g, " ").trim();
+    this.#pendingContextAppend = candidate || undefined;
+
+    const sanitized = textBlock.text.replace(markerPattern, "").replace(/\n{3,}/g, "\n\n").trim();
+    textBlock.text = sanitized;
+    result.text = sanitized;
   }
 
   #matchContextConfirmation(prompt: string): "yes" | "no" | undefined {
@@ -255,7 +248,7 @@ export class Agent {
       return false;
     }
 
-    const prefix = existing.trim().length > 0 ? "\n" : "";
+    const prefix = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
     await appendFile(path, `${prefix}${normalized}\n`, "utf8");
     return true;
   }

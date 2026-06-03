@@ -11,9 +11,7 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
   const app = Fastify({ logger: false });
   const mainSessionAgent = createMainSessionAgent(runtime);
   const telegramApp = buildTelegramGatewayApp(runtime, mainSessionAgent);
-  const scheduler = telegramApp
-    ? createGatewayScheduler(runtime, telegramApp.streamer, mainSessionAgent)
-    : undefined;
+  const scheduler = createGatewayScheduler(runtime, telegramApp?.streamer, mainSessionAgent);
 
   app.addHook("onRequest", async (request) => {
     markGatewayRequestStart(request);
@@ -29,11 +27,11 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
 
   app.addHook("onReady", async () => {
     await telegramApp?.start();
-    scheduler?.start();
+    scheduler.start();
   });
 
   app.addHook("onClose", async () => {
-    scheduler?.stop();
+    scheduler.stop();
     await telegramApp?.stop();
   });
 

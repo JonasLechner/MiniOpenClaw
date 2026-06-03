@@ -33,6 +33,7 @@ export class HostSandbox implements Sandbox {
       let settled = false;
       let timeoutHandle: NodeJS.Timeout | undefined;
       let timeoutKillHandle: NodeJS.Timeout | undefined;
+      let abortRejectHandle: NodeJS.Timeout | undefined;
 
       const cleanup = () => {
         if (timeoutHandle) {
@@ -40,6 +41,9 @@ export class HostSandbox implements Sandbox {
         }
         if (timeoutKillHandle) {
           clearTimeout(timeoutKillHandle);
+        }
+        if (abortRejectHandle) {
+          clearTimeout(abortRejectHandle);
         }
         signal?.removeEventListener("abort", abort);
       };
@@ -53,9 +57,19 @@ export class HostSandbox implements Sandbox {
         }
       };
 
+      const settle = (handler: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        handler();
+      };
+
       const abort = () => {
         aborted = true;
         killChild("SIGKILL");
+        abortRejectHandle = setTimeout(() => {
+          settle(() => reject(new DOMException("Command aborted", "AbortError")));
+        }, 250);
       };
 
       child.stdout.on("data", (chunk: Buffer | string) => {
@@ -67,10 +81,7 @@ export class HostSandbox implements Sandbox {
       });
 
       child.on("error", (error) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        reject(error);
+        settle(() => reject(error));
       });
 
       if (timeout !== undefined) {
@@ -86,26 +97,24 @@ export class HostSandbox implements Sandbox {
       signal?.addEventListener("abort", abort, { once: true });
 
       child.on("close", (code) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
+        settle(() => {
+          if (aborted) {
+            reject(new DOMException("Command aborted", "AbortError"));
+            return;
+          }
 
-        if (aborted) {
-          reject(new DOMException("Command aborted", "AbortError"));
-          return;
-        }
+          if (timedOut) {
+            reject(new Error(`Command timed out after ${timeout} seconds\n\n${output}`.trimEnd()));
+            return;
+          }
 
-        if (timedOut) {
-          reject(new Error(`Command timed out after ${timeout} seconds\n\n${output}`.trimEnd()));
-          return;
-        }
+          if (code !== 0) {
+            reject(new Error(`${output}${output ? "\n\n" : ""}Command exited with code ${code}`));
+            return;
+          }
 
-        if (code !== 0) {
-          reject(new Error(`${output}${output ? "\n\n" : ""}Command exited with code ${code}`));
-          return;
-        }
-
-        resolve({ output });
+          resolve({ output });
+        });
       });
     });
   }

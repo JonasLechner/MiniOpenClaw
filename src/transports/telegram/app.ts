@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, stat, writeFile } from "node:fs/promises";
-import { basename, extname, isAbsolute, join, resolve } from "node:path";
+import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { resolveTelegramBinding } from "../../core/conversation-bindings.js";
 import { createLogger } from "../../core/log.js";
 import type { RuntimeState } from "../../core/runtime.js";
@@ -71,6 +71,12 @@ export function buildTelegramGatewayApp(
     return [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(extension);
   }
 
+  function isWithinWorkspace(targetPath: string): boolean {
+    const workspaceRoot = resolve(runtime.paths.workspace);
+    const relativePath = relative(workspaceRoot, resolve(targetPath));
+    return relativePath === "" || (!relativePath.startsWith(`..${sep}`) && relativePath !== ".." && !isAbsolute(relativePath));
+  }
+
   async function saveTelegramImage(message: NonNullable<Parameters<Parameters<typeof createTelegramPolling>[1]>[0]["message"]>): Promise<string | undefined> {
     const photo = message.photo?.at(-1) ?? message.live_photo?.photo?.at(-1);
     const document = isImageDocument(message.document) ? message.document : undefined;
@@ -95,19 +101,21 @@ export function buildTelegramGatewayApp(
     await mkdir(attachmentDir, { recursive: true });
     const localPath = join(attachmentDir, `${message.message_id}-${file.file_unique_id}${extension}`);
     await writeFile(localPath, data);
-    return localPath;
+    return localPath.split(sep).join("/");
   }
 
   function extractReferencedWorkspaceImages(text: string): string[] {
-    const imagePathPattern = /(?:^|[\s`'"(])((?:\/[^\s`'"()]+|\.\.?\/[^\s`'"()]+)[^\s`'"()]*(?:\.png|\.jpe?g|\.gif|\.webp))(?:$|[\s`'"),.])/gim;
+    const imagePathPattern = /(?:^|[\s`'"(])((?:[A-Za-z]:[\\/][^\s`'"()]+|\\\\[^\s`'"()]+|\.\.?[\\/][^\s`'"()]+|\/[^\s`'"()]+)[^\s`'"()]*(?:\.png|\.jpe?g|\.gif|\.webp))(?:$|[\s`'"),.])/gim;
     const paths = new Set<string>();
 
     for (const match of text.matchAll(imagePathPattern)) {
       const rawPath = match[1];
       if (!rawPath) continue;
-      const absolutePath = isAbsolute(rawPath) ? resolve(rawPath) : resolve(runtime.paths.workspace, rawPath);
-      const workspaceRoot = resolve(runtime.paths.workspace);
-      if (absolutePath === workspaceRoot || !absolutePath.startsWith(`${workspaceRoot}/`)) continue;
+      const normalizedPath = rawPath.replace(/[\\/]+/g, sep);
+      const absolutePath = isAbsolute(normalizedPath)
+        ? resolve(normalizedPath)
+        : resolve(runtime.paths.workspace, normalizedPath);
+      if (!isWithinWorkspace(absolutePath) || absolutePath === resolve(runtime.paths.workspace)) continue;
       paths.add(absolutePath);
     }
 

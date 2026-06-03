@@ -75,6 +75,46 @@ function createRuntimePaths(): RuntimePaths {
   };
 }
 
+function createFakeEventStreamWithText(text: string) {
+  const response = {
+    role: "assistant" as const,
+    content: [
+      { type: "thinking" as const, thinking: "hidden chain" },
+      { type: "text" as const, text },
+    ],
+    api: "openai-responses" as const,
+    provider: "openai",
+    model: "gpt-test",
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0,
+      },
+    },
+    stopReason: "stop" as const,
+    timestamp: Date.now(),
+  };
+
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { type: "text_start" as const, contentIndex: 1, partial: response };
+      yield { type: "text_delta" as const, contentIndex: 1, delta: text, partial: response };
+      yield { type: "done" as const, reason: "stop" as const, message: response };
+    },
+    async result() {
+      return response;
+    },
+  };
+}
+
 function createFakeEventStream() {
   const response = {
     role: "assistant" as const,
@@ -301,6 +341,7 @@ describe("Agent", () => {
   });
 
   it("asks before appending relevant durable user context", async () => {
+    streamSimpleMock.mockImplementationOnce(() => createFakeEventStreamWithText("That sounds like useful ongoing context. Should I append this to workspace/context.md?\n\n> I prefer concise answers\n<context_candidate>I prefer concise answers</context_candidate>"));
     const { Agent } = await import("../src/agent/agent.js");
     const agent = await Agent.create();
 
@@ -308,10 +349,12 @@ describe("Agent", () => {
 
     expect(result.text).toContain("Should I append this to workspace/context.md?");
     expect(result.text).toContain("I prefer concise answers");
-    expect(streamSimpleMock).not.toHaveBeenCalled();
+    expect(result.text).not.toContain("<context_candidate>");
+    expect(streamSimpleMock).toHaveBeenCalledTimes(1);
   });
 
   it("appends approved user context to context.md", async () => {
+    streamSimpleMock.mockImplementationOnce(() => createFakeEventStreamWithText("That sounds like useful ongoing context. Should I append this to workspace/context.md?\n\n> I am using Windows\n<context_candidate>I am using Windows</context_candidate>"));
     const { Agent } = await import("../src/agent/agent.js");
     const agent = await Agent.create();
 
@@ -320,7 +363,7 @@ describe("Agent", () => {
 
     expect(result.text).toContain("Appended to workspace/context.md.");
     expect(readFileSync(join(paths.workspace, "context.md"), "utf8")).toContain("I am using Windows");
-    expect(streamSimpleMock).not.toHaveBeenCalled();
+    expect(streamSimpleMock).toHaveBeenCalledTimes(1);
   });
 
   it("appends context.md to every request", async () => {

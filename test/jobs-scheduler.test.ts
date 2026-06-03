@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const getRunnableScheduledTasksMock = vi.fn();
 const markScheduledTaskRanMock = vi.fn();
 const runScheduledTaskMock = vi.fn();
+const createDailySummaryMock = vi.fn();
+const shouldEnsurePreviousDailySummaryMock = vi.fn();
+const getPreviousLocalDayDateMock = vi.fn();
 const originalIsTTY = process.stdout.isTTY;
 
 vi.mock("../src/jobs/task-store.js", () => ({
@@ -14,6 +17,12 @@ vi.mock("../src/jobs/runner.js", () => ({
   runScheduledTask: runScheduledTaskMock,
 }));
 
+vi.mock("../src/jobs/daily-summary.js", () => ({
+  createDailySummary: createDailySummaryMock,
+  shouldEnsurePreviousDailySummary: shouldEnsurePreviousDailySummaryMock,
+  getPreviousLocalDayDate: getPreviousLocalDayDateMock,
+}));
+
 afterEach(() => {
   Object.defineProperty(process.stdout, "isTTY", { value: originalIsTTY, configurable: true });
   vi.clearAllMocks();
@@ -21,6 +30,7 @@ afterEach(() => {
 
 describe("gateway scheduler", () => {
   it("continues running later due tasks when one task fails", async () => {
+    shouldEnsurePreviousDailySummaryMock.mockResolvedValue(false);
     getRunnableScheduledTasksMock.mockResolvedValue([
       { id: "task-1" },
       { id: "task-2" },
@@ -52,5 +62,22 @@ describe("gateway scheduler", () => {
       taskId: "task-1",
       message: "boom",
     });
+  });
+
+  it("runs daily summary creation even when telegram is disabled", async () => {
+    shouldEnsurePreviousDailySummaryMock.mockResolvedValue(true);
+    const summaryDate = new Date("2026-06-02T00:00:00");
+    getPreviousLocalDayDateMock.mockReturnValue(summaryDate);
+    createDailySummaryMock.mockResolvedValue("/workspace/memory/2026-06-02.md");
+
+    const { createGatewayScheduler } = await import("../src/jobs/scheduler.js");
+    const scheduler = createGatewayScheduler({ paths: {} } as never);
+
+    scheduler.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    scheduler.stop();
+
+    expect(createDailySummaryMock).toHaveBeenCalledWith({ paths: {} }, summaryDate);
+    expect(getRunnableScheduledTasksMock).not.toHaveBeenCalled();
   });
 });
