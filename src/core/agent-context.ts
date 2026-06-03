@@ -17,10 +17,6 @@ reading files, executing commands, editing code, and writing new files.
     parts.push(`\n\n<user_context>\n${userMd.trim()}\n</user_context>`);
   }
 
-  const memoryMd = await readOptionalFile(join(workspacePath, "MEMORY.md"));
-  if (memoryMd?.trim()) {
-    parts.push(`\n\n<memory_context>\n${memoryMd.trim()}\n</memory_context>`);
-  }
 
   const now = new Date();
   const year = now.getFullYear();

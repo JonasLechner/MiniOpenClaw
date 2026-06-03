@@ -298,14 +298,6 @@ describe("Agent", () => {
       thinking: ["hidden chain"],
     });
 
-    // persistSessionSummary is disabled; memory file assertions skipped
-    // const memorySummary = await readFile(
-    //   join(paths.memory, "session-summaries", `session-${sessionSummary!.sessionId}-summary.md`),
-    //   "utf8",
-    // );
-    // expect(memorySummary).toContain("Total turns: 1");
-    // expect(memorySummary).toContain("- User: hello");
-    // expect(memorySummary).toContain("- Assistant: Hello world");
   });
 
   it("creates a new session that becomes the current session", async () => {
@@ -400,22 +392,6 @@ describe("Agent", () => {
     });
   });
 
-
-  /*
-  it("injects retrieved memory into the system prompt", async () => {
-    const { Agent } = await import("../src/agent/agent.js");
-    const agent = await Agent.create();
-
-    await agent.runLoop("remember my lint preference");
-    await agent.runLoop("what do you remember about my lint preference?");
-
-    const secondCall = streamSimpleMock.mock.calls[1];
-    expect(secondCall).toBeDefined();
-    const llmContext = secondCall?.[1] as { systemPrompt?: string };
-    expect(llmContext.systemPrompt).toContain("Relevant memory retrieved for this turn:");
-    expect(llmContext.systemPrompt).toContain("remember my lint preference");
-  });
-  */
 
   it("stops during streaming and persists only the user message plus aborted assistant message", async () => {
     const { Agent } = await import("../src/agent/agent.js");

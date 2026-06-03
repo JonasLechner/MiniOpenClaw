@@ -4,18 +4,3 @@ dist-test/
 auth.json
 package-lock.json
 TODOS.md
-
-# Runtime memory contents (hybrid model)
-memory/index.json
-memory/projects/*.md
-memory/decisions/*.md
-memory/preferences/*.md
-memory/session-summaries/*.md
-
-# Keep memory scaffolding and schema in git
-!memory/README.md
-!memory/index.schema.json
-!memory/projects/.gitkeep
-!memory/decisions/.gitkeep
-!memory/preferences/.gitkeep
-!memory/session-summaries/.gitkeep
