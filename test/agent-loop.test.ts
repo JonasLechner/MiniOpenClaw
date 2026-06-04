@@ -366,6 +366,29 @@ describe("Agent", () => {
     expect(streamSimpleMock).toHaveBeenCalledTimes(1);
   });
 
+  it("expands /skill:name invocations using the workspace skill file", async () => {
+    mkdirSync(join(paths.workspace, "skills", "example-skill"), { recursive: true });
+    writeFileSync(join(paths.workspace, "skills", "example-skill", "SKILL.md"), `---
+name: example-skill
+description: Helps with example workflows.
+---
+
+# Example Skill
+
+Use this skill carefully.
+`, "utf8");
+
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    await agent.runLoop("/skill:example-skill extra details");
+
+    const prompt = streamSimpleMock.mock.calls[0]?.[1]?.messages?.at(-1)?.content;
+    expect(String(prompt)).toContain("Follow the workspace skill \"example-skill\"");
+    expect(String(prompt)).toContain("# Example Skill");
+    expect(String(prompt)).toContain("User: extra details");
+  });
+
   it("appends context.md to every request", async () => {
     const { Agent } = await import("../src/agent/agent.js");
     const agent = await Agent.create();
@@ -396,8 +419,14 @@ describe("Agent", () => {
     const sessions = await listSessions(paths);
     expect(sessions).toHaveLength(2);
     expect(fresh.sessionId).not.toBe(firstSessionId);
-    expect(sessions[0]?.sessionId).toBe(fresh.sessionId);
-    expect(sessions[1]?.sessionId).toBe(firstSessionId);
+    expect(sessions.map((session) => session.sessionId).sort()).toEqual([fresh.sessionId, firstSessionId].sort());
+  });
+
+  it("throws for unknown explicit skill invocations", async () => {
+    const { Agent } = await import("../src/agent/agent.js");
+    const agent = await Agent.create();
+
+    await expect(agent.runLoop("/skill:missing-skill")).rejects.toThrow(/Unknown workspace skill: missing-skill/);
   });
 
   it("re-resolves agent auth for each run so OAuth tokens can refresh when needed", async () => {

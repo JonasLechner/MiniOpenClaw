@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { platform } from "node:process";
 import { Agent } from "../agent.js";
 import type { AgentEvent } from "../events.js";
 import {
@@ -33,6 +35,48 @@ interface StatusBarState {
   sessionId: string;
   mode: "idle" | "thinking" | "streaming" | "tool";
   toolName?: string;
+}
+
+function readClipboardText(): string | undefined {
+  if (platform === "win32") {
+    const result = spawnSync("powershell", ["-NoProfile", "-Command", "Get-Clipboard"], { encoding: "utf8" });
+    return result.status === 0 ? result.stdout.replace(/\r?\n$/, "") : undefined;
+  }
+
+  if (platform === "darwin") {
+    const result = spawnSync("pbpaste", [], { encoding: "utf8" });
+    return result.status === 0 ? result.stdout : undefined;
+  }
+
+  for (const command of [["wl-paste", ["-n"]], ["xclip", ["-selection", "clipboard", "-o"]]] as const) {
+    const result = spawnSync(command[0], command[1], { encoding: "utf8" });
+    if (result.status === 0) {
+      return result.stdout;
+    }
+  }
+
+  return undefined;
+}
+
+function writeClipboardText(text: string): boolean {
+  if (platform === "win32") {
+    const result = spawnSync("powershell", ["-NoProfile", "-Command", "Set-Clipboard -Value ([Console]::In.ReadToEnd())"], { input: text, encoding: "utf8" });
+    return result.status === 0;
+  }
+
+  if (platform === "darwin") {
+    const result = spawnSync("pbcopy", [], { input: text, encoding: "utf8" });
+    return result.status === 0;
+  }
+
+  for (const command of [["wl-copy", []], ["xclip", ["-selection", "clipboard"]]] as const) {
+    const result = spawnSync(command[0], command[1], { input: text, encoding: "utf8" });
+    if (result.status === 0) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export class TuiApp {
@@ -125,6 +169,20 @@ export class TuiApp {
     // Override key handling
     const originalHandleKeyPress = this.#input.handleKeyPress.bind(this.#input);
     this.#input.handleKeyPress = (key: KeyEvent): boolean => {
+      if (key.ctrl && key.shift && key.name === "c") {
+        const text = this.#input?.hasSelection() ? this.#input.getSelectedText() : this.#input?.plainText;
+        if (text) {
+          writeClipboardText(text);
+        }
+        return true;
+      }
+      if ((key.ctrl && key.shift && key.name === "v") || (key.shift && key.name === "insert")) {
+        const text = readClipboardText();
+        if (text) {
+          this.#input?.insertText(text.replace(/\r\n/g, "\n"));
+        }
+        return true;
+      }
       if (key.ctrl && key.name === "c") {
         if (this.#status.mode !== "idle") {
           this.#abortController?.abort();

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { appendFile, readFile } from "node:fs/promises";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { buildSystemPrompt } from "../core/agent-context.js";
+import { loadWorkspaceSkillByName } from "../core/skills.js";
 import type { CompactionResult } from "../core/compaction.js";
 import { createLogger } from "../core/log.js";
 import type { Sandbox, SandboxFactory } from "../sandbox/sandbox.js";
@@ -145,6 +146,7 @@ export class Agent {
       }
       await this.#refreshApiKey();
       this.#systemPrompt = await buildSystemPrompt(this.#runtimePaths.workspace);
+      const effectivePrompt = await this.#resolveSkillInvocationPrompt(prompt);
 
       const compaction = await this.#runCompaction({
         trigger: "automatic",
@@ -156,12 +158,20 @@ export class Agent {
         logger.warn("agent_compaction_warning", { sessionId, runId, warning: compaction.warning });
       }
 
+      const messages = this.#transcript.getMessages();
+      if (effectivePrompt !== prompt) {
+        const lastMessage = messages.at(-1);
+        if (lastMessage?.role === "user") {
+          messages[messages.length - 1] = { ...lastMessage, content: effectivePrompt };
+        }
+      }
+
       const loopResult = await runAgentLoop({
         sessionId,
         runId,
-        prompt,
+        prompt: effectivePrompt,
         systemPrompt: this.#systemPrompt,
-        messages: this.#transcript.getMessages(),
+        messages,
         model: this.#model,
         apiKey: this.#apiKey,
         workspace: this.#workspace,
@@ -213,6 +223,32 @@ export class Agent {
     }
 
     return undefined;
+  }
+
+  async #resolveSkillInvocationPrompt(prompt: string): Promise<string> {
+    const match = prompt.trim().match(/^\/skill:([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+([\s\S]*))?$/i);
+    if (!match) {
+      return prompt;
+    }
+
+    const skillName = match[1]?.toLowerCase();
+    if (!skillName) {
+      return prompt;
+    }
+
+    const loadedSkill = await loadWorkspaceSkillByName(this.#runtimePaths.workspace, skillName);
+    if (!loadedSkill) {
+      throw new Error(`Unknown workspace skill: ${skillName}`);
+    }
+
+    const args = match[2]?.trim();
+    return [
+      `Follow the workspace skill "${loadedSkill.name}" from ${loadedSkill.path}.`,
+      "Read and follow the skill instructions below.",
+      "",
+      loadedSkill.content.trim(),
+      args ? `\nUser: ${args}` : "",
+    ].join("\n").trim();
   }
 
   #capturePendingContextAppend(message: AssistantMessage, result: AgentTurnResult): void {

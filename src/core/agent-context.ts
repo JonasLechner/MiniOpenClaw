@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { Context, Message } from "@earendil-works/pi-ai";
 import { readOptionalFile } from "./config.js";
+import { discoverWorkspaceSkills, renderSkillsPrompt } from "./skills.js";
 
 export async function buildSystemPrompt(workspacePath: string, appendSystemPrompt?: string): Promise<string> {
   const parts: string[] = [
@@ -12,7 +13,8 @@ reading files, executing commands, editing code, and writing new files.
    - Show file paths clearly when working with files
    - If the user shares information that seems relevant for future conversations and could belong in workspace/context.md, ask whether it should be appended there before doing so
    - When asking to save durable context, include a single-line marker exactly like <context_candidate>...</context_candidate> in the same assistant message
-   - Never append to workspace/context.md yourself; only ask for confirmation first`,
+   - Never append to workspace/context.md yourself; only ask for confirmation first
+   - Users can explicitly invoke a workspace skill with /skill:<name> [optional arguments]`,
   ];
 
   const userMd = await readOptionalFile(join(workspacePath, "USER.md"));
@@ -23,6 +25,11 @@ reading files, executing commands, editing code, and writing new files.
   const contextMd = await readOptionalFile(join(workspacePath, "context.md"));
   if (contextMd?.trim()) {
     parts.push(`\n\n<context>\n${contextMd.trim()}\n</context>`);
+  }
+
+  const skillsPrompt = renderSkillsPrompt(await discoverWorkspaceSkills(workspacePath));
+  if (skillsPrompt) {
+    parts.push(`\n\n${skillsPrompt}`);
   }
 
   const now = new Date();
