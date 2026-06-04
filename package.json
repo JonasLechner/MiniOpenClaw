@@ -9,6 +9,7 @@
     "start:gateway": "npm run build && node dist/gateway/index.js",
     "start:agent": "npm run build && bun dist/agent/cli.js",
     "auth": "npm run build && bun dist/auth-cli.js",
+    "sandbox:disable": "npm run build && node dist/sandbox-cli.js disable",
     "dev": "tsc --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -7,9 +7,18 @@ import type { RuntimeState } from "../src/core/runtime.js";
 import { appendUserMessageEvent, createNewSession } from "../src/core/sessions.js";
 
 const runtimeStateMock = vi.fn<() => RuntimeState>();
+const schedulerStartMock = vi.fn();
+const schedulerStopMock = vi.fn();
 
 vi.mock("../src/core/runtime.js", () => ({
   initializeRuntime: runtimeStateMock,
+}));
+
+vi.mock("../src/jobs/scheduler.js", () => ({
+  createGatewayScheduler: vi.fn(() => ({
+    start: schedulerStartMock,
+    stop: schedulerStopMock,
+  })),
 }));
 
 function createRuntimePaths(): RuntimePaths {
@@ -23,6 +32,7 @@ function createRuntimePaths(): RuntimePaths {
     memory: join(root, "workspace", "memory"),
     conversationBindings: join(root, "conversation-bindings.json"),
     scheduledTasks: join(root, "scheduled-tasks.json"),
+    onboardingState: join(root, "onboarding.json"),
   };
 }
 

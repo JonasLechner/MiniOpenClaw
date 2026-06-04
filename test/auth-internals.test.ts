@@ -46,6 +46,7 @@ function createRuntime(authFile: string, configFile: string): RuntimeState {
       memory: join(configFile, "../workspace/memory"),
       conversationBindings: join(configFile, "../conversation-bindings.json"),
       scheduledTasks: join(configFile, "../scheduled-tasks.json"),
+      onboardingState: join(configFile, "../onboarding.json"),
     },
   };
 }

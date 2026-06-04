@@ -1,5 +1,8 @@
+import { basename } from "node:path";
+import { fileURLToPath } from "node:url";
 import { checkAuthAvailable } from "../agent/auth.js";
 import { createLogger } from "../core/log.js";
+import { needsOnboarding } from "../core/onboarding.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import { ensureCurrentSession } from "../core/sessions.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
@@ -35,8 +38,17 @@ async function launchGatewaySandbox(runtime: RuntimeState): Promise<void> {
 
 const logger = createLogger({ component: "gateway" });
 
+export function ensureGatewayOnboardingComplete(runtime: RuntimeState): void {
+  if (!needsOnboarding(runtime.paths)) {
+    return;
+  }
+
+  throw new Error("Onboarding is incomplete. Run npm run start:agent to finish first-time setup before starting the gateway.");
+}
+
 export async function main(): Promise<void> {
   const runtime = initializeRuntime();
+  ensureGatewayOnboardingComplete(runtime);
   await launchGatewaySandbox(runtime);
 
   if (!checkAuthAvailable(runtime)) {
@@ -59,8 +71,12 @@ export async function main(): Promise<void> {
   logGatewayListening(address);
 }
 
-main().catch((error) => {
-  const resolvedError = error instanceof Error ? error : new Error(String(error));
-  logger.error("gateway_start_failed", { message: resolvedError.message, error: resolvedError });
-  process.exit(1);
-});
+const isEntrypoint = basename(process.argv[1] ?? "") === basename(fileURLToPath(import.meta.url));
+
+if (isEntrypoint) {
+  main().catch((error) => {
+    const resolvedError = error instanceof Error ? error : new Error(String(error));
+    logger.error("gateway_start_failed", { message: resolvedError.message });
+    process.exit(1);
+  });
+}

@@ -66,6 +66,7 @@ export type RuntimePaths = {
   home: string;
   configFile: string;
   authFile: string;
+  onboardingState: string;
   sessions: string;
   workspace: string;
   memory: string;
@@ -114,6 +115,19 @@ export function ensureJsonFile(path: string, defaultValue: object): void {
 
   ensureDir(dirname(path));
   writeFileSync(path, `${JSON.stringify(defaultValue, null, 2)}\n`, "utf8");
+}
+
+export function writeUserConfig(path: string, config: UserConfig): void {
+  ensureDir(dirname(path));
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
+export function updateUserConfig(path: string, updater: (config: UserConfig) => UserConfig): UserConfig {
+  ensureJsonFile(path, defaultConfig);
+  const current = JSON.parse(readFileSync(path, "utf8")) as UserConfig;
+  const next = updater(current);
+  writeUserConfig(path, next);
+  return next;
 }
 
 function isPositiveInteger(value: unknown): value is number {
@@ -324,6 +338,7 @@ export function loadRuntimeConfig(): RuntimeConfig {
     home: runtimeHome,
     configFile,
     authFile,
+    onboardingState: join(runtimeHome, "onboarding.json"),
     sessions: join(runtimeHome, "sessions"),
     workspace,
     memory: join(workspace, "memory"),

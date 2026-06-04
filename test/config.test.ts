@@ -34,6 +34,7 @@ it("defaults sandboxing to enabled for new config files", async () => {
   expect(runtime.config.sandbox.enabled).toBe(true);
   expect(runtime.config.sandbox.engine).toBe("auto");
   expect(runtime.config.sandbox.image).toBe("miniopenclaw-sandbox:local");
+  expect(runtime.paths.onboardingState).toBe(join(home as string, ".mini-openclaw", "onboarding.json"));
 
   const persisted = JSON.parse(readFileSync(runtime.paths.configFile, "utf8")) as {
     sandbox?: { enabled?: boolean; image?: string };
@@ -85,6 +86,34 @@ it("rejects agent.modelId values not listed for the configured provider", async 
   const { loadRuntimeConfig } = await import("../src/core/config.js");
 
   expect(() => loadRuntimeConfig()).toThrow(`agent.modelId must be listed in agent.availableModels.github-copilot.`);
+});
+
+it("updateUserConfig persists config updates", async () => {
+  await mockHome();
+
+  const { loadRuntimeConfig, updateUserConfig } = await import("../src/core/config.js");
+  const runtime = loadRuntimeConfig();
+
+  updateUserConfig(runtime.paths.configFile, (config) => ({
+    ...config,
+    sandbox: {
+      ...config.sandbox,
+      enabled: false,
+    },
+    agent: {
+      ...config.agent,
+      provider: "openai",
+      modelId: "gpt-test",
+    },
+  }));
+
+  const persisted = JSON.parse(readFileSync(runtime.paths.configFile, "utf8")) as {
+    sandbox?: { enabled?: boolean };
+    agent?: { provider?: string; modelId?: string };
+  };
+  expect(persisted.sandbox?.enabled).toBe(false);
+  expect(persisted.agent?.provider).toBe("openai");
+  expect(persisted.agent?.modelId).toBe("gpt-test");
 });
 
 it("rejects logging set to null", async () => {

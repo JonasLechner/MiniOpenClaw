@@ -36,7 +36,7 @@ export async function resolveContainerEngineKind(
     }
   }
 
-  throw new Error("No supported container engine found. Install Docker or Podman, or disable sandboxing.");
+  throw new Error("No supported container engine found. Install Docker or Podman, or disable sandboxing with `npm run sandbox:disable`.");
 }
 
 export async function resolveContainerEngine(
