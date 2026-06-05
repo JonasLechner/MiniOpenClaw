@@ -2,7 +2,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { completeSimple } from "@earendil-works/pi-ai";
 import { resolveAgentAuth } from "../agent/auth.js";
-import { createSqliteDailySummaryRepository } from "../core/daily-summary-repository.js";
 import type { RuntimeState } from "../core/runtime.js";
 import { getSessionMessages, listSessions, getSessionById } from "../core/sessions.js";
 
@@ -70,10 +69,6 @@ async function summarizeDailyActivity(runtime: RuntimeState, day: string, sessio
   return body ? `# Daily summary ${day}\n\n${body}\n` : `# Daily summary ${day}\n\nNo summary generated.\n`;
 }
 
-export function getDailySummaryDatabasePath(runtime: RuntimeState): string {
-  return join(runtime.paths.workspace, "daily-summaries.sqlite");
-}
-
 export function getDailySummaryPath(runtime: RuntimeState, date: Date): string {
   return join(runtime.paths.memory, `${formatLocalDay(date)}.md`);
 }
@@ -123,17 +118,6 @@ export async function createDailySummary(runtime: RuntimeState, date = new Date(
   const outputPath = getDailySummaryPath(runtime, date);
   const content = markdown.endsWith("\n") ? markdown : `${markdown}\n`;
   await writeFile(outputPath, content, "utf8");
-
-  const repository = createSqliteDailySummaryRepository(getDailySummaryDatabasePath(runtime));
-  try {
-    await repository.upsert({
-      day,
-      content,
-      path: `memory/${day}.md`,
-    });
-  } finally {
-    repository.close();
-  }
 
   return outputPath;
 }

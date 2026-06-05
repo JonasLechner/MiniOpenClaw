@@ -341,32 +341,6 @@ describe("Agent", () => {
 
   });
 
-  it("asks before appending relevant durable user context", async () => {
-    streamSimpleMock.mockImplementationOnce(() => createFakeEventStreamWithText("That sounds like useful ongoing context. Should I append this to workspace/context.md?\n\n> I prefer concise answers\n<context_candidate>I prefer concise answers</context_candidate>"));
-    const { Agent } = await import("../src/agent/agent.js");
-    const agent = await Agent.create();
-
-    const result = await agent.runLoop("I prefer concise answers");
-
-    expect(result.text).toContain("Should I append this to workspace/context.md?");
-    expect(result.text).toContain("I prefer concise answers");
-    expect(result.text).not.toContain("<context_candidate>");
-    expect(streamSimpleMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("appends approved user context to context.md", async () => {
-    streamSimpleMock.mockImplementationOnce(() => createFakeEventStreamWithText("That sounds like useful ongoing context. Should I append this to workspace/context.md?\n\n> I am using Windows\n<context_candidate>I am using Windows</context_candidate>"));
-    const { Agent } = await import("../src/agent/agent.js");
-    const agent = await Agent.create();
-
-    await agent.runLoop("I am using Windows");
-    const result = await agent.runLoop("yes");
-
-    expect(result.text).toContain("Appended to workspace/context.md.");
-    expect(readFileSync(join(paths.workspace, "context.md"), "utf8")).toContain("I am using Windows");
-    expect(streamSimpleMock).toHaveBeenCalledTimes(1);
-  });
-
   it("expands /skill:name invocations using the workspace skill file", async () => {
     mkdirSync(join(paths.workspace, "skills", "example-skill"), { recursive: true });
     writeFileSync(join(paths.workspace, "skills", "example-skill", "SKILL.md"), `---
@@ -390,11 +364,11 @@ Use this skill carefully.
     expect(String(prompt)).toContain("User: extra details");
   });
 
-  it("appends context.md to every request", async () => {
+  it("builds the system prompt once when the agent is created", async () => {
+    writeFileSync(join(paths.workspace, "context.md"), "first context", "utf8");
     const { Agent } = await import("../src/agent/agent.js");
     const agent = await Agent.create();
 
-    writeFileSync(join(paths.workspace, "context.md"), "first context", "utf8");
     await agent.runLoop("first prompt");
 
     writeFileSync(join(paths.workspace, "context.md"), "second context", "utf8");
@@ -405,7 +379,8 @@ Use this skill carefully.
 
     expect(firstContext.systemPrompt).toContain("<context>");
     expect(firstContext.systemPrompt).toContain("first context");
-    expect(secondContext.systemPrompt).toContain("second context");
+    expect(secondContext.systemPrompt).toContain("first context");
+    expect(secondContext.systemPrompt).not.toContain("second context");
   });
 
   it("creates a new session that becomes the current session", async () => {

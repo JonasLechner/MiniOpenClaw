@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, readFile } from "node:fs/promises";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { buildSystemPrompt } from "../core/agent-context.js";
-import { loadWorkspaceSkillByName } from "../core/skills.js";
+import { resolveWorkspaceSkillInvocationPrompt } from "../core/skills.js";
 import type { CompactionResult } from "../core/compaction.js";
 import { createLogger } from "../core/log.js";
 import type { Sandbox, SandboxFactory } from "../sandbox/sandbox.js";
@@ -55,7 +53,6 @@ export class Agent {
   #sandbox: Sandbox | undefined;
   #sandboxSessionId: string;
   #ownsSandbox: boolean;
-  #pendingContextAppend: string | undefined;
   #listeners = new Set<AgentEventListener>();
 
   private constructor(
@@ -140,13 +137,8 @@ export class Agent {
     const protectedEventIndex = this.#session.events.length - 1; // Protect only the current user prompt from pre-loop compaction.
 
     try {
-      const pendingContextResult = await this.#maybeHandleContextAppend(prompt, runId, options?.onEvent);
-      if (pendingContextResult) {
-        return pendingContextResult;
-      }
       await this.#refreshApiKey();
-      this.#systemPrompt = await buildSystemPrompt(this.#runtimePaths.workspace);
-      const effectivePrompt = await this.#resolveSkillInvocationPrompt(prompt);
+      const effectivePrompt = await resolveWorkspaceSkillInvocationPrompt(this.#runtimePaths.workspace, prompt);
 
       const compaction = await this.#runCompaction({
         trigger: "automatic",
@@ -181,7 +173,6 @@ export class Agent {
         toolContext: options?.toolContext,
       }, (event) => this.#emit(event, options?.onEvent));
 
-      this.#capturePendingContextAppend(loopResult.message, loopResult.result);
       await this.#transcript.persistGeneratedMessages(loopResult.generatedMessages);
       return loopResult.result;
     } catch (error) {
@@ -200,129 +191,6 @@ export class Agent {
       );
       throw resolvedError;
     }
-  }
-
-  async #maybeHandleContextAppend(prompt: string, runId: string, transient?: AgentEventListener): Promise<AgentTurnResult | undefined> {
-    const confirmation = this.#pendingContextAppend ? this.#matchContextConfirmation(prompt) : undefined;
-    if (confirmation === "yes") {
-      const appended = await this.#appendContextEntry(this.#pendingContextAppend!);
-      this.#pendingContextAppend = undefined;
-      return this.#returnLocalAssistantResponse(
-        appended
-          ? "Appended to workspace/context.md."
-          : "That content is already present in workspace/context.md.",
-        prompt,
-        runId,
-        transient,
-      );
-    }
-
-    if (confirmation === "no") {
-      this.#pendingContextAppend = undefined;
-      return this.#returnLocalAssistantResponse("Okay, I won't append it to workspace/context.md.", prompt, runId, transient);
-    }
-
-    return undefined;
-  }
-
-  async #resolveSkillInvocationPrompt(prompt: string): Promise<string> {
-    const match = prompt.trim().match(/^\/skill:([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+([\s\S]*))?$/i);
-    if (!match) {
-      return prompt;
-    }
-
-    const skillName = match[1]?.toLowerCase();
-    if (!skillName) {
-      return prompt;
-    }
-
-    const loadedSkill = await loadWorkspaceSkillByName(this.#runtimePaths.workspace, skillName);
-    if (!loadedSkill) {
-      throw new Error(`Unknown workspace skill: ${skillName}`);
-    }
-
-    const args = match[2]?.trim();
-    return [
-      `Follow the workspace skill "${loadedSkill.name}" from ${loadedSkill.path}.`,
-      "Read and follow the skill instructions below.",
-      "",
-      loadedSkill.content.trim(),
-      args ? `\nUser: ${args}` : "",
-    ].join("\n").trim();
-  }
-
-  #capturePendingContextAppend(message: AssistantMessage, result: AgentTurnResult): void {
-    const markerPattern = /<context_candidate>([\s\S]*?)<\/context_candidate>/i;
-    const textBlock = message.content.find((block) => block.type === "text");
-    if (!textBlock) return;
-
-    const match = textBlock.text.match(markerPattern);
-    if (!match) return;
-
-    const candidate = match[1]?.replace(/\s+/g, " ").trim();
-    this.#pendingContextAppend = candidate || undefined;
-
-    const sanitized = textBlock.text.replace(markerPattern, "").replace(/\n{3,}/g, "\n\n").trim();
-    textBlock.text = sanitized;
-    result.text = sanitized;
-  }
-
-  #matchContextConfirmation(prompt: string): "yes" | "no" | undefined {
-    const normalized = prompt.replace(/\s+/g, " ").trim().toLowerCase();
-    if (!normalized) return undefined;
-    if (/^(yes|y|sure|ok|okay|append it|save it|please do|do that)\b/.test(normalized)) return "yes";
-    if (/^(no|n|nope|don't|do not|not now|skip)\b/.test(normalized)) return "no";
-    return undefined;
-  }
-
-  async #appendContextEntry(content: string): Promise<boolean> {
-    const path = `${this.#runtimePaths.workspace}/context.md`;
-    const existing = await readFile(path, "utf8").catch(() => "");
-    const normalized = content.trim();
-    const entries = existing.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    if (entries.includes(normalized)) {
-      return false;
-    }
-
-    const prefix = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
-    await appendFile(path, `${prefix}${normalized}\n`, "utf8");
-    return true;
-  }
-
-  async #returnLocalAssistantResponse(
-    text: string,
-    prompt: string,
-    runId: string,
-    transient?: AgentEventListener,
-  ): Promise<AgentTurnResult> {
-    const message: AssistantMessage = {
-      role: "assistant",
-      content: [{ type: "text", text }],
-      api: "openai-responses",
-      provider: this.provider,
-      model: this.modelId,
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
-      stopReason: "stop",
-      timestamp: Date.now(),
-    };
-
-    this.#emit({ type: "agent_start", sessionId: this.#session.sessionId, runId, prompt }, transient);
-    this.#emit({ type: "message_start", sessionId: this.#session.sessionId, runId, messageType: "text_start" }, transient);
-    this.#emit({ type: "message_delta", sessionId: this.#session.sessionId, runId, delta: text, providerEvent: { type: "text_delta", contentIndex: 0, delta: text, partial: message } }, transient);
-    this.#emit({ type: "message_end", sessionId: this.#session.sessionId, runId, message, text }, transient);
-
-    await this.#transcript.persistGeneratedMessages([message]);
-    const result: AgentTurnResult = { text, stopReason: "stop" };
-    this.#emit({ type: "turn_end", sessionId: this.#session.sessionId, runId, result }, transient);
-    this.#emit({ type: "agent_end", sessionId: this.#session.sessionId, runId, result }, transient);
-    return result;
   }
 
   async #refreshApiKey(): Promise<void> {

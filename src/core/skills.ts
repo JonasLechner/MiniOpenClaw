@@ -109,6 +109,32 @@ export async function loadWorkspaceSkillByName(workspacePath: string, skillName:
   return { ...skill, content };
 }
 
+export async function resolveWorkspaceSkillInvocationPrompt(workspacePath: string, prompt: string): Promise<string> {
+  const match = prompt.trim().match(/^\/skill:([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+([\s\S]*))?$/i);
+  if (!match) {
+    return prompt;
+  }
+
+  const skillName = match[1]?.toLowerCase();
+  if (!skillName) {
+    return prompt;
+  }
+
+  const loadedSkill = await loadWorkspaceSkillByName(workspacePath, skillName);
+  if (!loadedSkill) {
+    throw new Error(`Unknown workspace skill: ${skillName}`);
+  }
+
+  const args = match[2]?.trim();
+  return [
+    `Follow the workspace skill "${loadedSkill.name}" from ${loadedSkill.path}.`,
+    "Read and follow the skill instructions below.",
+    "",
+    loadedSkill.content.trim(),
+    args ? `\nUser: ${args}` : "",
+  ].join("\n").trim();
+}
+
 export function renderSkillsPrompt(skills: WorkspaceSkill[]): string | undefined {
   if (skills.length === 0) return undefined;
 

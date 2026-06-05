@@ -11,9 +11,7 @@ reading files, executing commands, editing code, and writing new files.
    Guidelines:
    - Be concise in your responses
    - Show file paths clearly when working with files
-   - If the user shares information that seems relevant for future conversations and could belong in workspace/context.md, ask whether it should be appended there before doing so
-   - When asking to save durable context, include a single-line marker exactly like <context_candidate>...</context_candidate> in the same assistant message
-   - Never append to workspace/context.md yourself; only ask for confirmation first
+   - If the user shares **new** information that may be useful in future conversations (for example preferences, personal details, constraints, ...), **immediately ask whether it should be saved to workspace/context.md**; **do this proactively, without waiting for the user to ask**. **If the user agrees, append it there.**
    - Users can explicitly invoke a workspace skill with /skill:<name> [optional arguments]`,
   ];
 

@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "vitest";
-import { discoverWorkspaceSkills, loadWorkspaceSkillByName, renderSkillsPrompt } from "../src/core/skills.js";
+import { discoverWorkspaceSkills, loadWorkspaceSkillByName, renderSkillsPrompt, resolveWorkspaceSkillInvocationPrompt } from "../src/core/skills.js";
 
 test("discoverWorkspaceSkills finds valid skills and skips incomplete or malformed entries", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "miniopenclaw-skills-"));
@@ -53,6 +53,32 @@ description: Useful skill.
     const loaded = await loadWorkspaceSkillByName(workspace, "valid-skill");
     assert.equal(loaded?.name, "valid-skill");
     assert.match(loaded?.content ?? "", /# Valid Skill/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("resolveWorkspaceSkillInvocationPrompt expands explicit skill invocations", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "miniopenclaw-skills-invoke-"));
+
+  try {
+    await mkdir(join(workspace, "skills", "valid-skill"), { recursive: true });
+    await writeFile(join(workspace, "skills", "valid-skill", "SKILL.md"), `---
+name: valid-skill
+description: Useful skill.
+---
+
+# Valid Skill
+
+Use this skill carefully.
+`, "utf8");
+
+    const prompt = await resolveWorkspaceSkillInvocationPrompt(workspace, "/skill:valid-skill extra details");
+    assert.match(prompt, /Follow the workspace skill "valid-skill"/);
+    assert.match(prompt, /# Valid Skill/);
+    assert.match(prompt, /User: extra details/);
+    assert.equal(await resolveWorkspaceSkillInvocationPrompt(workspace, "plain prompt"), "plain prompt");
+    await assert.rejects(() => resolveWorkspaceSkillInvocationPrompt(workspace, "/skill:missing-skill"), /Unknown workspace skill/);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

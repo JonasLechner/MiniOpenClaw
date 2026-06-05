@@ -2,7 +2,6 @@ import { toPiTool, type ToolDefinition } from "./types.js";
 
 export { bashTool } from "./bash.js";
 export { cronjobTool } from "./cronjob.js";
-export { dailySummarySearchTool } from "./daily-summary-search.js";
 export { editTool } from "./edit.js";
 export { globTool } from "./glob.js";
 export { grepTool } from "./grep.js";
@@ -10,11 +9,11 @@ export { readTool } from "./read.js";
 export { subagentTool } from "./subagent.js";
 export { webFetchTool } from "./webfetch.js";
 export { webSearchTool } from "./websearch.js";
+export { workspaceSearchTool } from "./workspace-search.js";
 export { writeTool } from "./write.js";
 
 import { bashTool } from "./bash.js";
 import { cronjobTool } from "./cronjob.js";
-import { dailySummarySearchTool } from "./daily-summary-search.js";
 import { editTool } from "./edit.js";
 import { globTool } from "./glob.js";
 import { grepTool } from "./grep.js";
@@ -22,9 +21,10 @@ import { readTool } from "./read.js";
 import { subagentTool } from "./subagent.js";
 import { webFetchTool } from "./webfetch.js";
 import { webSearchTool } from "./websearch.js";
+import { workspaceSearchTool } from "./workspace-search.js";
 import { writeTool } from "./write.js";
 
-const registeredTools = [readTool, writeTool, editTool, grepTool, globTool, bashTool, cronjobTool, dailySummarySearchTool, subagentTool, webSearchTool, webFetchTool] as const;
+const registeredTools = [readTool, writeTool, editTool, grepTool, globTool, bashTool, cronjobTool, workspaceSearchTool, subagentTool, webSearchTool, webFetchTool] as const;
 
 type RegisteredTool = (typeof registeredTools)[number];
 

@@ -6,13 +6,11 @@ import { test, vi } from "vitest";
 import {
   createDailySummary,
   dailySummaryExists,
-  getDailySummaryDatabasePath,
   getPreviousLocalDayDate,
   shouldEnsurePreviousDailySummary,
 } from "../src/jobs/daily-summary.js";
 import type { RuntimePaths } from "../src/core/config.js";
 import type { RuntimeState } from "../src/core/runtime.js";
-import { createSqliteDailySummaryRepository } from "../src/core/daily-summary-repository.js";
 import { createNewSession, appendUserMessageEvent, appendAssistantMessageEvent } from "../src/core/sessions.js";
 
 const { completeSimpleMock, resolveAgentAuthMock } = vi.hoisted(() => ({
@@ -89,7 +87,7 @@ test("shouldEnsurePreviousDailySummary ensures yesterday exists", async () => {
   }
 });
 
-test("createDailySummary writes one llm-generated markdown file under workspace/memory and syncs it to workspace sqlite", async () => {
+test("createDailySummary writes one llm-generated markdown file under workspace/memory", async () => {
   const root = await mkdtemp(join(tmpdir(), "miniopenclaw-daily-summary-"));
 
   try {
@@ -122,20 +120,10 @@ test("createDailySummary writes one llm-generated markdown file under workspace/
     const localDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const outputPath = await createDailySummary(runtime, now);
     const content = await readFile(outputPath, "utf8");
-    const repository = createSqliteDailySummaryRepository(getDailySummaryDatabasePath(runtime));
 
-    try {
-      const stored = await repository.getByDay(localDay);
-
-      assert.equal(outputPath, join(paths.memory, `${localDay}.md`));
-      assert.equal(content, `# Daily summary ${localDay}\n\nShort LLM summary.\n`);
-      assert.equal(stored?.content, content);
-      assert.equal(stored?.path, `memory/${localDay}.md`);
-      assert.equal(getDailySummaryDatabasePath(runtime), join(paths.workspace, "daily-summaries.sqlite"));
-      assert.equal(completeSimpleMock.mock.calls.length, 1);
-    } finally {
-      repository.close();
-    }
+    assert.equal(outputPath, join(paths.memory, `${localDay}.md`));
+    assert.equal(content, `# Daily summary ${localDay}\n\nShort LLM summary.\n`);
+    assert.equal(completeSimpleMock.mock.calls.length, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
     vi.clearAllMocks();

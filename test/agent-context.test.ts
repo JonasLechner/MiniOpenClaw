@@ -5,13 +5,14 @@ import { join } from "node:path";
 import { test } from "vitest";
 import { buildSystemPrompt } from "../src/core/agent-context.js";
 
-test("buildSystemPrompt instructs the agent to ask before appending relevant context to context.md", async () => {
+test("buildSystemPrompt includes durable workspace context", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "miniopenclaw-agent-context-"));
 
   try {
+    await writeFile(join(workspace, "context.md"), "keep answers concise", "utf8");
     const prompt = await buildSystemPrompt(workspace);
-    assert.match(prompt, /ask whether it should be appended/i);
-    assert.match(prompt, /workspace\/context\.md/i);
+    assert.match(prompt, /<context>/);
+    assert.match(prompt, /keep answers concise/);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
