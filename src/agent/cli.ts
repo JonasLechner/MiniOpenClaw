@@ -2,6 +2,7 @@ import { stdin as input } from "node:process";
 import { initializeRuntime } from "../core/runtime.js";
 import { needsOnboarding } from "../core/onboarding.js";
 import { runOnboarding } from "../onboarding/runner.js";
+import { createWorkspaceSearchIndexer } from "../core/workspace-search-index.js";
 import { Agent } from "./agent.js";
 import { TuiApp } from "./tui/app.js";
 
@@ -21,6 +22,8 @@ async function main(): Promise<void> {
     runtime = initializeRuntime();
   }
 
+  const workspaceSearchIndexer = createWorkspaceSearchIndexer(runtime);
+  await workspaceSearchIndexer.start();
   const agent = await Agent.createForSession(runtime);
 
   try {
@@ -28,6 +31,8 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
+  } finally {
+    await workspaceSearchIndexer.stop();
   }
 }
 

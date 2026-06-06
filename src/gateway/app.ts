@@ -4,6 +4,7 @@ import { createNewSession, ensureCurrentSession, getSessionById, listSessions } 
 import { createMainSessionAgent } from "./agent-runner.js";
 import { logGatewayError, logGatewayRequest, markGatewayRequestStart } from "./log.js";
 import { createGatewayScheduler } from "../jobs/scheduler.js";
+import { createWorkspaceSearchIndexer } from "../core/workspace-search-index.js";
 import { toSessionResponse } from "./session-response.js";
 import { buildTelegramGatewayApp } from "../transports/telegram/app.js";
 
@@ -12,6 +13,7 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
   const mainSessionAgent = createMainSessionAgent(runtime);
   const telegramApp = buildTelegramGatewayApp(runtime, mainSessionAgent);
   const scheduler = createGatewayScheduler(runtime, telegramApp?.streamer, mainSessionAgent);
+  const workspaceSearchIndexer = createWorkspaceSearchIndexer(runtime);
 
   app.addHook("onRequest", async (request) => {
     markGatewayRequestStart(request);
@@ -26,6 +28,7 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
   });
 
   app.addHook("onReady", async () => {
+    await workspaceSearchIndexer.start();
     await telegramApp?.start();
     scheduler.start();
   });
@@ -33,6 +36,7 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
   app.addHook("onClose", async () => {
     scheduler.stop();
     await telegramApp?.stop();
+    await workspaceSearchIndexer.stop();
   });
 
   app.get("/health", async () => ({ status: "ok" }));

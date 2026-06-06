@@ -80,4 +80,22 @@ describe("gateway scheduler", () => {
     expect(createDailySummaryMock).toHaveBeenCalledWith({ paths: {} }, summaryDate);
     expect(getRunnableScheduledTasksMock).not.toHaveBeenCalled();
   });
+
+  it("continues scheduled tasks when daily summary is skipped", async () => {
+    shouldEnsurePreviousDailySummaryMock.mockResolvedValue(false);
+    getRunnableScheduledTasksMock.mockResolvedValue([{ id: "task-1" }]);
+    runScheduledTaskMock.mockResolvedValue(undefined);
+    markScheduledTaskRanMock.mockResolvedValue(undefined);
+
+    const { createGatewayScheduler } = await import("../src/jobs/scheduler.js");
+    const scheduler = createGatewayScheduler({ paths: {} } as never, { sendText: vi.fn() } as never, {} as never);
+
+    scheduler.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    scheduler.stop();
+
+    expect(createDailySummaryMock).not.toHaveBeenCalled();
+    expect(runScheduledTaskMock).toHaveBeenCalledTimes(1);
+    expect(markScheduledTaskRanMock).toHaveBeenCalledWith({}, "task-1");
+  });
 });

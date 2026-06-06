@@ -7,6 +7,8 @@ import type { RuntimeState } from "../src/core/runtime.js";
 const initializeRuntimeMock = vi.fn<() => RuntimeState>();
 const needsOnboardingMock = vi.fn<(paths: RuntimeState["paths"]) => boolean>();
 const runOnboardingMock = vi.fn<(runtime: RuntimeState) => Promise<void>>();
+const workspaceSearchIndexerStartMock = vi.fn<() => Promise<void>>();
+const workspaceSearchIndexerStopMock = vi.fn<() => Promise<void>>();
 const agentCreateForSessionMock = vi.fn();
 const tuiStartMock = vi.fn(async () => {});
 
@@ -20,6 +22,13 @@ vi.mock("../src/core/onboarding.js", () => ({
 
 vi.mock("../src/onboarding/runner.js", () => ({
   runOnboarding: runOnboardingMock,
+}));
+
+vi.mock("../src/core/workspace-search-index.js", () => ({
+  createWorkspaceSearchIndexer: vi.fn(() => ({
+    start: workspaceSearchIndexerStartMock,
+    stop: workspaceSearchIndexerStopMock,
+  })),
 }));
 
 vi.mock("../src/agent/agent.js", () => ({
@@ -71,6 +80,8 @@ test("agent CLI runs onboarding before starting the TUI when needed", async () =
   initializeRuntimeMock.mockReturnValue(runtime);
   needsOnboardingMock.mockReturnValue(true);
   runOnboardingMock.mockResolvedValue();
+  workspaceSearchIndexerStartMock.mockResolvedValue();
+  workspaceSearchIndexerStopMock.mockResolvedValue();
   agentCreateForSessionMock.mockResolvedValue({ provider: "openai", modelId: "gpt-test" });
 
   await import("../src/agent/cli.js");
@@ -78,6 +89,8 @@ test("agent CLI runs onboarding before starting the TUI when needed", async () =
   expect(initializeRuntimeMock).toHaveBeenCalledTimes(2);
   expect(needsOnboardingMock).toHaveBeenCalledWith(runtime.paths);
   expect(runOnboardingMock).toHaveBeenCalledWith(runtime);
+  expect(workspaceSearchIndexerStartMock).toHaveBeenCalledTimes(1);
   expect(agentCreateForSessionMock).toHaveBeenCalledWith(runtime);
   expect(tuiStartMock).toHaveBeenCalledTimes(1);
+  expect(workspaceSearchIndexerStopMock).toHaveBeenCalledTimes(1);
 });

@@ -34,6 +34,7 @@ export function createGatewayScheduler(
       let taskCount = 0;
 
       const now = new Date();
+
       if (await shouldEnsurePreviousDailySummary(runtime, now, lastDailySummaryRunDate)) {
         const summaryDate = getPreviousLocalDayDate(now);
         const runDate = `${summaryDate.getFullYear()}-${String(summaryDate.getMonth() + 1).padStart(2, "0")}-${String(summaryDate.getDate()).padStart(2, "0")}`;

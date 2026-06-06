@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "vitest";
 import { createHostWorkspace } from "../src/core/host-workspace.js";
-import { refreshWorkspaceSearchIndexForWorkspace } from "../src/core/workspace-search.js";
+import { refreshWorkspaceSearchIndexForWorkspace } from "../src/core/workspace-search-index.js";
 import { HostSandbox } from "../src/sandbox/host-sandbox.js";
 import { workspaceSearchTool } from "../src/agent/tools/workspace-search.js";
 
