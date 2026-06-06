@@ -1,7 +1,6 @@
 import { streamSimple, type AssistantMessage, type Context, type ThinkingLevel, type Message } from "@earendil-works/pi-ai";
 import { createAgentContext } from "../core/agent-context.js";
 import { getAssistantVisibleText } from "../core/messages.js";
-import { exposedTools } from "./tools/tool-registry.js";
 import type { AgentEventSink, AgentLoopContext } from "./agent-loop.js";
 import type { AgentTurnResult } from "./events.js";
 
@@ -17,7 +16,7 @@ export async function generateAssistantTurn(
 ): Promise<AssistantTurnOutput> {
   const llmContext: Context = {
     ...createAgentContext(messages, context.systemPrompt),
-    tools: exposedTools,
+    tools: context.toolRegistry.exposedTools,
   };
 
   const eventStream = streamSimple(context.model as Parameters<typeof streamSimple>[0], llmContext, {

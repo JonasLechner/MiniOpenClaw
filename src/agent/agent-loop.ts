@@ -5,6 +5,7 @@ import { getAssistantVisibleText } from "../core/messages.js";
 import { generateAssistantTurn } from "./assistant-turn.js";
 import { executeAssistantToolCalls } from "./tool-execution.js";
 import type { ToolRunContext } from "./tools/types.js";
+import type { ToolRegistry } from "./tools/tool-registry.js";
 import type { AgentEvent, AgentTurnResult } from "./events.js";
 
 export type AgentEventSink = (event: AgentEvent) => void | Promise<void>;
@@ -22,6 +23,7 @@ export type AgentLoopContext = {
   reasoning?: string;
   signal?: AbortSignal;
   toolContext?: Pick<ToolRunContext, "channel" | "background">;
+  toolRegistry: ToolRegistry;
 };
 
 export type AgentLoopResult = {

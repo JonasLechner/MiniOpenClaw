@@ -14,6 +14,8 @@ import { AgentLoopExecutionError, runAgentLoop } from "./agent-loop.js";
 import { runSessionCompaction } from "./session-compaction-service.js";
 import { SessionTranscriptStore } from "./session-transcript.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "./events.js";
+import { fullToolRegistry } from "./tools/full-tool-registry.js";
+import type { ToolRegistry } from "./tools/tool-registry.js";
 
 export type PromptOptions = {
   runId?: string;
@@ -32,6 +34,7 @@ export type PromptOptions = {
 
 export type AgentCreateOptions = {
   sandboxSessionId?: string;
+  toolRegistry?: ToolRegistry;
 };
 
 const logger = createLogger({ component: "agent" });
@@ -54,6 +57,7 @@ export class Agent {
   #sandboxSessionId: string;
   #ownsSandbox: boolean;
   #listeners = new Set<AgentEventListener>();
+  #toolRegistry: ToolRegistry;
 
   private constructor(
     auth: AgentAuth,
@@ -62,6 +66,7 @@ export class Agent {
     systemPrompt: string,
     sandboxFactory: SandboxFactory,
     sandboxSessionId: string,
+    toolRegistry: ToolRegistry,
   ) {
     this.provider = auth.provider;
     this.modelId = auth.modelId;
@@ -77,6 +82,7 @@ export class Agent {
     this.#transcript = new SessionTranscriptStore(session);
     this.#sandboxSessionId = sandboxSessionId;
     this.#ownsSandbox = sandboxSessionId === session.sessionId;
+    this.#toolRegistry = toolRegistry;
   }
 
   static async create(): Promise<Agent> {
@@ -96,7 +102,7 @@ export class Agent {
     const systemPrompt = await buildSystemPrompt(runtime.paths.workspace);
     const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
     const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
-    return new Agent(auth, runtime, session, systemPrompt, sandboxFactory, options.sandboxSessionId ?? session.sessionId);
+    return new Agent(auth, runtime, session, systemPrompt, sandboxFactory, options.sandboxSessionId ?? session.sessionId, options.toolRegistry ?? fullToolRegistry);
   }
 
   get sessionId(): string {
@@ -171,6 +177,7 @@ export class Agent {
         reasoning: this.#reasoning,
         signal: options?.signal,
         toolContext: options?.toolContext,
+        toolRegistry: this.#toolRegistry,
       }, (event) => this.#emit(event, options?.onEvent));
 
       await this.#transcript.persistGeneratedMessages(loopResult.generatedMessages);

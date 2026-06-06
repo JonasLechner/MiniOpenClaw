@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Agent } from "../agent/agent.js";
+import { fullToolRegistry } from "../agent/tools/full-tool-registry.js";
 import type { AgentEvent, AgentEventListener, AgentTurnResult } from "../agent/events.js";
 import { createLogger } from "../core/log.js";
 import type { RuntimeState } from "../core/runtime.js";
@@ -122,7 +123,7 @@ export function createMainSessionAgent(runtime: RuntimeState): MainSessionAgent 
 
     await clearCurrentAgent();
 
-    const created = Agent.createForSession(runtime, sessionId).catch((error) => {
+    const created = Agent.createForSession(runtime, sessionId, { toolRegistry: fullToolRegistry }).catch((error) => {
       if (currentAgentPromise === created) {
         currentSessionId = undefined;
         currentAgentPromise = undefined;
@@ -270,7 +271,7 @@ export async function runPromptInDetachedSession(
     taskId: logContext.taskId,
   });
   const toolCallLogger = createToolCallLogger({ ...logContext, sessionId: session.sessionId, runId });
-  const agent = await Agent.createForSession(runtime, session.sessionId, { sandboxSessionId: options.sandboxSessionId });
+  const agent = await Agent.createForSession(runtime, session.sessionId, { sandboxSessionId: options.sandboxSessionId, toolRegistry: fullToolRegistry });
 
   try {
     logger.info("agent_run_started");

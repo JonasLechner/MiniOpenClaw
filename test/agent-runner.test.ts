@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeState } from "../src/core/runtime.js";
+import { fullToolRegistry } from "../src/agent/tools/full-tool-registry.js";
 
 const createForSessionMock = vi.fn();
 const createNewSessionMock = vi.fn(async () => ({ sessionId: "detached-session" }));
@@ -35,7 +36,7 @@ describe("gateway agent runner", () => {
     await mainSessionAgent.runPrompt("session-1", "second", { source: "telegram", chatId: "chat-1" });
 
     expect(createForSessionMock).toHaveBeenCalledTimes(1);
-    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "session-1");
+    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "session-1", expect.objectContaining({ toolRegistry: fullToolRegistry }));
     expect(runLoopMock).toHaveBeenCalledTimes(2);
   });
 
@@ -51,8 +52,8 @@ describe("gateway agent runner", () => {
 
     expect(disposeMock).toHaveBeenCalledTimes(1);
     expect(createForSessionMock).toHaveBeenCalledTimes(2);
-    expect(createForSessionMock).toHaveBeenNthCalledWith(1, runtime, "session-1");
-    expect(createForSessionMock).toHaveBeenNthCalledWith(2, runtime, "session-2");
+    expect(createForSessionMock).toHaveBeenNthCalledWith(1, runtime, "session-1", expect.objectContaining({ toolRegistry: fullToolRegistry }));
+    expect(createForSessionMock).toHaveBeenNthCalledWith(2, runtime, "session-2", expect.objectContaining({ toolRegistry: fullToolRegistry }));
   });
 
   it("aborts the active run without disposing the agent", async () => {
@@ -117,7 +118,7 @@ describe("gateway agent runner", () => {
 
     expect(createNewSessionMock).toHaveBeenCalledWith(runtime.paths);
     expect(createForSessionMock).toHaveBeenCalledTimes(1);
-    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "detached-session", { sandboxSessionId: undefined });
+    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "detached-session", expect.objectContaining({ sandboxSessionId: undefined, toolRegistry: fullToolRegistry }));
     expect(disposeMock).toHaveBeenCalledTimes(1);
   });
 
@@ -145,6 +146,6 @@ describe("gateway agent runner", () => {
       { sandboxSessionId: "main-session" },
     );
 
-    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "detached-session", { sandboxSessionId: "main-session" });
+    expect(createForSessionMock).toHaveBeenCalledWith(runtime, "detached-session", expect.objectContaining({ sandboxSessionId: "main-session", toolRegistry: fullToolRegistry }));
   });
 });

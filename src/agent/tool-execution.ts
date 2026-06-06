@@ -1,10 +1,10 @@
 import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai";
 import type { Sandbox } from "../sandbox/sandbox.js";
 import type { Workspace } from "../core/workspace.js";
-import { exposedTools, toolMap } from "./tools/tool-registry.js";
 import type { ToolRunContext, ToolRunResult } from "./tools/types.js";
 import { validateToolCall } from "@earendil-works/pi-ai";
 import type { AgentEventSink } from "./agent-loop.js";
+import type { ToolRegistry } from "./tools/tool-registry.js";
 
 export type ExecuteToolCallsContext = {
   sessionId: string;
@@ -13,6 +13,7 @@ export type ExecuteToolCallsContext = {
   sandbox: Sandbox;
   signal?: AbortSignal;
   toolContext?: Pick<ToolRunContext, "channel" | "background">;
+  toolRegistry: ToolRegistry;
 };
 
 function isToolRunResult(result: unknown): result is ToolRunResult {
@@ -50,8 +51,8 @@ export async function executeAssistantToolCalls(
     const toolCallId = call.id;
 
     try {
-      const args = validateToolCall(exposedTools, call);
-      const tool = toolMap[call.name as keyof typeof toolMap];
+      const args = validateToolCall(context.toolRegistry.exposedTools, call);
+      const tool = context.toolRegistry.toolMap[call.name as keyof typeof context.toolRegistry.toolMap];
 
       if (!tool) {
         throw new Error(`Unknown tool: ${call.name}`);
