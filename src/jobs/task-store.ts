@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { RuntimePaths } from "../core/config.js";
-import { readJsonFile, updateJsonFile, writeJsonFile } from "../core/json-store.js";
+import { readJsonFile, updateJsonFile } from "../core/json-store.js";
 import type { ScheduledTask } from "./types.js";
 
 export const DEFAULT_REFLECTION_CRON = "0 1 * * *";
@@ -15,10 +15,6 @@ export const DEFAULT_REFLECTION_PROMPT = [
 
 async function loadTasks(paths: RuntimePaths): Promise<ScheduledTask[]> {
   return readJsonFile(paths.scheduledTasks, [] as ScheduledTask[]);
-}
-
-async function saveTasks(paths: RuntimePaths, tasks: ScheduledTask[]): Promise<void> {
-  await writeJsonFile(paths.scheduledTasks, tasks);
 }
 
 function assertCronValueInRange(value: number, min: number, max: number, part: string): void {
@@ -134,7 +130,7 @@ export async function listScheduledTasks(paths: RuntimePaths): Promise<Scheduled
 }
 
 export async function createDefaultTelegramScheduledTasks(paths: RuntimePaths, chatId: string): Promise<void> {
-  await updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], async (tasks) => {
+  await updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], (tasks) => {
     const existing = tasks.find((task) => task.channel === "telegram"
       && task.chatId === chatId
       && task.cron === DEFAULT_REFLECTION_CRON
@@ -145,7 +141,7 @@ export async function createDefaultTelegramScheduledTasks(paths: RuntimePaths, c
     if (existing) return tasks;
 
     const now = new Date().toISOString();
-    return [...tasks, {
+    const created: ScheduledTask = {
       id: randomUUID(),
       channel: "telegram",
       chatId,
@@ -156,7 +152,9 @@ export async function createDefaultTelegramScheduledTasks(paths: RuntimePaths, c
       enabled: true,
       createdAt: now,
       updatedAt: now,
-    }];
+    };
+
+    return [...tasks, created];
   });
 }
 

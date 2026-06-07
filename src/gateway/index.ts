@@ -6,6 +6,7 @@ import { needsOnboarding } from "../core/onboarding.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import { ensureCurrentSession } from "../core/sessions.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
+import { getSharedSandboxId } from "../sandbox/sandbox.js";
 import { buildGateway } from "./app.js";
 import {
   logGatewayAuthWarning,
@@ -26,7 +27,7 @@ async function launchGatewaySandbox(runtime: RuntimeState): Promise<void> {
 
   try {
     const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
-    const sandbox = sandboxFactory.create(session.sessionId, runtime.paths.workspace);
+    const sandbox = sandboxFactory.create(getSharedSandboxId(runtime.paths.workspace), runtime.paths.workspace);
     await sandbox.ensure();
     logGatewaySandboxReady(session.sessionId, engineLabel, Date.now() - startedAt, image);
   } catch (error) {

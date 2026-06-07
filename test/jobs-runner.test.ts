@@ -50,7 +50,7 @@ describe("runScheduledTask", () => {
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "main reply");
   });
 
-  it("uses a detached session with the current main session sandbox and injects the result into the main session", async () => {
+  it("uses a detached session with the shared workspace sandbox and injects the result into the main session", async () => {
     runPromptInDetachedSessionMock.mockResolvedValue({ text: "detached reply", stopReason: "stop" });
     requireTelegramBindingMock.mockResolvedValue({ sessionId: "session-current" });
 
@@ -85,7 +85,6 @@ describe("runScheduledTask", () => {
         taskId: "job-2",
         runId: expect.any(String),
       }),
-      { sandboxSessionId: "session-current" },
     );
     expect(streamer.sendText).toHaveBeenCalledWith("chat-1", "detached reply");
     expect(mainSessionAgent.appendUserMessage).toHaveBeenCalledTimes(1);

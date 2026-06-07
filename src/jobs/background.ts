@@ -222,7 +222,7 @@ export function createBackgroundTaskLauncher(
                 runId,
                 taskId,
               },
-              { sandboxSessionId: input.parentSessionId, signal: record.abortController.signal },
+              { signal: record.abortController.signal },
             );
             const resultText = result.text || "Done.";
             record.detachedSessionId = result.sessionId;

@@ -133,7 +133,7 @@ describe("gateway agent runner", () => {
     expect(compactSessionMock).toHaveBeenCalledWith("manual", true);
   });
 
-  it("can run detached sessions against the main session sandbox", async () => {
+  it("can still target an explicit sandbox when requested", async () => {
     createForSessionMock.mockResolvedValue({ runLoop: runLoopMock, appendUserMessage: appendUserMessageMock, compactSession: compactSessionMock, dispose: disposeMock });
 
     const runtime = { paths: {} } as unknown as RuntimeState;

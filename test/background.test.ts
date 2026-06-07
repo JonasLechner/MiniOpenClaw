@@ -51,7 +51,7 @@ describe("background task launcher", () => {
           chatId: "chat-1",
           userId: "user-1",
         }),
-        expect.objectContaining({ sandboxSessionId: "session-1", signal: expect.any(AbortSignal) }),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
       expect(sendText).toHaveBeenCalledWith("chat-1", "background reply");
       expect(appendUserMessage).toHaveBeenCalledWith("session-1", expect.stringContaining("Background subagent"));

@@ -3,7 +3,7 @@ import { buildSystemPrompt } from "../core/agent-context.js";
 import { resolveWorkspaceSkillInvocationPrompt } from "../core/skills.js";
 import type { CompactionResult } from "../core/compaction.js";
 import { createLogger } from "../core/log.js";
-import type { Sandbox, SandboxFactory } from "../sandbox/sandbox.js";
+import { getSharedSandboxId, type Sandbox, type SandboxFactory } from "../sandbox/sandbox.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import type { Workspace } from "../core/workspace.js";
@@ -69,6 +69,7 @@ export class Agent {
     sandboxFactory: SandboxFactory,
     sandboxSessionId: string,
     toolRegistry: ToolRegistry,
+    ownsSandbox: boolean,
   ) {
     this.provider = auth.provider;
     this.modelId = auth.modelId;
@@ -83,7 +84,7 @@ export class Agent {
     this.#workspace = createHostWorkspace(runtime.paths.workspace);
     this.#transcript = new SessionTranscriptStore(session);
     this.#sandboxSessionId = sandboxSessionId;
-    this.#ownsSandbox = sandboxSessionId === session.sessionId;
+    this.#ownsSandbox = ownsSandbox;
     this.#toolRegistry = toolRegistry;
   }
 
@@ -104,7 +105,9 @@ export class Agent {
     const systemPrompt = options.systemPromptOverride ?? await buildSystemPrompt(runtime.paths.workspace);
     const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
     const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
-    return new Agent(auth, runtime, session, systemPrompt, sandboxFactory, options.sandboxSessionId ?? session.sessionId, options.toolRegistry ?? fullToolRegistry);
+    const sandboxSessionId = options.sandboxSessionId ?? getSharedSandboxId(runtime.paths.workspace);
+    const ownsSandbox = options.sandboxSessionId === session.sessionId;
+    return new Agent(auth, runtime, session, systemPrompt, sandboxFactory, sandboxSessionId, options.toolRegistry ?? fullToolRegistry, ownsSandbox);
   }
 
   get sessionId(): string {
@@ -236,8 +239,10 @@ export class Agent {
   #switchSession(nextSession: Session): void {
     this.#session = nextSession;
     this.#transcript.replaceSession(nextSession);
-    this.#sandboxSessionId = nextSession.sessionId;
-    this.#ownsSandbox = true;
+
+    if (this.#ownsSandbox) {
+      this.#sandboxSessionId = nextSession.sessionId;
+    }
   }
 
   #getSandbox(): Sandbox {
@@ -254,7 +259,7 @@ export class Agent {
       return;
     }
 
-    // Recreate the sandbox handle if needed so we can clean up session-scoped containers
+    // Recreate the sandbox handle if needed so we can clean up explicitly session-owned sandboxes
     // that may outlive this process and were never instantiated in memory here.
     const sandbox = this.#sandbox ?? this.#sandboxFactory.create(this.#sandboxSessionId, this.#runtimePaths.workspace);
     this.#sandbox = undefined;

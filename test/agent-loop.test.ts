@@ -400,26 +400,29 @@ Use this skill carefully.
       pidsLimit: undefined,
     }, "podman");
   });
-  it("disposes the session sandbox when starting a new session", async () => {
+  it("reuses the shared sandbox when starting a new session", async () => {
     const { Agent } = await import("../src/agent/agent.js");
+    const { getSharedSandboxId } = await import("../src/sandbox/sandbox.js");
     const agent = await Agent.create();
 
     await agent.runLoop("first prompt");
     await agent.newSession();
+    await agent.runLoop("second prompt");
 
-    expect(sandboxDisposeMock).toHaveBeenCalledTimes(1);
-    expect(sandboxDisposeMock).toHaveBeenCalledWith("remove");
+    expect(sandboxDisposeMock).not.toHaveBeenCalled();
+    expect(sandboxFactoryCreateMock).toHaveBeenCalledTimes(2);
+    expect(sandboxFactoryCreateMock).toHaveBeenNthCalledWith(1, getSharedSandboxId(paths.workspace), paths.workspace);
+    expect(sandboxFactoryCreateMock).toHaveBeenNthCalledWith(2, getSharedSandboxId(paths.workspace), paths.workspace);
   });
 
-  it("disposes the persisted session sandbox on newSession even before the sandbox is loaded in memory", async () => {
+  it("does not try to dispose an unloaded shared sandbox on newSession", async () => {
     const { Agent } = await import("../src/agent/agent.js");
     const agent = await Agent.create();
 
     await agent.newSession();
 
-    expect(sandboxFactoryCreateMock).toHaveBeenCalledTimes(1);
-    expect(sandboxDisposeMock).toHaveBeenCalledTimes(1);
-    expect(sandboxDisposeMock).toHaveBeenCalledWith("remove");
+    expect(sandboxFactoryCreateMock).not.toHaveBeenCalled();
+    expect(sandboxDisposeMock).not.toHaveBeenCalled();
   });
 
   it("persists an error event and rethrows provider failures", async () => {

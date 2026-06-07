@@ -58,7 +58,7 @@ function isProcessRunning(pid: number): boolean {
       if (!output || output.startsWith("INFO:")) {
         return false;
       }
-      return output.includes(`,\"${pid}\"`) || output.includes(`,${pid},`);
+      return output.includes(`,"${pid}"`) || output.includes(`,${pid},`);
     } catch {
       return false;
     }

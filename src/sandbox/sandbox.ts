@@ -13,8 +13,14 @@ export interface Sandbox {
   dispose?(mode?: "stop" | "remove"): Promise<void>;
 }
 
+import { createHash } from "node:crypto";
+
 export interface SandboxFactory {
   create(sessionId: string, workspacePath: string): Sandbox;
+}
+
+export function getSharedSandboxId(workspacePath: string): string {
+  return `shared-${createHash("sha256").update(workspacePath).digest("hex").slice(0, 12)}`;
 }
 
 export type SandboxEngineKind = "auto" | "docker" | "podman";

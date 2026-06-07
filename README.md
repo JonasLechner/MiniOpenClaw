@@ -102,7 +102,7 @@ Only users in `allowedUserIds` can interact with the bot. If the list is empty a
 Telegram commands:
 - `/new` — start a new bound session
 - `/session` — show the current bound session and model
-- `/bg <prompt>` — run a detached background agent against the current session sandbox; the result is sent back to Telegram and ingested into the current session
+- `/bg <prompt>` — run a detached background agent against the shared workspace sandbox; the result is sent back to Telegram and ingested into the current session
 - `/bglist` — list background tasks for the current session
 - `/bgstop <taskId>` — stop a queued or running background task for the current session
 - `/stop` — abort the current foreground run
@@ -223,7 +223,7 @@ For non-interactive access, use the gateway.
 
 By default, the container sandbox now uses the local image tag `miniopenclaw-sandbox:local`.
 When Docker or Podman starts a sandbox and that image does not exist yet, MiniOpenClaw will build it from `docker/sandbox.Dockerfile`.
-Sandbox containers are session-scoped by default and may intentionally outlive the CLI process so they can be reused when the agent resumes.
+Sandbox containers are shared per workspace by default and may intentionally outlive the CLI process so they can be reused across sessions and resumes.
 
 The default sandbox image includes common coding tools such as:
 

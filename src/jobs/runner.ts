@@ -75,7 +75,7 @@ export async function runScheduledTask(
     sessionId: binding.sessionId,
     runId,
     taskId: task.id,
-  }, { sandboxSessionId: binding.sessionId });
+  });
   const resultText = result.text || "Done.";
   logConversationMessage({
     role: "assistant",

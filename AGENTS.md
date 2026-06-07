@@ -31,7 +31,7 @@ What we are building, in short:
 - Keep the project minimal unless asked otherwise.
 - Ask before adding major dependencies or changing project structure.
 - Whenever starting pi in this folder, pull the latest repo changes first.
-- Treat sandbox containers as session-scoped by default. They may intentionally outlive the CLI process and be reused when the agent resumes.
+- Treat sandbox containers as workspace-scoped by default. They may intentionally outlive the CLI process and be reused across sessions and when the agent resumes.
 
 ## Before committing
 - Ask the user to review the changes.
