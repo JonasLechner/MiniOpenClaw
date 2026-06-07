@@ -121,7 +121,7 @@ test("createDailySummary writes one llm-generated markdown file under workspace/
     const content = await readFile(outputPath, "utf8");
 
     assert.equal(outputPath, join(paths.memory, `${localDay}.md`));
-    assert.equal(content, `# Daily summary ${localDay}\n\nShort LLM summary.\n`);
+    assert.equal(content, `# Daily summary ${localDay}\n\nSessions included: ${session.sessionId}\n\nShort LLM summary.\n`);
     assert.equal(completeSimpleMock.mock.calls.length, 1);
   } finally {
     await rm(root, { recursive: true, force: true });

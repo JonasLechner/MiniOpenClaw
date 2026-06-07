@@ -1,7 +1,17 @@
 import { randomUUID } from "node:crypto";
 import type { RuntimePaths } from "../core/config.js";
-import { readJsonFile, writeJsonFile } from "../core/json-store.js";
+import { readJsonFile, updateJsonFile, writeJsonFile } from "../core/json-store.js";
 import type { ScheduledTask } from "./types.js";
+
+export const DEFAULT_REFLECTION_CRON = "0 1 * * *";
+export const DEFAULT_REFLECTION_PROMPT = [
+  "Review yesterday's daily summaries in workspace/memory.",
+  "Look for durable user preferences, recurring constraints, corrections, project conventions, mistakes worth learning from, reusable workflows, and opportunities to create or improve workspace skills.",
+  "Summarize only genuinely useful findings.",
+  "If nothing interesting or durable stands out, say so briefly and do nothing else.",
+  "If you find something worth preserving, send a short summary and ask whether it should be saved to USER.md, context.md, or a workspace skill.",
+  "Do not save anything automatically; ask first.",
+].join(" ");
 
 async function loadTasks(paths: RuntimePaths): Promise<ScheduledTask[]> {
   return readJsonFile(paths.scheduledTasks, [] as ScheduledTask[]);
@@ -107,7 +117,6 @@ export async function createScheduledTask(
   task: Omit<ScheduledTask, "id" | "createdAt" | "updatedAt" | "lastRunAt">,
 ): Promise<ScheduledTask> {
   validateCronExpression(task.cron);
-  const tasks = await loadTasks(paths);
   const now = new Date().toISOString();
   const created: ScheduledTask = {
     ...task,
@@ -116,13 +125,39 @@ export async function createScheduledTask(
     updatedAt: now,
   };
 
-  tasks.push(created);
-  await saveTasks(paths, tasks);
+  await updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], async (tasks) => [...tasks, created]);
   return created;
 }
 
 export async function listScheduledTasks(paths: RuntimePaths): Promise<ScheduledTask[]> {
   return loadTasks(paths);
+}
+
+export async function createDefaultTelegramScheduledTasks(paths: RuntimePaths, chatId: string): Promise<void> {
+  await updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], async (tasks) => {
+    const existing = tasks.find((task) => task.channel === "telegram"
+      && task.chatId === chatId
+      && task.cron === DEFAULT_REFLECTION_CRON
+      && task.kind === "prompt"
+      && task.target === "detached"
+      && task.prompt === DEFAULT_REFLECTION_PROMPT);
+
+    if (existing) return tasks;
+
+    const now = new Date().toISOString();
+    return [...tasks, {
+      id: randomUUID(),
+      channel: "telegram",
+      chatId,
+      target: "detached",
+      kind: "prompt",
+      prompt: DEFAULT_REFLECTION_PROMPT,
+      cron: DEFAULT_REFLECTION_CRON,
+      enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    }];
+  });
 }
 
 export async function getRunnableScheduledTasks(paths: RuntimePaths, now = new Date()): Promise<ScheduledTask[]> {
@@ -137,15 +172,16 @@ export async function getRunnableScheduledTasks(paths: RuntimePaths, now = new D
 }
 
 export async function markScheduledTaskRan(paths: RuntimePaths, taskId: string, now = new Date()): Promise<void> {
-  const tasks = await loadTasks(paths);
-  const task = tasks.find((entry) => entry.id === taskId);
-  if (!task) {
-    throw new Error(`Unknown scheduled task ${taskId}.`);
-  }
+  await updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], async (tasks) => {
+    const task = tasks.find((entry) => entry.id === taskId);
+    if (!task) {
+      throw new Error(`Unknown scheduled task ${taskId}.`);
+    }
 
-  task.lastRunAt = now.toISOString();
-  task.updatedAt = now.toISOString();
-  await saveTasks(paths, tasks);
+    task.lastRunAt = now.toISOString();
+    task.updatedAt = now.toISOString();
+    return tasks;
+  });
 }
 
 export async function setScheduledTaskEnabled(
@@ -153,14 +189,20 @@ export async function setScheduledTaskEnabled(
   taskId: string,
   enabled: boolean,
 ): Promise<ScheduledTask> {
-  const tasks = await loadTasks(paths);
-  const task = tasks.find((entry) => entry.id === taskId);
-  if (!task) {
-    throw new Error(`Unknown scheduled task ${taskId}.`);
-  }
+  return updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], async (tasks) => {
+    const task = tasks.find((entry) => entry.id === taskId);
+    if (!task) {
+      throw new Error(`Unknown scheduled task ${taskId}.`);
+    }
 
-  task.enabled = enabled;
-  task.updatedAt = new Date().toISOString();
-  await saveTasks(paths, tasks);
-  return task;
+    task.enabled = enabled;
+    task.updatedAt = new Date().toISOString();
+    return tasks;
+  }).then((tasks) => {
+    const task = tasks.find((entry) => entry.id === taskId);
+    if (!task) {
+      throw new Error(`Unknown scheduled task ${taskId}.`);
+    }
+    return task;
+  });
 }

@@ -34,6 +34,7 @@ function buildDailySummaryPrompt(day: string, sessionSections: string[]): string
   return [
     `Create one concise human-readable markdown daily summary for ${day}.`,
     "Summarize the important developments across all sessions for the day.",
+    "Preserve durable signals when present: user preferences, recurring constraints, corrections, notable mistakes, learnings, reusable workflows, and possible skill-worthy patterns.",
     "Do not reproduce the full transcript. Compress repeated details.",
     "Use short markdown sections if helpful.",
     "If there was no meaningful activity, say so briefly.",
@@ -42,9 +43,15 @@ function buildDailySummaryPrompt(day: string, sessionSections: string[]): string
   ].join("\n");
 }
 
-async function summarizeDailyActivity(runtime: RuntimeState, day: string, sessionSections: string[]): Promise<string> {
+function formatSessionCoverage(sessionIds: string[]): string {
+  return sessionIds.length > 0
+    ? `Sessions included: ${sessionIds.join(", ")}`
+    : "Sessions included: none";
+}
+
+async function summarizeDailyActivity(runtime: RuntimeState, day: string, sessionSections: string[], sessionIds: string[]): Promise<string> {
   if (sessionSections.length === 0) {
-    return `# Daily summary ${day}\n\nNo session activity recorded today.\n`;
+    return `# Daily summary ${day}\n\n${formatSessionCoverage(sessionIds)}\n\nNo session activity recorded today.\n`;
   }
 
   const auth = await resolveAgentAuth(runtime);
@@ -62,11 +69,13 @@ async function summarizeDailyActivity(runtime: RuntimeState, day: string, sessio
     .trim();
 
   if (!summary) {
-    return `# Daily summary ${day}\n\nNo summary generated.\n`;
+    return `# Daily summary ${day}\n\n${formatSessionCoverage(sessionIds)}\n\nNo summary generated.\n`;
   }
 
   const body = summary.replace(/^#\s+Daily summary(?:\s+\d{4}-\d{2}-\d{2})?\s*/i, "").trim();
-  return body ? `# Daily summary ${day}\n\n${body}\n` : `# Daily summary ${day}\n\nNo summary generated.\n`;
+  return body
+    ? `# Daily summary ${day}\n\n${formatSessionCoverage(sessionIds)}\n\n${body}\n`
+    : `# Daily summary ${day}\n\n${formatSessionCoverage(sessionIds)}\n\nNo summary generated.\n`;
 }
 
 export function getDailySummaryPath(runtime: RuntimeState, date: Date): string {
@@ -98,21 +107,24 @@ export async function createDailySummary(runtime: RuntimeState, date = new Date(
   const sessions = (await Promise.all(sessionSummaries.map((session) => getSessionById(runtime.paths, session.sessionId))))
     .filter((session): session is NonNullable<Awaited<ReturnType<typeof getSessionById>>> => session !== undefined);
 
-  const sessionSections = sessions
+  const sessionEntries = sessions
     .map((session) => {
       const events = session.events.filter((event) => isSameDay(event.timestamp, day));
       if (events.length === 0) return undefined;
 
       const messages = getSessionMessages({ events }).map(serializeMessage);
-      return [
-        `Session ${session.sessionId}`,
-        `Events today: ${events.length}`,
-        messages.join("\n") || "No messages captured.",
-      ].join("\n");
+      return {
+        sessionId: session.sessionId,
+        section: [
+          `Session ${session.sessionId}`,
+          `Events today: ${events.length}`,
+          messages.join("\n") || "No messages captured.",
+        ].join("\n"),
+      };
     })
-    .filter((value): value is string => value !== undefined);
+    .filter((value): value is NonNullable<typeof value> => value !== undefined);
 
-  const markdown = await summarizeDailyActivity(runtime, day, sessionSections);
+  const markdown = await summarizeDailyActivity(runtime, day, sessionEntries.map((entry) => entry.section), sessionEntries.map((entry) => entry.sessionId));
 
   await mkdir(runtime.paths.memory, { recursive: true });
   const outputPath = getDailySummaryPath(runtime, date);

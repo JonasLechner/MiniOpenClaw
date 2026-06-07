@@ -2,6 +2,7 @@ import { createNewSession } from "./sessions.js";
 import type { RuntimePaths } from "./config.js";
 import { readJsonFile, writeJsonFile } from "./json-store.js";
 import type { Channel } from "./channels.js";
+import { createDefaultTelegramScheduledTasks } from "../jobs/task-store.js";
 
 export type ConversationBinding = {
   channel: Channel;
@@ -103,7 +104,9 @@ export async function resolveTelegramBinding(paths: RuntimePaths, chatId: string
   if (existing) return existing;
 
   const session = await createNewSession(paths);
-  return bindTelegramChatToSession(paths, chatId, session.sessionId, userId);
+  const binding = await bindTelegramChatToSession(paths, chatId, session.sessionId, userId);
+  await createDefaultTelegramScheduledTasks(paths, chatId);
+  return binding;
 }
 
 export async function requireTelegramBinding(paths: RuntimePaths, chatId: string): Promise<ConversationBinding> {

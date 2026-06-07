@@ -9,7 +9,10 @@ import {
   resolveTelegramBinding,
 } from "../src/core/conversation-bindings.js";
 import {
+  createDefaultTelegramScheduledTasks,
   createScheduledTask,
+  DEFAULT_REFLECTION_CRON,
+  DEFAULT_REFLECTION_PROMPT,
   getRunnableScheduledTasks,
   listScheduledTasks,
   markScheduledTaskRan,
@@ -47,8 +50,20 @@ describe("gateway control-plane helpers", () => {
     const binding = await resolveTelegramBinding(paths, "chat-1", "user-1");
     expect(binding.sessionId).toBeTypeOf("string");
 
+    const [defaultTask] = await listScheduledTasks(paths);
+    expect(defaultTask).toMatchObject({
+      channel: "telegram",
+      chatId: "chat-1",
+      target: "detached",
+      kind: "prompt",
+      cron: DEFAULT_REFLECTION_CRON,
+      prompt: DEFAULT_REFLECTION_PROMPT,
+      enabled: true,
+    });
+
     const sameChatDifferentUser = await resolveTelegramBinding(paths, "chat-1", "user-2");
     expect(sameChatDifferentUser.sessionId).toBe(binding.sessionId);
+    expect(await listScheduledTasks(paths)).toHaveLength(1);
 
     const updated = await bindTelegramChatToSession(paths, "chat-1", "session-2", "user-1");
     expect(updated.sessionId).toBe("session-2");
@@ -56,6 +71,7 @@ describe("gateway control-plane helpers", () => {
     const reloaded = await resolveTelegramBinding(paths, "chat-1", "user-2");
     expect(reloaded.sessionId).toBe("session-2");
     expect((await requireTelegramBinding(paths, "chat-1")).sessionId).toBe("session-2");
+    expect(await listScheduledTasks(paths)).toHaveLength(1);
   });
 
   it("keeps bindings from concurrent writes for different chats", async () => {
@@ -69,6 +85,20 @@ describe("gateway control-plane helpers", () => {
 
     expect((await requireTelegramBinding(paths, "chat-1")).sessionId).toBe("session-1");
     expect((await requireTelegramBinding(paths, "chat-2")).sessionId).toBe("session-2");
+  });
+
+  it("does not drop default tasks under concurrent creation", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+
+    await Promise.all([
+      createDefaultTelegramScheduledTasks(paths, "chat-1"),
+      createDefaultTelegramScheduledTasks(paths, "chat-2"),
+    ]);
+
+    const tasks = await listScheduledTasks(paths);
+    expect(tasks).toHaveLength(2);
+    expect(tasks.map((task) => task.chatId).sort()).toEqual(["chat-1", "chat-2"]);
   });
 
   it("fails loudly on duplicate telegram chat bindings", async () => {
