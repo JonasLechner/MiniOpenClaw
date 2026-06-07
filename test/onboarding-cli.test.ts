@@ -59,7 +59,6 @@ test("agent CLI runs onboarding before starting the TUI when needed", async () =
       home: root,
       configFile: join(root, "config.json"),
       authFile: join(root, "auth.json"),
-      onboardingState: join(root, "onboarding.json"),
       sessions: join(root, "sessions"),
       workspace: join(root, "workspace"),
       memory: join(root, "workspace", "memory"),
@@ -73,8 +72,9 @@ test("agent CLI runs onboarding before starting the TUI when needed", async () =
   runOnboardingMock.mockResolvedValue();
   agentCreateForSessionMock.mockResolvedValue({ provider: "openai", modelId: "gpt-test" });
 
-  await import("../src/agent/cli.js");
+  const { main } = await import("../src/agent/cli.js");
   const { tuiToolRegistry } = await import("../src/agent/tools/tui-tool-registry.js");
+  await main();
 
   expect(initializeRuntimeMock).toHaveBeenCalledTimes(2);
   expect(needsOnboardingMock).toHaveBeenCalledWith(runtime.paths);

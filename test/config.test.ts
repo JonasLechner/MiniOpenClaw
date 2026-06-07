@@ -34,8 +34,6 @@ it("defaults sandboxing to enabled for new config files", async () => {
   expect(runtime.config.sandbox.enabled).toBe(true);
   expect(runtime.config.sandbox.engine).toBe("auto");
   expect(runtime.config.sandbox.image).toBe("miniopenclaw-sandbox:local");
-  expect(runtime.paths.onboardingState).toBe(join(home as string, ".mini-openclaw", "onboarding.json"));
-
   const persisted = JSON.parse(readFileSync(runtime.paths.configFile, "utf8")) as {
     sandbox?: { enabled?: boolean; image?: string };
   };

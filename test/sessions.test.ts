@@ -11,7 +11,6 @@ import {
   appendSessionCompactionEvent,
   appendToolResultMessageEvent,
   appendUserMessageEvent,
-  createNewSession,
   ensureCurrentSession,
   getSessionById,
   getSessionMessages,
@@ -30,7 +29,6 @@ function createRuntimePaths(): RuntimePaths {
     memory: join(root, "workspace", "memory"),
     conversationBindings: join(root, "conversation-bindings.json"),
     scheduledTasks: join(root, "scheduled-tasks.json"),
-    onboardingState: join(root, "onboarding.json"),
   };
 }
 
@@ -91,6 +89,7 @@ describe("sessions", () => {
 
     const session = await ensureCurrentSession(paths);
     const lines = readFileSync(session.path, "utf8").trim().split("\n");
+    const currentSessions = JSON.parse(readFileSync(join(paths.home, "current-sessions.json"), "utf8")) as Record<string, string>;
 
     expect(lines).toHaveLength(2);
     expect(JSON.parse(lines[0])).toMatchObject({
@@ -102,8 +101,9 @@ describe("sessions", () => {
       type: "system",
       sessionId: session.sessionId,
       name: "session_created",
-      details: { reason: "first_use" },
+      details: { reason: "first_use", surface: "tui" },
     });
+    expect(currentSessions.tui).toBe(session.sessionId);
   });
 
   it("records user, assistant, tool result, and error events and keeps context messages ready", async () => {
@@ -197,28 +197,28 @@ describe("sessions", () => {
     expect(messages[1]?.content).toMatch(/third$/);
   });
 
-  it("uses the most recently updated session as current and lists sessions in that order", async () => {
+  it("tracks current sessions separately for tui and gateway while still listing sessions by update time", async () => {
     const paths = createRuntimePaths();
     tempRoots.push(paths.home);
 
-    const first = await createNewSession(paths);
-    await appendUserMessageEvent(first, "older");
+    const tuiSession = await ensureCurrentSession(paths, "tui");
+    await appendUserMessageEvent(tuiSession, "older");
 
-    const second = await createNewSession(paths);
-    await appendUserMessageEvent(second, "newer");
+    const gatewaySession = await ensureCurrentSession(paths, "gateway");
+    await appendUserMessageEvent(gatewaySession, "newer");
 
     const olderTime = new Date("2024-01-01T00:00:00.000Z");
     const newerTime = new Date("2024-01-01T00:00:01.000Z");
-    utimesSync(first.path, olderTime, olderTime);
-    utimesSync(second.path, newerTime, newerTime);
+    utimesSync(tuiSession.path, olderTime, olderTime);
+    utimesSync(gatewaySession.path, newerTime, newerTime);
 
-    const current = await ensureCurrentSession(paths);
-    expect(current.sessionId).toBe(second.sessionId);
+    expect((await ensureCurrentSession(paths, "tui")).sessionId).toBe(tuiSession.sessionId);
+    expect((await ensureCurrentSession(paths, "gateway")).sessionId).toBe(gatewaySession.sessionId);
 
     const sessions = await listSessions(paths);
     expect(sessions.map((session) => session.sessionId)).toEqual([
-      second.sessionId,
-      first.sessionId,
+      gatewaySession.sessionId,
+      tuiSession.sessionId,
     ]);
     expect(sessions[0]?.preview).toMatch(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] newer$/);
   });

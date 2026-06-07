@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -72,47 +72,6 @@ function createRuntimePaths(): RuntimePaths {
     memory: join(root, "workspace", "memory"),
     conversationBindings: join(root, "conversation-bindings.json"),
     scheduledTasks: join(root, "scheduled-tasks.json"),
-    onboardingState: join(root, "onboarding.json"),
-  };
-}
-
-function createFakeEventStreamWithText(text: string) {
-  const response = {
-    role: "assistant" as const,
-    content: [
-      { type: "thinking" as const, thinking: "hidden chain" },
-      { type: "text" as const, text },
-    ],
-    api: "openai-responses" as const,
-    provider: "openai",
-    model: "gpt-test",
-    usage: {
-      input: 1,
-      output: 1,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 2,
-      cost: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        total: 0,
-      },
-    },
-    stopReason: "stop" as const,
-    timestamp: Date.now(),
-  };
-
-  return {
-    async *[Symbol.asyncIterator]() {
-      yield { type: "text_start" as const, contentIndex: 1, partial: response };
-      yield { type: "text_delta" as const, contentIndex: 1, delta: text, partial: response };
-      yield { type: "done" as const, reason: "stop" as const, message: response };
-    },
-    async result() {
-      return response;
-    },
   };
 }
 

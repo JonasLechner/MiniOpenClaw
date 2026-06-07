@@ -19,12 +19,24 @@ No `.env` file is used.
 
 ## Getting Started
 
-### 1. Install dependencies
+### 1. Install
+
+From the repo during development:
 
 ```bash
 npm install
 npm run build
 ```
+
+Or install globally from git:
+
+```bash
+npm install -g git+https://github.com/you/MiniOpenClaw.git
+```
+
+The package builds itself during git install via `prepare`.
+
+Note: only the TUI (`miniopenclaw` / `miniopenclaw agent`) requires Bun on your system. Other commands run on Node.
 
 ### 2. Runtime directory and config
 
@@ -100,10 +112,10 @@ Telegram commands:
 Authenticate once with the dedicated auth command:
 
 ```bash
-npm run auth
+miniopenclaw auth
 ```
 
-It lists available OAuth providers and requires an explicit selection. In non-interactive environments, pass the provider id explicitly (for example `npm run auth -- openai-codex`). After selecting, it opens a browser prompt and saves tokens to `~/.mini-openclaw/auth.json`.
+It lists available OAuth providers and requires an explicit selection. In non-interactive environments, pass the provider id explicitly (for example `miniopenclaw auth openai-codex`). After selecting, it opens a browser prompt and saves tokens to `~/.mini-openclaw/auth.json`.
 
 If you prefer an API key, create or edit `~/.mini-openclaw/auth.json` instead:
 
@@ -121,33 +133,40 @@ If you prefer an API key, create or edit `~/.mini-openclaw/auth.json` instead:
 Authenticate first (if using an OAuth provider):
 
 ```bash
-npm run auth
+miniopenclaw auth
 ```
 
-Start the gateway (includes Telegram polling if enabled):
+Run onboarding if this is your first start:
 
 ```bash
-npm start
+miniopenclaw onboard
 ```
 
-In a second terminal, start the agent TUI:
+Start the gateway in the background (includes Telegram polling if enabled):
 
 ```bash
-npm run start:agent
+miniopenclaw gateway
 ```
 
-Both the gateway and agent will warn or fail early if authentication is missing, pointing you to `npm run auth`.
+Open the agent TUI:
+
+```bash
+miniopenclaw
+```
+
+Both the gateway and agent will warn or fail early if authentication is missing, pointing you to `miniopenclaw auth`.
 
 When chatting over Telegram, the agent can also use the `subagent` tool to launch detached background work. Those detached runs reply back into Telegram and their results are appended into the main session for follow-up.
 
 ## Commands
 
-- `npm install` — install dependencies
+- `miniopenclaw` — open the agent TUI (requires Bun)
+- `miniopenclaw agent` — open the agent TUI (requires Bun)
+- `miniopenclaw auth [provider]` — authenticate with a selected OAuth provider
+- `miniopenclaw onboard` — rerun onboarding
+- `miniopenclaw gateway` — start the gateway if needed
+- `miniopenclaw gateway restart|stop|status` — manage the gateway background process
 - `npm run build` — compile to `dist/`
-- `npm run auth` — authenticate with a selected OAuth provider
-- `npm start` — start the gateway
-- `npm run start:gateway` — start the gateway
-- `npm run start:agent` — start the agent TUI
 - `npm run dev` — TypeScript watch mode
 - `npm run lint` — run ESLint
 - `npm run lint:fix` — fix ESLint issues
@@ -192,12 +211,12 @@ Endpoints:
 - `GET /sessions/:sessionId/events`
 
 Sessions are stored as append-only JSONL files in `~/.mini-openclaw/sessions/`.
-The current session is inferred as the most recently updated session file.
+Current sessions are tracked separately for the TUI and gateway in a small JSON map under `~/.mini-openclaw/`.
 This project is intended to keep session state over time rather than behave like a short-lived coding-agent workflow.
 
 ## Agent
 
-`npm run start:agent` launches the local TUI and requires an interactive TTY.
+`miniopenclaw` launches the local TUI and requires an interactive TTY plus Bun.
 For non-interactive access, use the gateway.
 
 ## Sandbox image

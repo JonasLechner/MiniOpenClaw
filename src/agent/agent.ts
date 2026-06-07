@@ -8,7 +8,7 @@ import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/facto
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import type { Workspace } from "../core/workspace.js";
 import { createHostWorkspace } from "../core/host-workspace.js";
-import { createNewSession, ensureCurrentSession, getSessionById, type Session } from "../core/sessions.js";
+import { createNewSession, ensureCurrentSession, getSessionById, type Session, type SessionSurface } from "../core/sessions.js";
 import { resolveAgentAuth, type AgentAuth } from "./auth.js";
 import { AgentLoopExecutionError, runAgentLoop } from "./agent-loop.js";
 import { runSessionCompaction } from "./session-compaction-service.js";
@@ -35,6 +35,8 @@ export type PromptOptions = {
 export type AgentCreateOptions = {
   sandboxSessionId?: string;
   toolRegistry?: ToolRegistry;
+  currentSessionSurface?: SessionSurface;
+  systemPromptOverride?: string;
 };
 
 const logger = createLogger({ component: "agent" });
@@ -86,20 +88,20 @@ export class Agent {
   }
 
   static async create(): Promise<Agent> {
-    return this.createForSession();
+    return this.createForSession(undefined, undefined, { currentSessionSurface: "tui" });
   }
 
   static async createForSession(runtime = initializeRuntime(), sessionId?: string, options: AgentCreateOptions = {}): Promise<Agent> {
     const auth = await resolveAgentAuth(runtime);
     const session = sessionId
       ? await getSessionById(runtime.paths, sessionId)
-      : await ensureCurrentSession(runtime.paths);
+      : await ensureCurrentSession(runtime.paths, options.currentSessionSurface ?? "tui");
 
     if (!session) {
       throw new Error(`Unknown session ${sessionId}.`);
     }
 
-    const systemPrompt = await buildSystemPrompt(runtime.paths.workspace);
+    const systemPrompt = options.systemPromptOverride ?? await buildSystemPrompt(runtime.paths.workspace);
     const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
     const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
     return new Agent(auth, runtime, session, systemPrompt, sandboxFactory, options.sandboxSessionId ?? session.sessionId, options.toolRegistry ?? fullToolRegistry);
@@ -115,7 +117,7 @@ export class Agent {
   }
 
   async newSession(): Promise<{ sessionId: string }> {
-    const nextSession = await createNewSession(this.#runtimePaths);
+    const nextSession = await createNewSession(this.#runtimePaths, "tui");
     await this.#disposeSandbox();
     this.#switchSession(nextSession);
     this.#emit({ type: "session_switched", sessionId: nextSession.sessionId });

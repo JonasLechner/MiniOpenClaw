@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimePaths } from "../src/core/config.js";
 import type { RuntimeState } from "../src/core/runtime.js";
-import { appendUserMessageEvent, createNewSession } from "../src/core/sessions.js";
+import { appendUserMessageEvent, createNewSession, ensureCurrentSession } from "../src/core/sessions.js";
 
 const runtimeStateMock = vi.fn<() => RuntimeState>();
 const schedulerStartMock = vi.fn();
@@ -32,7 +32,6 @@ function createRuntimePaths(): RuntimePaths {
     memory: join(root, "workspace", "memory"),
     conversationBindings: join(root, "conversation-bindings.json"),
     scheduledTasks: join(root, "scheduled-tasks.json"),
-    onboardingState: join(root, "onboarding.json"),
   };
 }
 
@@ -69,7 +68,9 @@ beforeEach(() => {
 });
 
 describe("gateway session endpoints", () => {
-  it("creates and returns the current session on first use", async () => {
+  it("creates and returns a gateway-specific current session on first use", async () => {
+    const tuiSession = await ensureCurrentSession(paths, "tui");
+
     const { buildGateway } = await import("../src/gateway/app.js");
     const app = buildGateway(runtimeStateMock());
 
@@ -78,8 +79,13 @@ describe("gateway session endpoints", () => {
 
     const payload = response.json();
     expect(payload.sessionId).toBeTypeOf("string");
+    expect(payload.sessionId).not.toBe(tuiSession.sessionId);
     expect(payload.events).toHaveLength(1);
-    expect(payload.events[0]).toMatchObject({ type: "system", name: "session_created" });
+    expect(payload.events[0]).toMatchObject({
+      type: "system",
+      name: "session_created",
+      details: { reason: "first_use", surface: "gateway" },
+    });
 
     await app.close();
   });

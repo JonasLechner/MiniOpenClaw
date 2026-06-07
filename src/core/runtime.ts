@@ -1,9 +1,13 @@
 import { existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { ensureDir, ensureJsonFile, loadRuntimeConfig, type RuntimeConfig, type RuntimePaths } from "./config.js";
+import { join } from "node:path";
 import { configureLogging } from "./log.js";
 
 export type RuntimeState = RuntimeConfig;
+
+function getCurrentSessionsPath(paths: RuntimePaths): string {
+  return paths.currentSessions ?? join(paths.home, "current-sessions.json");
+}
 
 function ensureTextFile(path: string, content: string): void {
   if (existsSync(path)) return;
@@ -81,9 +85,11 @@ export function ensureRuntimeFiles(paths: RuntimePaths): void {
 
   ensureInitialSkills(paths.workspace);
   ensureTextFile(join(paths.workspace, "context.md"), "");
+  ensureTextFile(join(paths.workspace, "user.md"), "");
   ensureJsonFile(paths.authFile, {});
   ensureJsonFile(paths.conversationBindings, []);
   ensureJsonFile(paths.scheduledTasks, []);
+  ensureJsonFile(getCurrentSessionsPath(paths), {});
 }
 
 export function initializeRuntime(): RuntimeState {

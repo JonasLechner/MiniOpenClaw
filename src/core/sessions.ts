@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssistantMessage, Message, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
 import type { RuntimePaths } from "./config.js";
+import { readJsonFile, updateJsonFile } from "./json-store.js";
 import { getAssistantThinkingBlocks, getAssistantVisibleText } from "./messages.js";
 
 export const SESSION_FORMAT_VERSION = 1;
@@ -87,8 +88,27 @@ export type SessionSummary = {
   preview: string;
 };
 
+export type SessionSurface = "tui" | "gateway";
+
+type CurrentSessionsState = Partial<Record<SessionSurface, string>>;
+
 function createSessionId(): string {
   return randomUUID();
+}
+
+function getCurrentSessionsPath(paths: RuntimePaths): string {
+  return paths.currentSessions ?? join(paths.home, "current-sessions.json");
+}
+
+async function loadCurrentSessions(paths: RuntimePaths): Promise<CurrentSessionsState> {
+  return readJsonFile(getCurrentSessionsPath(paths), {} as CurrentSessionsState);
+}
+
+async function setCurrentSession(paths: RuntimePaths, surface: SessionSurface, sessionId: string): Promise<void> {
+  await updateJsonFile(getCurrentSessionsPath(paths), {} as CurrentSessionsState, async (state) => ({
+    ...state,
+    [surface]: sessionId,
+  }));
 }
 
 function createSessionFilePath(paths: RuntimePaths, createdAt: string, sessionId: string): string {
@@ -261,22 +281,28 @@ async function createSession(paths: RuntimePaths, details?: unknown): Promise<Se
   return session;
 }
 
-export async function ensureCurrentSession(paths: RuntimePaths): Promise<Session> {
-  const mostRecentPath = (await getSessionFiles(paths))[0];
-  if (!mostRecentPath) {
-    return createSession(paths, { reason: "first_use" });
+export async function ensureCurrentSession(paths: RuntimePaths, surface: SessionSurface = "tui"): Promise<Session> {
+  const currentSessionId = (await loadCurrentSessions(paths))[surface];
+
+  if (currentSessionId) {
+    const session = await getSessionById(paths, currentSessionId);
+    if (session) return session;
   }
 
-  const session = await parseSessionFile(mostRecentPath);
-  if (!session) {
-    return createSession(paths, { reason: "recovery_after_invalid_session" });
-  }
-
+  const session = await createSession(paths, {
+    reason: currentSessionId ? "recovery_after_missing_current_session" : "first_use",
+    surface,
+  });
+  await setCurrentSession(paths, surface, session.sessionId);
   return session;
 }
 
-export async function createNewSession(paths: RuntimePaths): Promise<Session> {
-  return createSession(paths, { reason: "new_session" });
+export async function createNewSession(paths: RuntimePaths, surface?: SessionSurface): Promise<Session> {
+  const session = await createSession(paths, { reason: "new_session", surface });
+  if (surface) {
+    await setCurrentSession(paths, surface, session.sessionId);
+  }
+  return session;
 }
 
 export async function listSessions(paths: RuntimePaths): Promise<SessionSummary[]> {

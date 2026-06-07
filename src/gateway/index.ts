@@ -16,7 +16,7 @@ import {
 } from "./log.js";
 
 async function launchGatewaySandbox(runtime: RuntimeState): Promise<void> {
-  const session = await ensureCurrentSession(runtime.paths);
+  const session = await ensureCurrentSession(runtime.paths, "gateway");
   const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
   const engineLabel = resolvedEngineKind ?? "host";
   const image = runtime.config.sandbox.enabled ? runtime.config.sandbox.image : undefined;
@@ -43,7 +43,7 @@ export function ensureGatewayOnboardingComplete(runtime: RuntimeState): void {
     return;
   }
 
-  throw new Error("Onboarding is incomplete. Run npm run start:agent to finish first-time setup before starting the gateway.");
+  throw new Error("Onboarding is incomplete. Run miniopenclaw onboard to finish first-time setup before starting the gateway.");
 }
 
 export async function main(): Promise<void> {

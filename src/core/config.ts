@@ -66,12 +66,12 @@ export type RuntimePaths = {
   home: string;
   configFile: string;
   authFile: string;
-  onboardingState: string;
   sessions: string;
   workspace: string;
   memory: string;
   conversationBindings: string;
   scheduledTasks: string;
+  currentSessions?: string;
 };
 
 export type RuntimeConfig = {
@@ -338,12 +338,12 @@ export function loadRuntimeConfig(): RuntimeConfig {
     home: runtimeHome,
     configFile,
     authFile,
-    onboardingState: join(runtimeHome, "onboarding.json"),
     sessions: join(runtimeHome, "sessions"),
     workspace,
     memory: join(workspace, "memory"),
     conversationBindings: join(runtimeHome, "conversation-bindings.json"),
     scheduledTasks: join(runtimeHome, "scheduled-tasks.json"),
+    currentSessions: join(runtimeHome, "current-sessions.json"),
   };
 
   return { config, paths };

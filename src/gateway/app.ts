@@ -46,12 +46,12 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
   });
 
   app.get("/sessions/current", async () => {
-    const session = await ensureCurrentSession(runtime.paths);
+    const session = await ensureCurrentSession(runtime.paths, "gateway");
     return toSessionResponse(session);
   });
 
   app.post("/sessions/new", async () => {
-    const session = await createNewSession(runtime.paths);
+    const session = await createNewSession(runtime.paths, "gateway");
     return toSessionResponse(session);
   });
 

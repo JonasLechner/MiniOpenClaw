@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getOAuthProvidersMock = vi.fn();
 const runOAuthLoginMock = vi.fn();
+const saveApiKeyAuthMock = vi.fn();
 const loadRuntimeConfigMock = vi.fn();
 
 vi.mock("@earendil-works/pi-ai/oauth", () => ({
@@ -10,6 +11,7 @@ vi.mock("@earendil-works/pi-ai/oauth", () => ({
 
 vi.mock("../src/agent/auth.js", () => ({
   runOAuthLogin: runOAuthLoginMock,
+  saveApiKeyAuth: saveApiKeyAuthMock,
 }));
 
 vi.mock("../src/core/config.js", () => ({
@@ -22,6 +24,7 @@ describe("auth cli", () => {
     vi.clearAllMocks();
     getOAuthProvidersMock.mockReturnValue([
       { id: "openai-codex", name: "OpenAI Codex" },
+      { id: "github-copilot", name: "GitHub Copilot" },
       { id: "anthropic", name: "Anthropic" },
     ]);
     loadRuntimeConfigMock.mockReturnValue({
@@ -61,12 +64,43 @@ describe("auth cli", () => {
 
     const { main } = await import("../src/auth-cli.js");
 
-    await main(["anthropic"]);
+    await main(["github-copilot"]);
 
     expect(runOAuthLoginMock).toHaveBeenCalledWith(
-      { id: "anthropic", name: "Anthropic" },
+      { id: "github-copilot", name: "GitHub Copilot" },
       "/tmp/auth.json",
     );
+  });
+
+  it("stores an API key when the api-key method is selected explicitly", async () => {
+    vi.stubGlobal("process", {
+      ...process,
+      argv: ["node", "/tmp/auth-cli.js"],
+      stdin: { ...process.stdin, isTTY: false },
+      stdout: { ...process.stdout, isTTY: false },
+      exit: vi.fn(),
+    });
+
+    const { main } = await import("../src/auth-cli.js");
+
+    await main(["anthropic", "api-key", "sk-test"]);
+
+    expect(saveApiKeyAuthMock).toHaveBeenCalledWith("anthropic", "sk-test", "/tmp/auth.json");
+    expect(runOAuthLoginMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects OAuth providers that are not in the allowed subscription list", async () => {
+    vi.stubGlobal("process", {
+      ...process,
+      argv: ["node", "/tmp/auth-cli.js"],
+      stdin: { ...process.stdin, isTTY: false },
+      stdout: { ...process.stdout, isTTY: false },
+    });
+
+    const { main } = await import("../src/auth-cli.js");
+
+    await expect(main(["anthropic"])) .rejects.toThrow('Provider "anthropic" is not an OAuth provider.');
+    expect(runOAuthLoginMock).not.toHaveBeenCalled();
   });
 
   it("rejects explicit providers that are not OAuth-backed", async () => {

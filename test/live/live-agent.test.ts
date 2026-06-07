@@ -26,7 +26,6 @@ function createRuntimePaths(root: string): RuntimePaths {
     memory: join(root, "workspace", "memory"),
     conversationBindings: join(root, "conversation-bindings.json"),
     scheduledTasks: join(root, "scheduled-tasks.json"),
-    onboardingState: join(root, "onboarding.json"),
   };
 }
 
@@ -82,7 +81,7 @@ beforeAll(() => {
   }
 
   if (!checkAuthAvailable(runtime)) {
-    throw new Error(`No configured auth found for provider "${runtime.config.agent.provider}". Run npm run auth or update ~/.mini-openclaw/auth.json before running npm run test:live.`);
+    throw new Error(`No configured auth found for provider "${runtime.config.agent.provider}". Run miniopenclaw auth or update ~/.mini-openclaw/auth.json before running npm run test:live.`);
   }
 });
 

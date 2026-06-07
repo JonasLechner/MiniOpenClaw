@@ -42,8 +42,12 @@ export function checkAuthAvailable(runtime: RuntimeState): boolean {
   const auth = loadAuthFile(runtime.paths.authFile);
   const entry = auth[provider];
 
+  if (isApiKeyCredentials(entry)) {
+    return !!entry.apiKey;
+  }
+
   if (!getOAuthProvider(provider)) {
-    return isApiKeyCredentials(entry) && !!entry.apiKey;
+    return false;
   }
 
   return isOAuthCredentials(entry);
@@ -93,6 +97,17 @@ function readLine(prompt: string): Promise<string> {
   });
 }
 
+export function saveApiKeyAuth(provider: string, apiKey: string, authPath: string): void {
+  const normalizedApiKey = apiKey.trim();
+  if (!normalizedApiKey) {
+    throw new Error("API key must be a non-empty string.");
+  }
+
+  const auth = loadAuthFile(authPath);
+  auth[provider] = { type: "apiKey", apiKey: normalizedApiKey };
+  saveAuthFile(authPath, auth);
+}
+
 export async function runOAuthLogin(provider: OAuthProviderInterface, authPath: string): Promise<OAuthCredentials> {
   console.log(`\nAuthenticating with ${provider.name}...`);
 
@@ -138,10 +153,12 @@ async function resolveApiKey(provider: string, authPath: string): Promise<string
     return providerAuth.apiKey;
   }
 
-  if (providerAuth !== undefined && !isOAuthCredentials(providerAuth)) {
-    throw new Error(
-      `Invalid auth entry for provider "${provider}" in ${authPath}: OAuth providers cannot use type "apiKey".`
-    );
+  if (isApiKeyCredentials(providerAuth)) {
+    if (!providerAuth.apiKey) {
+      throw new Error(`Invalid auth entry for provider "${provider}" in ${authPath}: apiKey must be a non-empty string.`);
+    }
+
+    return providerAuth.apiKey;
   }
 
   const oauth = await getOAuthApiKey(provider, auth as Record<string, OAuthCredentials>);
@@ -165,7 +182,7 @@ export async function resolveAgentAuth(runtime: RuntimeState): Promise<AgentAuth
   if (!apiKey) {
     if (getOAuthProvider(provider)) {
       throw new AgentAuthError(
-        `No auth found for provider "${provider}". Run "npm run auth" to authenticate interactively, or add credentials to ${runtime.paths.authFile}.`,
+        `No auth found for provider "${provider}". Run "miniopenclaw auth" to authenticate interactively, or add OAuth credentials or { "type": "apiKey", "apiKey": "..." } to ${runtime.paths.authFile}.`,
       );
     }
     throw new AgentAuthError(

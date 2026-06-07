@@ -59,6 +59,6 @@ export function logGatewayAuthWarning(provider: string, authFile: string): void 
   gatewayLogger.warn("gateway_auth_warning", {
     provider,
     authFile,
-    message: `No authentication configured for provider "${provider}". Run "npm run auth" to authenticate interactively, or add an API key to ${authFile}.`,
+    message: `No authentication configured for provider "${provider}". Run "miniopenclaw auth" to authenticate interactively, or add an API key to ${authFile}.`,
   });
 }

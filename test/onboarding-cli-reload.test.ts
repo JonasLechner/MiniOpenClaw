@@ -59,7 +59,6 @@ test("agent CLI reloads runtime after onboarding before creating the agent", asy
       home: root,
       configFile: join(root, "config.json"),
       authFile: join(root, "auth.json"),
-      onboardingState: join(root, "onboarding.json"),
       sessions: join(root, "sessions"),
       workspace: join(root, "workspace"),
       memory: join(root, "workspace", "memory"),
@@ -78,8 +77,9 @@ test("agent CLI reloads runtime after onboarding before creating the agent", asy
   runOnboardingMock.mockResolvedValue();
   agentCreateForSessionMock.mockResolvedValue({ provider: "openai", modelId: "gpt-test" });
 
-  await import("../src/agent/cli.js");
+  const { main } = await import("../src/agent/cli.js");
   const { tuiToolRegistry } = await import("../src/agent/tools/tui-tool-registry.js");
+  await main();
 
   expect(initializeRuntimeMock).toHaveBeenCalledTimes(2);
   expect(runOnboardingMock).toHaveBeenCalledWith(firstRuntime);

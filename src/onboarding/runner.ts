@@ -1,24 +1,34 @@
-import { existsSync, readFileSync } from "node:fs";
-import { getModels, type KnownProvider } from "@earendil-works/pi-ai";
+import { getModels, getProviders, type KnownProvider } from "@earendil-works/pi-ai";
 import { getOAuthProviders } from "@earendil-works/pi-ai/oauth";
-import { runOAuthLogin } from "../agent/auth.js";
+import { runOAuthLogin, saveApiKeyAuth } from "../agent/auth.js";
 import { updateUserConfig } from "../core/config.js";
 import type { RuntimeState } from "../core/runtime.js";
-import {
-  createDefaultOnboardingState,
-  loadOnboardingState,
-  saveOnboardingState,
-  type OnboardingState,
-} from "../core/onboarding.js";
-import { appendContextEntryIfMissing } from "./context.js";
-import { promptSelect, promptText, promptYesNo } from "./cli.js";
+import { readOnboardingFile } from "./context.js";
+import { summarizeOnboardingProfile } from "./profile.js";
+import { printHeading, printSummaryItem, promptMultilineText, promptSelect, promptText, promptYesNo } from "./cli.js";
 
-function getProviderOptions(): Array<{ id: string; name: string }> {
-  const allowedProviderIds = ["openai-codex", "github-copilot"];
-  return allowedProviderIds.flatMap((providerId) => {
-    const provider = getOAuthProviders().find((candidate) => candidate.id === providerId);
-    return provider ? [{ id: provider.id, name: provider.name }] : [];
-  });
+type AuthMethod = "oauth" | "apiKey";
+
+const allowedOAuthProviderIds = new Set(["openai-codex", "github-copilot"]);
+
+function getAllowedOAuthProviders() {
+  return getOAuthProviders().filter((provider) => allowedOAuthProviderIds.has(provider.id));
+}
+
+function formatProviderLabel(providerId: string): string {
+  const oauthProvider = getAllowedOAuthProviders().find((candidate) => candidate.id === providerId)
+    ?? getOAuthProviders().find((candidate) => candidate.id === providerId);
+  return oauthProvider?.name ?? providerId;
+}
+
+function getProviderOptions(authMethod: AuthMethod): Array<{ id: string; name: string }> {
+  if (authMethod === "oauth") {
+    return getAllowedOAuthProviders().map((provider) => ({ id: provider.id, name: provider.name }));
+  }
+
+  return [...new Set(getProviders() as string[])]
+    .sort()
+    .map((providerId) => ({ id: providerId, name: formatProviderLabel(providerId) }));
 }
 
 function getModelIds(runtime: RuntimeState, providerId: string): string[] {
@@ -31,14 +41,25 @@ function getModelIds(runtime: RuntimeState, providerId: string): string[] {
   return [...new Set(models)];
 }
 
-function hasOAuthAuthForProvider(authFile: string, providerId: string): boolean {
-  if (!existsSync(authFile)) return false;
-  const auth = JSON.parse(readFileSync(authFile, "utf8")) as Record<string, { type?: string }>;
-  const entry = auth[providerId];
-  return entry !== undefined && entry.type !== "apiKey";
+async function selectAuthMethod(): Promise<AuthMethod> {
+  const selected = await promptSelect("Select authentication method:", ["Use a subscription", "Use an API key"]);
+  return selected === "Use an API key" ? "apiKey" : "oauth";
 }
 
-function persistOnboardingConfig(runtime: RuntimeState, state: OnboardingState): void {
+type OnboardingDraft = {
+  data: {
+    name?: string;
+    sandboxEnabled?: boolean;
+    provider?: string;
+    modelId?: string;
+    aboutYou?: string;
+    telegramEnabled?: boolean;
+    telegramToken?: string;
+    telegramAllowedUserIds?: string[];
+  };
+};
+
+function persistOnboardingConfig(runtime: RuntimeState, state: OnboardingDraft): void {
   updateUserConfig(runtime.paths.configFile, (config) => ({
     ...config,
     sandbox: {
@@ -60,104 +81,119 @@ function persistOnboardingConfig(runtime: RuntimeState, state: OnboardingState):
       },
     },
   }));
+
+  runtime.config = {
+    ...runtime.config,
+    sandbox: {
+      ...runtime.config.sandbox,
+      enabled: state.data.sandboxEnabled ?? runtime.config.sandbox.enabled,
+    },
+    agent: {
+      ...runtime.config.agent,
+      provider: state.data.provider ?? runtime.config.agent.provider,
+      modelId: state.data.modelId ?? runtime.config.agent.modelId,
+    },
+    gateway: {
+      ...runtime.config.gateway,
+      telegram: {
+        ...runtime.config.gateway.telegram,
+        enabled: state.data.telegramEnabled ?? runtime.config.gateway.telegram.enabled,
+        token: state.data.telegramToken ?? runtime.config.gateway.telegram.token,
+        allowedUserIds: state.data.telegramAllowedUserIds ?? runtime.config.gateway.telegram.allowedUserIds,
+      },
+    },
+  };
 }
 
 export async function runOnboarding(runtime: RuntimeState): Promise<void> {
-  const state = loadOnboardingState(runtime.paths) ?? createDefaultOnboardingState();
+  const state: OnboardingDraft = { data: {} };
 
-  if (state.step === "welcome") {
-    console.log("Welcome to MiniOpenClaw. Let's do first-time setup.");
-    state.step = "name";
-    saveOnboardingState(runtime.paths, state);
-  }
+  printHeading("Welcome to MiniOpenClaw");
+  console.log("Let's do first-time setup.");
 
-  if (state.step === "name") {
-    state.data.name = await promptText("What should I call you?");
-    await appendContextEntryIfMissing(runtime.paths.workspace, `My name is ${state.data.name}`);
-    state.step = "sandbox_enabled";
-    saveOnboardingState(runtime.paths, state);
-  }
+  state.data.name = await promptText("What should I call you?");
+  state.data.sandboxEnabled = await promptYesNo("Should bash command sandboxing be enabled?", true);
 
-  if (state.step === "sandbox_enabled") {
-    state.data.sandboxEnabled = await promptYesNo("Should bash command sandboxing be enabled?", true);
-    state.step = "telegram_enabled";
-    saveOnboardingState(runtime.paths, state);
-  }
-
-  if (state.step === "telegram_enabled") {
+  const existingTelegram = runtime.config.gateway.telegram;
+  if (existingTelegram.enabled || existingTelegram.token || existingTelegram.allowedUserIds.length > 0) {
+    console.log("Telegram is already configured.");
+    const shouldChangeTelegram = await promptYesNo("Would you like to change the Telegram settings?", false);
+    if (shouldChangeTelegram) {
+      state.data.telegramEnabled = await promptYesNo("Should Telegram be enabled?", existingTelegram.enabled);
+      if (state.data.telegramEnabled) {
+        state.data.telegramToken = await promptText("Enter your Telegram bot token:");
+        const value = await promptText("Enter allowed Telegram user ids (comma-separated, optional):");
+        state.data.telegramAllowedUserIds = value ? value.split(",").map((part) => part.trim()).filter(Boolean) : [];
+      }
+    }
+  } else {
     state.data.telegramEnabled = await promptYesNo("Do you want to set up Telegram now?", false);
-    state.step = state.data.telegramEnabled ? "telegram_token" : "provider";
-    saveOnboardingState(runtime.paths, state);
-  }
-
-  if (state.step === "telegram_token") {
-    state.data.telegramToken = await promptText("Enter your Telegram bot token:");
-    state.step = "telegram_allowed_users";
-    saveOnboardingState(runtime.paths, state);
-  }
-
-  if (state.step === "telegram_allowed_users") {
-    const value = await promptText("Enter allowed Telegram user ids (comma-separated, optional):");
-    state.data.telegramAllowedUserIds = value ? value.split(",").map((part) => part.trim()).filter(Boolean) : [];
-    state.step = "provider";
-    saveOnboardingState(runtime.paths, state);
-  }
-
-  if (state.step === "provider") {
-    const providerOptions = getProviderOptions();
-    const selectedProviderName = await promptSelect("Select an OAuth provider:", providerOptions.map((provider) => provider.name));
-    state.data.provider = providerOptions.find((provider) => provider.name === selectedProviderName)?.id;
-    if (!state.data.provider) {
-      throw new Error("Onboarding could not resolve the selected provider.");
+    if (state.data.telegramEnabled) {
+      state.data.telegramToken = await promptText("Enter your Telegram bot token:");
+      const value = await promptText("Enter allowed Telegram user ids (comma-separated, optional):");
+      state.data.telegramAllowedUserIds = value ? value.split(",").map((part) => part.trim()).filter(Boolean) : [];
     }
-    state.step = "model";
-    saveOnboardingState(runtime.paths, state);
   }
 
-  if (state.step === "model") {
-    if (!state.data.provider) {
-      throw new Error("Onboarding is missing the selected provider.");
-    }
-    const modelIds = getModelIds(runtime, state.data.provider);
-    if (modelIds.length === 0) {
-      throw new Error(`No models available for provider ${state.data.provider}.`);
-    }
-    state.data.modelId = await promptSelect("Select a model:", modelIds);
-    state.step = "auth";
-    saveOnboardingState(runtime.paths, state);
+  const authMethod = await selectAuthMethod();
+  const providerOptions = getProviderOptions(authMethod);
+  const selectedProviderName = await promptSelect("Select a provider:", providerOptions.map((provider) => provider.name));
+  state.data.provider = providerOptions.find((provider) => provider.name === selectedProviderName)?.id;
+  if (!state.data.provider) {
+    throw new Error("Onboarding could not resolve the selected provider.");
   }
 
-  if (state.step === "auth") {
-    if (!state.data.provider) {
-      throw new Error("Onboarding is missing the selected provider.");
-    }
+  const modelIds = getModelIds(runtime, state.data.provider);
+  if (modelIds.length === 0) {
+    throw new Error(`No models available for provider ${state.data.provider}.`);
+  }
+  state.data.modelId = await promptSelect("Select a model:", modelIds);
 
-    const oauthProvider = getOAuthProviders().find((provider) => provider.id === state.data.provider);
+  if (authMethod === "apiKey") {
+    const apiKey = await promptText(`Enter API key for ${formatProviderLabel(state.data.provider)}:`);
+    saveApiKeyAuth(state.data.provider, apiKey, runtime.paths.authFile);
+    console.log(`Authentication saved to ${runtime.paths.authFile}`);
+  } else {
+    const oauthProvider = getAllowedOAuthProviders().find((provider) => provider.id === state.data.provider);
     if (!oauthProvider) {
       throw new Error(`Provider ${state.data.provider} is not available for OAuth onboarding.`);
     }
+    process.stdin.resume();
+    await runOAuthLogin(oauthProvider, runtime.paths.authFile);
+  }
 
-    if (hasOAuthAuthForProvider(runtime.paths.authFile, state.data.provider)) {
-      console.log(`Authentication for "${state.data.provider}" is already configured.`);
-    } else {
-      process.stdin.resume();
-      await runOAuthLogin(oauthProvider, runtime.paths.authFile);
+  console.log("\nNext I'll ask a few questions for your profile and memory context.");
+  state.data.aboutYou = await promptMultilineText(
+    "Tell me a bit about yourself and how you'd like me to help. Useful things to include: what you want to use MiniOpenClaw for, the goals or projects you're focused on, and the tone or communication style you prefer from me."
+  );
+
+  persistOnboardingConfig(runtime, state);
+
+  if (state.data.aboutYou) {
+    const setupMessage = state.data.sandboxEnabled && runtime.config.sandbox.engine === "docker"
+      ? "\nThanks — I'm setting up your profile and memory files now. This can take a bit longer when Docker sandboxing is selected."
+      : "\nThanks — I'm setting up your profile and memory files now.";
+    console.log(setupMessage);
+
+    try {
+      await summarizeOnboardingProfile(runtime, state.data.name, state.data.aboutYou, {
+        userMarkdown: await readOnboardingFile(runtime.paths.workspace, "user.md"),
+        contextMarkdown: await readOnboardingFile(runtime.paths.workspace, "context.md"),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("\nI couldn't generate your profile summary.");
+      console.error(message);
+      console.error(`You can try again with \`miniopenclaw onboard\`, use different auth in ${runtime.paths.authFile}, or abort for now.`);
+      throw error;
     }
-
-    state.step = "review";
-    saveOnboardingState(runtime.paths, state);
   }
 
-  if (state.step === "review") {
-    console.log("Onboarding summary:");
-    console.log(`- Name: ${state.data.name ?? "(unset)"}`);
-    console.log(`- Sandbox enabled: ${String(state.data.sandboxEnabled)}`);
-    console.log(`- Provider: ${state.data.provider ?? "(unset)"}`);
-    console.log(`- Model: ${state.data.modelId ?? "(unset)"}`);
-    console.log(`- Telegram enabled: ${String(state.data.telegramEnabled ?? false)}`);
-    persistOnboardingConfig(runtime, state);
-    state.step = "done";
-    state.completed = true;
-    saveOnboardingState(runtime.paths, state);
-  }
+  printHeading("Onboarding summary");
+  printSummaryItem("Name:", state.data.name ?? "(unset)");
+  printSummaryItem("Sandbox enabled:", String(state.data.sandboxEnabled));
+  printSummaryItem("Provider:", state.data.provider ?? "(unset)");
+  printSummaryItem("Model:", state.data.modelId ?? "(unset)");
+  printSummaryItem("Telegram enabled:", String(state.data.telegramEnabled ?? false));
+  printSummaryItem("Profile notes:", state.data.aboutYou ? "saved to user.md and context.md" : "none");
 }

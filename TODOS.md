@@ -5,16 +5,18 @@
 - Background agent
 
 
-# later
-- Agent loop rework
+# TODOS
+- Fix sandbox: multiple sessions should share the same sandbox
+- Make agent able to send/receive files via telegram (all supported by telegram) not only images
 - Add voice support
-- Configurable toolset/models for subagents/crons
-- Prune telegram attachments
-- Clarify sandbox scoping semantics: should sessions always share one sandbox, or remain session-scoped by default?
+- Move sessions to workspace
+- Make config editable from agent + validation
+- Restartable gateway via telegram
 
 
 # maybe
 - calling feature
+- Configurable toolset/models for subagents/crons
 
 
 # probably not

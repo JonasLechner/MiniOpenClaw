@@ -46,7 +46,6 @@ function createRuntime(authFile: string, configFile: string): RuntimeState {
       memory: join(configFile, "../workspace/memory"),
       conversationBindings: join(configFile, "../conversation-bindings.json"),
       scheduledTasks: join(configFile, "../scheduled-tasks.json"),
-      onboardingState: join(configFile, "../onboarding.json"),
     },
   };
 }
@@ -148,7 +147,7 @@ describe("agent auth internals", () => {
     await expect(resolveAgentAuth(runtime)).rejects.toThrow('expected { "type": "apiKey", "apiKey": "..." }');
   });
 
-  it("resolveAgentAuth rejects apiKey-style entries for OAuth providers", async () => {
+  it("resolveAgentAuth accepts apiKey-style entries for OAuth providers", async () => {
     getOAuthProviderMock.mockReturnValue({ id: "openai-codex" });
     writeFileSync(authFile, JSON.stringify({ "openai-codex": { type: "apiKey", apiKey: "sk-wrong" } }), "utf8");
     const runtime = {
@@ -157,7 +156,7 @@ describe("agent auth internals", () => {
     };
 
     const { resolveAgentAuth } = await import("../src/agent/auth.js");
-    await expect(resolveAgentAuth(runtime)).rejects.toThrow('OAuth providers cannot use type "apiKey"');
+    await expect(resolveAgentAuth(runtime)).resolves.toMatchObject({ apiKey: "sk-wrong" });
   });
 
   it("resolveAgentAuth reports missing OAuth auth clearly", async () => {
@@ -169,6 +168,6 @@ describe("agent auth internals", () => {
     };
 
     const { resolveAgentAuth } = await import("../src/agent/auth.js");
-    await expect(resolveAgentAuth(runtime)).rejects.toThrow('Run "npm run auth"');
+    await expect(resolveAgentAuth(runtime)).rejects.toThrow('Run "miniopenclaw auth"');
   });
 });
