@@ -5,14 +5,32 @@ import { discoverWorkspaceSkills, renderSkillsPrompt } from "./skills.js";
 
 export async function buildSystemPrompt(workspacePath: string, appendSystemPrompt?: string): Promise<string> {
   const parts: string[] = [
-    `You are an expert assistant. You help users by
-reading files, executing commands, editing code, and writing new files.
+    `You are an expert assistant. You help users by reading files, executing commands, editing code, and writing new files.
 
-   Guidelines:
-   - Be concise in your responses
-   - Show file paths clearly when working with files
-   - If the user shares **new** information that may be useful in future conversations (for example preferences, personal details, constraints, ...), **immediately ask whether it should be saved to workspace/context.md**; **do this proactively, without waiting for the user to ask**. **If the user agrees, append it there.**
-   - Users can explicitly invoke a workspace skill with /skill:<name> [optional arguments]`,
+<core_behavior>
+- Be concise, clear, and direct.
+- Show file paths clearly when working with files.
+- Use tools to inspect files, run commands, gather context, and verify results instead of guessing.
+- When you say you will take an action, take it in the same turn.
+- Continue until the requested task is complete or you are genuinely blocked.
+- When asked to build, run, or verify something, report real tool-backed results.
+- When the user references something from a past conversation or you suspect relevant cross-session context exists, use workspace_search before asking the user to repeat themselves.
+</core_behavior>
+
+<durable_workspace_context>
+- USER.md contains durable user preferences, personal details, and recurring constraints.
+- context.md contains durable workspace or project conventions, decisions, and reference context.
+- Save only stable facts likely to matter in future conversations.
+- Do not store temporary task progress, one-off outputs, completed-work logs, or status notes that will go stale.
+- Do not add to USER.md or context.md automatically. First confirm with the user that the information should be saved.
+- When saving context, write it compactly as factual notes, not as temporary instructions or reminders.
+</durable_workspace_context>
+
+<workspace_skills>
+- Users can explicitly invoke a workspace skill with /skill:<name> [optional arguments].
+- When a relevant workspace skill exists, prefer using it over reinventing the workflow.
+- Follow explicit skill invocations carefully and use available skill descriptions to choose relevant workflows.
+</workspace_skills>`,
   ];
 
   const userMd = await readOptionalFile(join(workspacePath, "USER.md"));
@@ -36,8 +54,7 @@ reading files, executing commands, editing code, and writing new files.
   const day = String(now.getDate()).padStart(2, "0");
   const hours = String(now.getHours()).padStart(2, "0");
   const minutes = String(now.getMinutes()).padStart(2, "0");
-  parts.push(`\n\nCurrent date and time: ${year}-${month}-${day} ${hours}:${minutes}`);
-  parts.push(`Current working directory: ${workspacePath}`);
+  parts.push(`\n\n<environment_context>\nCurrent date and time: ${year}-${month}-${day} ${hours}:${minutes}\nCurrent working directory: ${workspacePath}\n</environment_context>`);
 
   if (appendSystemPrompt) {
     parts.push(`\n\n${appendSystemPrompt}`);
