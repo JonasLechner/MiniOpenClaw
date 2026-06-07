@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -86,6 +86,33 @@ describe("gateway session endpoints", () => {
       name: "session_created",
       details: { reason: "first_use", surface: "gateway" },
     });
+
+    await app.close();
+  });
+
+  it("renders the dashboard on / and saves config via /api/config", async () => {
+    writeFileSync(paths.configFile, '{"gateway":{"port":3000}}\n', "utf8");
+
+    const { buildGateway } = await import("../src/gateway/app.js");
+    const app = buildGateway(runtimeStateMock());
+
+    const dashboardResponse = await app.inject({ method: "GET", url: "/" });
+    expect(dashboardResponse.statusCode).toBe(200);
+    expect(dashboardResponse.headers["content-type"]).toContain("text/html");
+    expect(dashboardResponse.body).toContain("MiniOpenClaw dashboard");
+
+    const saveResponse = await app.inject({
+      method: "PUT",
+      url: "/api/config",
+      payload: { raw: '{"gateway":{"port":4000}}' },
+    });
+    expect(saveResponse.statusCode).toBe(200);
+    expect(saveResponse.json()).toMatchObject({ message: expect.stringContaining(paths.configFile) });
+
+    expect(await import("node:fs/promises").then(({ readFile }) => readFile(paths.configFile, "utf8"))).toContain("4000");
+
+    const restartResponse = await app.inject({ method: "POST", url: "/api/restart" });
+    expect(restartResponse.statusCode).toBe(501);
 
     await app.close();
   });

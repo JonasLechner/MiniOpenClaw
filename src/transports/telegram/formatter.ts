@@ -1,6 +1,6 @@
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4000;
 const TELEGRAM_MARKDOWN_V2_PARSE_MODE = "MarkdownV2";
-const TELEGRAM_MARKDOWN_V2_SPECIAL_CHARACTERS = /[_*\[\]()~`>#+\-=|{}.!\\]/g;
+const TELEGRAM_MARKDOWN_V2_SPECIAL_CHARACTERS = /[[\]_*()~`>#+\-=|{}.!\\]/g;
 
 function escapeTelegramMarkdownV2Text(text: string): string {
   return text.replace(TELEGRAM_MARKDOWN_V2_SPECIAL_CHARACTERS, "\\$&");
