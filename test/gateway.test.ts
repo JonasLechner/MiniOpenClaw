@@ -21,6 +21,13 @@ vi.mock("../src/jobs/scheduler.js", () => ({
   })),
 }));
 
+vi.mock("../src/core/workspace-search-index.js", () => ({
+  createWorkspaceSearchIndexer: vi.fn(() => ({
+    start: vi.fn(async () => {}),
+    stop: vi.fn(async () => {}),
+  })),
+}));
+
 function createRuntimePaths(): RuntimePaths {
   const root = mkdtempSync(join(tmpdir(), "miniopenclaw-gateway-test-"));
   return {
