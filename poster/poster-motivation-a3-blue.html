@@ -510,6 +510,17 @@
             <h3 class="arch-note-title">Compaction</h3>
             <p class="arch-note-text"><strong>Compaction</strong> runs automatically before oversized turns or manually on request. The current <strong>user prompt</strong> is protected from pre-loop compaction. A <strong>safe boundary</strong> is chosen instead of cutting arbitrary messages. Replaced history becomes a <strong>continuation-focused summary</strong> with goals, constraints, progress, decisions, next steps, and critical context.</p>
           </section>
+
+
+          <section class="arch-section">
+            <h3 class="arch-note-title">Workspace search index</h3>
+            <p class="arch-note-text"><strong>Workspace search</strong> provides cross-session recall through a local full-text index. The workspace is indexed into <strong>SQLite FTS5</strong> with <strong>BM25 ranking</strong> and kept fresh by a file watcher, so the agent can retrieve relevant notes, memory, and project files without carrying everything in prompt context.</p>
+          </section>
+
+          <section class="arch-section">
+            <h3 class="arch-note-title">Telegram media bridge</h3>
+            <p class="arch-note-text">The <strong>Telegram bridge</strong> connects chat with workspace artifacts. Incoming <strong>images/files</strong> can be brought into the workspace for tool use, while replies are streamed back incrementally and can return referenced workspace artifacts to Telegram.</p>
+          </section>
         </article>
       </div>
     </section>
