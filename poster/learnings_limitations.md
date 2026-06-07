@@ -5,4 +5,4 @@
 - high test-coverage important
 
 # Problems
-- Tokens: see Tokens.jpg make transparent if needed
+- To little Tokens: see Tokens.jpg make transparent if needed

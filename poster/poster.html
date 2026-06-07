@@ -350,6 +350,172 @@
       text-justify: inter-word;
     }
 
+
+
+    .evidence h1 {
+      max-width: 74%;
+    }
+
+    .evidence-layout {
+      margin-top: 8mm;
+      height: 230mm;
+      display: grid;
+      grid-template-columns: 235mm 1fr;
+      gap: 8mm;
+      align-items: stretch;
+    }
+
+    .shot-wall {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 67mm 1fr;
+      gap: 5mm;
+    }
+
+    .shot-card {
+      padding: 3.6mm;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 2.3mm;
+      min-height: 0;
+    }
+
+    .shot-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    .shot-title {
+      color: var(--navy);
+      font-size: 11.6pt;
+      font-weight: 800;
+      line-height: 1.1;
+      margin: 0;
+    }
+
+    .shot-frame {
+      min-height: 0;
+      border-radius: 2.2mm;
+      overflow: hidden;
+      background: #0f1319;
+      border: 0.7pt solid rgba(23, 53, 109, 0.18);
+      display: grid;
+      place-items: center;
+    }
+
+    .shot-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+      display: block;
+    }
+
+    .daily-card .shot-frame {
+      padding: 1.2mm;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .daily-img {
+      width: 100%;
+      height: auto;
+      max-height: 100%;
+      object-fit: contain;
+      object-position: center;
+      display: block;
+    }
+
+    .lesson-column {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 5mm;
+      min-height: 0;
+    }
+
+    .lesson-card {
+      padding: 5mm;
+      display: grid;
+      gap: 3.2mm;
+    }
+
+    .lesson-title-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 3mm;
+      align-items: center;
+    }
+
+    .lesson-title {
+      color: var(--navy);
+      font-size: 15pt;
+      line-height: 1.1;
+      font-weight: 800;
+      margin: 0;
+    }
+
+    .lesson-list {
+      margin: 0;
+      padding-left: 5mm;
+      display: grid;
+      gap: 2.2mm;
+      color: var(--muted);
+      font-size: 12.4pt;
+      line-height: 1.35;
+    }
+
+    .problem-card {
+      border-color: rgba(255, 109, 88, 0.36);
+    }
+
+    .problem-card .badge {
+      background: var(--red);
+    }
+
+    .limitation-card {
+      min-height: 0;
+      align-content: start;
+    }
+
+    .token-card {
+      padding: 4.5mm;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 2.5mm;
+      min-height: 0;
+    }
+
+    .crab-wrap {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .crab-img {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .evidence-caption {
+      position: absolute;
+      left: 24mm;
+      bottom: 18mm;
+      color: var(--muted);
+      font-size: 11.5pt;
+    }
+
     strong { font-weight: 800; }
 
     @page {
@@ -393,7 +559,7 @@
             </div>
           </div>
           <div class="section-body">
-            <img class="workspace-figure" src="./poster-motivation-a3-blue-assets/claw.png" alt="MiniOpenClaw tools diagram" />
+            <img class="workspace-figure" src="./claw.png" alt="MiniOpenClaw tools diagram" />
             <p class="body-copy">MiniOpenClaw can read, write, edit, and search your workspace, run terminal commands, and use the web.</p>
           </div>
         </article>
@@ -409,7 +575,7 @@
             </div>
           </div>
           <div class="section-body">
-            <div class="phone-crop"><img class="phone" src="./poster-motivation-a3-blue-assets/telegram_iphone_transparent_crop.png" alt="Telegram on iPhone" /></div>
+            <div class="phone-crop"><img class="phone" src="./telegram_iphone_transparent_crop.png" alt="Telegram on iPhone" /></div>
             <div class="plain-list">
               <div class="plain-entry">
                 <p class="plain-title">Built-in chat actions</p>
@@ -485,7 +651,7 @@
     <section class="arch-layout">
       <div class="arch-panel">
         <div class="arch-frame">
-          <img class="arch-image" src="./poster-motivation-a3-blue-assets/architecture.png" alt="MiniOpenClaw architecture diagram" />
+          <img class="arch-image" src="./architecture.png" alt="MiniOpenClaw architecture diagram" />
         </div>
         <div class="arch-caption">Architecture overview · chat interface, tool execution, memory layers, reusable skills, and background jobs</div>
       </div>
@@ -525,6 +691,75 @@
       </div>
     </section>
   </main>
+
+
+  <main class="poster evidence">
+    <div class="title-row">
+      <h1>Implementation snapshots<br>&amp; learnings</h1>
+      <div class="page-no">03</div>
+    </div>
+
+    <section class="evidence-layout">
+      <div class="shot-wall">
+        <article class="card shot-card">
+          <h3 class="shot-title">Gateway Dashboard · logs</h3>
+          <div class="shot-frame"><img class="shot-img" src="./gateway1.png" alt="Gateway control logs screenshot" /></div>
+        </article>
+
+        <article class="card shot-card">
+          <h3 class="shot-title">Gateway Dashboard · config</h3>
+          <div class="shot-frame"><img class="shot-img" src="./gateway2.png" alt="Gateway control config screenshot" /></div>
+        </article>
+
+        <article class="card shot-card">
+          <h3 class="shot-title">Onboarding</h3>
+          <div class="shot-frame"><img class="shot-img" src="./onboarding.png" alt="Onboarding terminal screenshot" /></div>
+        </article>
+
+        <article class="card shot-card daily-card">
+          <h3 class="shot-title">Daily summaries as compact long-term memory</h3>
+          <div class="shot-frame"><img class="daily-img" src="./daily-summary.png" alt="Daily summary screenshot" /></div>
+        </article>
+      </div>
+
+      <div class="lesson-column">
+        <article class="card lesson-card">
+          <div class="lesson-title-row">
+            <div class="badge">✓</div>
+            <h2 class="lesson-title">Learnings</h2>
+          </div>
+          <ul class="lesson-list">
+            <li>Define the collaboration workflow before implementation starts.</li>
+            <li>Up-front planning mattered more than expected and reduced rework.</li>
+            <li>The prototype showed how much can be engineered in a short time.</li>
+            <li>Starting with stronger test coverage would have prevented several failures.</li>
+          </ul>
+        </article>
+
+        <article class="card lesson-card problem-card limitation-card">
+          <div class="lesson-title-row">
+            <div class="badge">!</div>
+            <h2 class="lesson-title">Limitations</h2>
+          </div>
+          <ul class="lesson-list">
+            <li>The first memory prototype based on <code>index.json</code> was unsuccessful and had to be reworked.</li>
+            <li>As the model backend, only Copilot and Codex could be supported in practice; other providers could not be tested sufficiently.</li>
+          </ul>
+        </article>
+
+        <article class="card token-card problem-card">
+          <div class="lesson-title-row">
+            <div class="badge">!</div>
+            <h2 class="lesson-title">Too few tokens</h2>
+          </div>
+          <div class="crab-wrap">
+            <img class="crab-img" src="./angry_crab.png" alt="Angry crab limitations illustration" />
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
 
   <script>
     function syncRightGridHeight() {
