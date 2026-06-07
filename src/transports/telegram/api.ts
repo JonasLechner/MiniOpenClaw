@@ -1,3 +1,5 @@
+import { telegramParseMode } from "./formatter.js";
+
 export type TelegramUser = {
   id: number;
   username?: string;
@@ -137,6 +139,7 @@ export class TelegramApiClient {
     return await this.#request<TelegramMessage>("sendMessage", {
       chat_id: chatId,
       text,
+      parse_mode: telegramParseMode(),
     }, signal);
   }
 
@@ -152,6 +155,7 @@ export class TelegramApiClient {
       chat_id: chatId,
       message_id: messageId,
       text,
+      parse_mode: telegramParseMode(),
     }, signal);
   }
 
@@ -170,7 +174,10 @@ export class TelegramApiClient {
     const body = new FormData();
     body.set("chat_id", chatId);
     body.set("photo", photo, filename);
-    if (caption) body.set("caption", caption);
+    if (caption) {
+      body.set("caption", caption);
+      body.set("parse_mode", telegramParseMode());
+    }
 
     const response = await fetch(`${this.#baseUrl}/sendPhoto`, {
       method: "POST",

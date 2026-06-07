@@ -177,7 +177,7 @@ describe("telegram app", () => {
     expect(savedPath ? existsSync(savedPath) : false).toBe(true);
 
     expect(sendChatActionMock).toHaveBeenCalledWith("123", "typing");
-    expect(sendMessageMock).toHaveBeenCalledWith("123", expect.stringContaining("saw User sent an image."));
+    expect(sendMessageMock).toHaveBeenCalledWith("123", expect.stringContaining("saw User sent an image\\."));
     expect(sendMessageMock).not.toHaveBeenCalledWith("123", "Thinking…");
   });
 
@@ -224,7 +224,7 @@ describe("telegram app", () => {
       },
     });
 
-    expect(sendMessageMock).toHaveBeenCalledWith("123", "Unauthorized Telegram user.");
+    expect(sendMessageMock).toHaveBeenCalledWith("123", "Unauthorized Telegram user\\.");
     expect(mainSessionAgent.runPrompt).not.toHaveBeenCalled();
     expect(resolveTelegramBindingMock).not.toHaveBeenCalled();
   });
@@ -414,7 +414,7 @@ describe("telegram app", () => {
 
     expect(sendMessageMock).toHaveBeenCalledWith("123", "Hello");
     expect(editMessageTextMock).toHaveBeenCalledWith("123", 1, "Hello world");
-    expect(editMessageTextMock).toHaveBeenCalledWith("123", 1, "Hello world!");
+    expect(editMessageTextMock).toHaveBeenCalledWith("123", 1, "Hello world\\!");
     vi.useRealTimers();
   });
 
@@ -465,8 +465,8 @@ describe("telegram app", () => {
     });
 
     expect(sendPhotoMock).toHaveBeenCalledTimes(2);
-    expect(sendPhotoMock).toHaveBeenNthCalledWith(1, "123", expect.any(Blob), "chart.png", "chart.png");
-    expect(sendPhotoMock).toHaveBeenNthCalledWith(2, "123", expect.any(Blob), "snap.jpg", "snap.jpg");
+    expect(sendPhotoMock).toHaveBeenNthCalledWith(1, "123", expect.any(Blob), "chart.png", "chart\\.png");
+    expect(sendPhotoMock).toHaveBeenNthCalledWith(2, "123", expect.any(Blob), "snap.jpg", "snap\\.jpg");
   });
 
   it("sends an error message when the agent run fails", async () => {

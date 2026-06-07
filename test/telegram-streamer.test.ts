@@ -36,7 +36,7 @@ describe("TelegramMessageStreamer", () => {
     expect(sendChatAction).toHaveBeenCalledTimes(2);
 
     await stream.finish("Hello world!");
-    expect(editMessageText).toHaveBeenCalledWith("chat-1", 1, "Hello world!");
+    expect(editMessageText).toHaveBeenCalledWith("chat-1", 1, "Hello world\\!");
     expect(deleteMessage).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
@@ -97,7 +97,7 @@ describe("TelegramMessageStreamer", () => {
 
     await stream.finish("Stopped.");
 
-    expect(editMessageText).toHaveBeenCalledWith("chat-1", 1, "Stopped.");
+    expect(editMessageText).toHaveBeenCalledWith("chat-1", 1, "Stopped\\.");
     expect(deleteMessage).toHaveBeenCalledWith("chat-1", 2);
     vi.useRealTimers();
   });
@@ -225,6 +225,6 @@ describe("TelegramMessageStreamer", () => {
     const stream = await streamer.startStream("chat-1");
     await stream.finish("");
 
-    expect(sendMessage).toHaveBeenCalledWith("chat-1", "Done.");
+    expect(sendMessage).toHaveBeenCalledWith("chat-1", "Done\\.");
   });
 });

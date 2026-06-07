@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { createLogger } from "../../core/log.js";
 import { TelegramApiClient, TelegramApiError } from "./api.js";
-import { chunkTelegramText } from "./formatter.js";
+import { chunkTelegramText, formatTelegramMarkdownV2 } from "./formatter.js";
 
 const TYPING_REFRESH_INTERVAL_MS = 4000;
 const STREAM_FLUSH_INTERVAL_MS = 500;
@@ -75,13 +75,11 @@ export class TelegramStreamingMessage {
 
   async fail(text: string): Promise<void> {
     this.#close();
+    const chunks = chunkTelegramText(text);
     await this.#enqueueMutation(async () => {
-      if (this.#messageIds.length === 0) {
-        await this.#api.sendMessage(this.#chatId, text);
-        return;
+      for (const chunk of chunks) {
+        await this.#api.sendMessage(this.#chatId, chunk);
       }
-
-      await this.#api.sendMessage(this.#chatId, text);
     });
   }
 
@@ -236,7 +234,7 @@ export class TelegramMessageStreamer {
   async sendImage(chatId: string, path: string, caption?: string): Promise<void> {
     const data = await readFile(path);
     const blob = new Blob([data], { type: imageMimeTypeForPath(path) });
-    await this.#api.sendPhoto(chatId, blob, basename(path), caption);
+    await this.#api.sendPhoto(chatId, blob, basename(path), caption ? formatTelegramMarkdownV2(caption) : undefined);
     this.#logger.info("telegram_image_sent", { chatId, path, caption });
   }
 
