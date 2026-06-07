@@ -1,5 +1,5 @@
 import { closeSync, openSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RuntimeState } from "../core/runtime.js";
@@ -45,6 +45,25 @@ function readPid(pidFile: string): number | undefined {
 }
 
 function isProcessRunning(pid: number): boolean {
+  if (process.platform === "win32") {
+    try {
+      const result = spawnSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {
+        encoding: "utf8",
+        windowsHide: true,
+      });
+      if (result.error) {
+        return false;
+      }
+      const output = result.stdout.trim();
+      if (!output || output.startsWith("INFO:")) {
+        return false;
+      }
+      return output.includes(`,\"${pid}\"`) || output.includes(`,${pid},`);
+    } catch {
+      return false;
+    }
+  }
+
   try {
     process.kill(pid, 0);
     return true;
@@ -121,6 +140,7 @@ export async function startGatewayService(runtime: RuntimeState): Promise<{ stat
     stdio: ["ignore", stdoutFd, stderrFd],
     cwd: process.cwd(),
     env: process.env,
+    windowsHide: true,
   });
 
   closeSync(stdoutFd);
@@ -148,6 +168,28 @@ export async function startGatewayService(runtime: RuntimeState): Promise<{ stat
   return { status, started: true };
 }
 
+async function terminateGatewayProcess(pid: number): Promise<void> {
+  if (process.platform === "win32") {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      child.once("error", reject);
+      child.once("exit", (code) => {
+        if (code === 0 || !isProcessRunning(pid)) {
+          resolve();
+          return;
+        }
+        reject(new Error(`taskkill failed for gateway process ${pid} with exit code ${code ?? "unknown"}.`));
+      });
+    });
+    return;
+  }
+
+  process.kill(pid, "SIGTERM");
+}
+
 export async function stopGatewayService(runtime: RuntimeState): Promise<{ status: GatewayServiceStatus; stopped: boolean }> {
   const status = await getGatewayServiceStatus(runtime);
   if (status.state === "stopped") {
@@ -162,7 +204,7 @@ export async function stopGatewayService(runtime: RuntimeState): Promise<{ statu
     };
   }
 
-  process.kill(status.pid, "SIGTERM");
+  await terminateGatewayProcess(status.pid);
   const deadline = Date.now() + STOP_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (!isProcessRunning(status.pid)) {
