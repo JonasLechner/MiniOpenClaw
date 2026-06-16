@@ -307,6 +307,130 @@ describe("telegram app", () => {
     expect(mainSessionAgent.runPrompt).not.toHaveBeenCalled();
   });
 
+  it("lets /bg bypass the per-chat prompt queue", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1", chatId: "123", userId: "456" });
+
+    let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
+    createTelegramPollingMock.mockImplementation((_api, handler) => {
+      onUpdate = handler;
+      return { start() {}, async stop() {} };
+    });
+
+    let releaseRunPrompt: (() => void) | undefined;
+    const mainSessionAgent = {
+      runPrompt: vi.fn(async () => await new Promise((resolve) => {
+        releaseRunPrompt = () => resolve({ text: "Done.", stopReason: "stop" });
+      })),
+      bindSession: vi.fn(async () => {}),
+      appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
+      stopActiveRun: vi.fn(() => false),
+      getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
+      dispose: vi.fn(async () => {}),
+    };
+
+    handleTelegramCommandMock.mockImplementation(async (text: string, context: { streamer: { sendText(chatId: string, text: string): Promise<void> }; binding: { chatId: string } }) => {
+      if (!text.startsWith("/bg")) return { handled: false };
+      await context.streamer.sendText(context.binding.chatId, "Started background task task-1.");
+      return { handled: true };
+    });
+
+    const { buildTelegramGatewayApp } = await import("../src/transports/telegram/app.js");
+    const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
+    await app?.start();
+
+    const runningUpdate = onUpdate?.({
+      message: {
+        message_id: 4,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "hello",
+      },
+    });
+
+    await vi.waitFor(() => expect(mainSessionAgent.runPrompt).toHaveBeenCalledTimes(1));
+
+    await onUpdate?.({
+      message: {
+        message_id: 5,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "/bg do later",
+      },
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledWith("123", "Started background task task\\-1\\.");
+    expect(mainSessionAgent.runPrompt).toHaveBeenCalledTimes(1);
+
+    releaseRunPrompt?.();
+    await runningUpdate;
+  });
+
+  it("lets /bgstop bypass the per-chat prompt queue", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+    resolveTelegramBindingMock.mockResolvedValue({ sessionId: "session-1", chatId: "123", userId: "456" });
+
+    let onUpdate: ((update: { message?: unknown }) => Promise<void>) | undefined;
+    createTelegramPollingMock.mockImplementation((_api, handler) => {
+      onUpdate = handler;
+      return { start() {}, async stop() {} };
+    });
+
+    let releaseRunPrompt: (() => void) | undefined;
+    const mainSessionAgent = {
+      runPrompt: vi.fn(async () => await new Promise((resolve) => {
+        releaseRunPrompt = () => resolve({ text: "Done.", stopReason: "stop" });
+      })),
+      bindSession: vi.fn(async () => {}),
+      appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
+      stopActiveRun: vi.fn(() => false),
+      getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
+      dispose: vi.fn(async () => {}),
+    };
+
+    handleTelegramCommandMock.mockImplementation(async (text: string, context: { streamer: { sendText(chatId: string, text: string): Promise<void> }; binding: { chatId: string } }) => {
+      if (!text.startsWith("/bgstop")) return { handled: false };
+      await context.streamer.sendText(context.binding.chatId, "Stopped task task-1.");
+      return { handled: true };
+    });
+
+    const { buildTelegramGatewayApp } = await import("../src/transports/telegram/app.js");
+    const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
+    await app?.start();
+
+    const runningUpdate = onUpdate?.({
+      message: {
+        message_id: 6,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "hello",
+      },
+    });
+
+    await vi.waitFor(() => expect(mainSessionAgent.runPrompt).toHaveBeenCalledTimes(1));
+
+    await onUpdate?.({
+      message: {
+        message_id: 7,
+        chat: { id: 123, type: "private" },
+        from: { id: 456, first_name: "User" },
+        text: "/bgstop task-1",
+      },
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledWith("123", "Stopped task task\\-1\\.");
+    expect(mainSessionAgent.runPrompt).toHaveBeenCalledTimes(1);
+
+    releaseRunPrompt?.();
+    await runningUpdate;
+  });
+
   it("lets /stop bypass the per-chat prompt queue", async () => {
     const paths = createRuntimePaths();
     roots.push(paths.home);

@@ -49,7 +49,7 @@ Rejected users receive `Unauthorized Telegram user.` and the event is logged.
 
 Normal text messages are sent into the current bound session.
 
-MiniOpenClaw queues messages per chat so prompts are processed in order. The `/stop` command bypasses that queue so you can interrupt a running foreground task quickly.
+MiniOpenClaw queues normal messages per chat so prompts are processed in order. The `/stop`, `/bg`, and `/bgstop` commands bypass that queue: `/stop` can interrupt a running foreground task quickly, `/bg` can start detached work without waiting for the current foreground reply to finish, and `/bgstop` can stop background work immediately.
 
 If the agent reports a compaction event during a run, Telegram receives a `Compacting...` status before streaming continues.
 

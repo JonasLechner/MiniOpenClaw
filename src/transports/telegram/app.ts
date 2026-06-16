@@ -135,6 +135,15 @@ export function buildTelegramGatewayApp(
     }
   }
 
+  function commandName(text: string): string | undefined {
+    return text.trim().split(/\s+/)[0]?.split("@")[0];
+  }
+
+  function bypassesPromptQueue(text: string): boolean {
+    const command = commandName(text);
+    return command === "/stop" || command === "/bg" || command === "/bgstop";
+  }
+
   async function handleTextMessage(chatId: string, userId: string, text: string): Promise<void> {
     const binding = await resolveTelegramBinding(runtime.paths, chatId, userId);
     const runId = randomUUID();
@@ -232,7 +241,7 @@ export function buildTelegramGatewayApp(
       : message.text;
     if (!text) return;
 
-    if (text.trim().split(/\s+/)[0]?.split("@")[0] === "/stop") {
+    if (bypassesPromptQueue(text)) {
       try {
         await handleTextMessage(chatId, userId, text);
       } catch (error) {

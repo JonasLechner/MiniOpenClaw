@@ -25,13 +25,15 @@ Runs a prompt as a detached background task.
 
 Use this for work that may take a while. When the task finishes, MiniOpenClaw sends the result back to Telegram and adds it into the current session.
 
+This command bypasses the per-chat foreground prompt queue, so it can start while another foreground reply is still running.
+
 ### `/bglist`
 Lists background tasks for the current session.
 
 ### `/bgstop <taskId>`
 Stops a queued or running background task for the current session.
 
-Without a task id, MiniOpenClaw replies with usage text.
+Without a task id, MiniOpenClaw replies with usage text. This command bypasses the per-chat foreground prompt queue.
 
 ### `/compact`
 Compacts the current session.
@@ -41,7 +43,7 @@ This reduces the effective size of long session history while keeping the sessio
 ### `/stop`
 Requests that the current foreground run stop.
 
-If no foreground run is active, MiniOpenClaw replies `No active run to stop.` This command bypasses the per-chat message queue.
+If no foreground run is active, MiniOpenClaw replies `No active run to stop.` This command bypasses the per-chat foreground prompt queue.
 
 ## Agent skill invocation
 
