@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, extname, join, relative, sep } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
 import Database from "better-sqlite3";
 import { isWithinWorkspacePath } from "./host-workspace.js";
@@ -35,7 +35,46 @@ export interface WorkspaceSearchIndexer {
   stop(): Promise<void>;
 }
 
+export type WorkspaceSearchIndexConfig = {
+  enabled: boolean;
+  include: string[];
+};
+
 const WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME = "workspace-search.sqlite";
+const MAX_INDEXED_FILE_BYTES = 1024 * 1024;
+const IGNORED_DIRECTORY_NAMES = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  ".pi",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".cache",
+]);
+const INDEXED_FILE_EXTENSIONS = new Set([
+  ".cjs",
+  ".css",
+  ".csv",
+  ".html",
+  ".js",
+  ".json",
+  ".jsonl",
+  ".jsx",
+  ".log",
+  ".md",
+  ".mdx",
+  ".mjs",
+  ".py",
+  ".sh",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".xml",
+  ".yaml",
+  ".yml",
+]);
 
 type WorkspaceDocumentRow = {
   path: string;
@@ -57,8 +96,58 @@ function mapRow(row: WorkspaceDocumentRow | undefined): WorkspaceSearchRecord | 
   };
 }
 
+function hasIgnoredWorkspaceDirectory(relativePath: string): boolean {
+  return relativePath.split("/").some((segment) => IGNORED_DIRECTORY_NAMES.has(segment));
+}
+
+function normalizeWorkspacePattern(pattern: string): string {
+  return pattern.replace(/^\.\//, "").replace(/\\/g, "/");
+}
+
+function workspacePathMatchesPattern(relativePath: string, pattern: string): boolean {
+  const normalizedPattern = normalizeWorkspacePattern(pattern);
+  if (normalizedPattern === "**") return true;
+  if (normalizedPattern.endsWith("/**")) {
+    const prefix = normalizedPattern.slice(0, -3);
+    return relativePath === prefix || relativePath.startsWith(`${prefix}/`);
+  }
+  if (normalizedPattern.endsWith("/*")) {
+    const prefix = normalizedPattern.slice(0, -2);
+    if (!relativePath.startsWith(`${prefix}/`)) return false;
+    return !relativePath.slice(prefix.length + 1).includes("/");
+  }
+  return relativePath === normalizedPattern;
+}
+
+function workspacePathCouldMatchPattern(relativePath: string, pattern: string): boolean {
+  const normalizedPattern = normalizeWorkspacePattern(pattern);
+  if (normalizedPattern === "**" || workspacePathMatchesPattern(relativePath, normalizedPattern)) return true;
+  const firstWildcard = normalizedPattern.search(/[?*]/);
+  const staticPrefix = firstWildcard === -1 ? normalizedPattern : normalizedPattern.slice(0, firstWildcard);
+  const prefixSegments = staticPrefix.split("/").filter(Boolean);
+  const pathSegments = relativePath.split("/").filter(Boolean);
+  return prefixSegments.slice(0, pathSegments.length).join("/") === pathSegments.join("/");
+}
+
+function isIncludedWorkspacePath(relativePath: string, includePatterns: string[]): boolean {
+  return includePatterns.some((pattern) => workspacePathMatchesPattern(relativePath, pattern));
+}
+
+function couldContainIncludedWorkspacePath(relativePath: string, includePatterns: string[]): boolean {
+  return includePatterns.some((pattern) => workspacePathCouldMatchPattern(relativePath, pattern));
+}
+
 function shouldIgnoreWorkspacePath(relativePath: string): boolean {
-  return relativePath === WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME || relativePath.endsWith(".sqlite") || relativePath.endsWith(".sqlite-shm") || relativePath.endsWith(".sqlite-wal");
+  if (relativePath === WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME || relativePath.endsWith(".sqlite") || relativePath.endsWith(".sqlite-shm") || relativePath.endsWith(".sqlite-wal")) {
+    return true;
+  }
+
+  if (hasIgnoredWorkspaceDirectory(relativePath)) {
+    return true;
+  }
+
+  const extension = extname(relativePath).toLowerCase();
+  return !INDEXED_FILE_EXTENSIONS.has(extension);
 }
 
 function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
@@ -82,7 +171,7 @@ function buildFtsQuery(query: string): string {
   return terms.map((term) => `"${term.replace(/"/g, '""')}"`).join(" ");
 }
 
-async function collectWorkspaceFiles(workspaceRoot: string): Promise<string[]> {
+async function collectWorkspaceFiles(workspaceRoot: string, includePatterns: string[]): Promise<string[]> {
   const files: string[] = [];
   const pending = [workspaceRoot];
 
@@ -97,8 +186,14 @@ async function collectWorkspaceFiles(workspaceRoot: string): Promise<string[]> {
       if (stats.isSymbolicLink()) {
         continue;
       }
+      const relativePath = relative(workspaceRoot, absolutePath).split(sep).join("/");
       if (stats.isDirectory()) {
-        pending.push(absolutePath);
+        if (!hasIgnoredWorkspaceDirectory(relativePath) && couldContainIncludedWorkspacePath(relativePath, includePatterns)) {
+          pending.push(absolutePath);
+        }
+        continue;
+      }
+      if (!isIncludedWorkspacePath(relativePath, includePatterns) || shouldIgnoreWorkspacePath(relativePath)) {
         continue;
       }
       if (stats.isFile()) {
@@ -161,6 +256,10 @@ async function indexWorkspacePath(
   const existing = await repository.getByPath(relativePath);
   const modifiedAtMs = fileStats.mtimeMs;
   const size = fileStats.size;
+  if (size > MAX_INDEXED_FILE_BYTES) {
+    await repository.deleteByPath(relativePath);
+    return;
+  }
   if (existing && existing.modifiedAtMs === modifiedAtMs && existing.size === size) {
     return;
   }
@@ -196,11 +295,11 @@ export function getWorkspaceSearchDatabasePath(runtime: RuntimeState): string {
   return join(runtime.paths.workspace, WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME);
 }
 
-export async function syncWorkspaceSearchIndex(repository: WorkspaceSearchRepository, workspaceRoot: string): Promise<void> {
+export async function syncWorkspaceSearchIndex(repository: WorkspaceSearchRepository, workspaceRoot: string, includePatterns = ["**"]): Promise<void> {
   const canonicalWorkspaceRoot = await realpath(workspaceRoot);
   const seenPaths = new Set<string>();
 
-  for (const absolutePath of await collectWorkspaceFiles(workspaceRoot)) {
+  for (const absolutePath of await collectWorkspaceFiles(workspaceRoot, includePatterns)) {
     const canonicalPath = await realpath(absolutePath);
     if (!isWithinWorkspacePath(canonicalWorkspaceRoot, canonicalPath)) {
       throw new Error(`workspace search path must stay within workspace: ${canonicalWorkspaceRoot}`);
@@ -222,23 +321,22 @@ export async function syncWorkspaceSearchIndex(repository: WorkspaceSearchReposi
   }
 }
 
-export async function refreshWorkspaceSearchIndexForWorkspace(workspaceRoot: string): Promise<void> {
+export async function refreshWorkspaceSearchIndexForWorkspace(workspaceRoot: string, includePatterns = ["**"]): Promise<void> {
   const repository = createSqliteWorkspaceSearchRepository(join(workspaceRoot, WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME));
 
   try {
-    await syncWorkspaceSearchIndex(repository, workspaceRoot);
+    await syncWorkspaceSearchIndex(repository, workspaceRoot, includePatterns);
   } finally {
     repository.close();
   }
 }
 
 export async function refreshWorkspaceSearchIndex(runtime: RuntimeState): Promise<void> {
-  await refreshWorkspaceSearchIndexForWorkspace(runtime.paths.workspace);
+  await refreshWorkspaceSearchIndexForWorkspace(runtime.paths.workspace, runtime.config.workspaceSearch?.include);
 }
 
-export function createWorkspaceSearchIndexerForWorkspace(workspaceRoot: string): WorkspaceSearchIndexer {
-  const databasePath = join(workspaceRoot, WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME);
-  const repository = createSqliteWorkspaceSearchRepository(databasePath);
+export function createWorkspaceSearchIndexerForWorkspace(workspaceRoot: string, config: WorkspaceSearchIndexConfig = { enabled: true, include: ["**"] }): WorkspaceSearchIndexer {
+  let repository: WorkspaceSearchRepository | undefined;
   let watcher: FSWatcher | undefined;
   let started = false;
 
@@ -246,7 +344,8 @@ export function createWorkspaceSearchIndexerForWorkspace(workspaceRoot: string):
     started = false;
     void watcher?.close();
     watcher = undefined;
-    repository.close();
+    repository?.close();
+    repository = undefined;
     queueMicrotask(() => {
       throw toError(error);
     });
@@ -254,9 +353,17 @@ export function createWorkspaceSearchIndexerForWorkspace(workspaceRoot: string):
 
   return {
     async start(): Promise<void> {
-      if (started) return;
-      await repository.init();
-      await syncWorkspaceSearchIndex(repository, workspaceRoot);
+      if (started || !config.enabled) return;
+      const databasePath = join(workspaceRoot, WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME);
+      repository = createSqliteWorkspaceSearchRepository(databasePath);
+      try {
+        await repository.init();
+        await syncWorkspaceSearchIndex(repository, workspaceRoot, config.include);
+      } catch (error) {
+        repository.close();
+        repository = undefined;
+        throw error;
+      }
 
       watcher = chokidar.watch(workspaceRoot, {
         ignored: (path, stats) => {
@@ -267,7 +374,13 @@ export function createWorkspaceSearchIndexerForWorkspace(workspaceRoot: string):
           if (stats?.isSymbolicLink()) {
             return true;
           }
-          return shouldIgnoreWorkspacePath(relativePath);
+          if (stats?.isDirectory()) {
+            return hasIgnoredWorkspaceDirectory(relativePath) || !couldContainIncludedWorkspacePath(relativePath, config.include);
+          }
+          if (!stats) {
+            return hasIgnoredWorkspaceDirectory(relativePath) || relativePath === WORKSPACE_SEARCH_INDEX_DATABASE_FILENAME || relativePath.endsWith(".sqlite") || relativePath.endsWith(".sqlite-shm") || relativePath.endsWith(".sqlite-wal");
+          }
+          return !isIncludedWorkspacePath(relativePath, config.include) || shouldIgnoreWorkspacePath(relativePath);
         },
         ignoreInitial: true,
         awaitWriteFinish: {
@@ -277,9 +390,11 @@ export function createWorkspaceSearchIndexerForWorkspace(workspaceRoot: string):
       });
 
       const update = (path: string) => {
+        if (!repository) return;
         void indexWorkspacePath(repository, workspaceRoot, path).catch(failIndexer);
       };
       const remove = (path: string) => {
+        if (!repository) return;
         void deleteWorkspacePath(repository, workspaceRoot, path).catch(failIndexer);
       };
 
@@ -295,13 +410,14 @@ export function createWorkspaceSearchIndexerForWorkspace(workspaceRoot: string):
       started = false;
       await watcher?.close();
       watcher = undefined;
-      repository.close();
+      repository?.close();
+      repository = undefined;
     },
   };
 }
 
 export function createWorkspaceSearchIndexer(runtime: RuntimeState): WorkspaceSearchIndexer {
-  return createWorkspaceSearchIndexerForWorkspace(runtime.paths.workspace);
+  return createWorkspaceSearchIndexerForWorkspace(runtime.paths.workspace, runtime.config.workspaceSearch);
 }
 
 export function createSqliteWorkspaceSearchRepository(databasePath: string): WorkspaceSearchRepository {

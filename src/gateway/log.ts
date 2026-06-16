@@ -55,6 +55,14 @@ export function logGatewayError(request: FastifyRequest, error: Error): void {
   });
 }
 
+export function logWorkspaceSearchIndexerStarted(): void {
+  gatewayLogger.info("workspace_search_indexer_started");
+}
+
+export function logWorkspaceSearchIndexerFailed(error: Error): void {
+  gatewayLogger.error("workspace_search_indexer_failed", { message: error.message, error });
+}
+
 export function logGatewayAuthWarning(provider: string, authFile: string): void {
   gatewayLogger.warn("gateway_auth_warning", {
     provider,

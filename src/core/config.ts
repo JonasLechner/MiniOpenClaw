@@ -36,6 +36,10 @@ export type UserConfig = {
   logging?: {
     level?: LogLevel;
   };
+  workspaceSearch?: {
+    enabled?: boolean;
+    include?: string[];
+  };
 };
 
 export type ResolvedConfig = {
@@ -59,6 +63,10 @@ export type ResolvedConfig = {
   sandbox: SandboxConfig;
   logging: {
     level: LogLevel;
+  };
+  workspaceSearch?: {
+    enabled: boolean;
+    include: string[];
   };
 };
 
@@ -103,6 +111,10 @@ const defaultConfig: UserConfig = {
   },
   logging: {
     level: "info",
+  },
+  workspaceSearch: {
+    enabled: true,
+    include: ["memory/**", "project/**", "projects/**"],
   },
 };
 
@@ -162,6 +174,7 @@ function parseConfig(path: string): ResolvedConfig {
   const agent = (config.agent ?? {}) as Record<string, unknown>;
   const sandbox = (config.sandbox ?? {}) as Record<string, unknown>;
   const logging = (config.logging ?? {}) as Record<string, unknown>;
+  const workspaceSearch = (config.workspaceSearch ?? {}) as Record<string, unknown>;
   const telegram = (gateway.telegram ?? {}) as Record<string, unknown>;
 
   if (config.workspacePath !== undefined && typeof config.workspacePath !== "string") {
@@ -213,6 +226,21 @@ function parseConfig(path: string): ResolvedConfig {
 
   if (config.logging !== undefined && (!config.logging || typeof config.logging !== "object" || Array.isArray(config.logging))) {
     throw new Error(`Invalid config file at ${path}: logging must be an object.`);
+  }
+
+  if (config.workspaceSearch !== undefined && (!config.workspaceSearch || typeof config.workspaceSearch !== "object" || Array.isArray(config.workspaceSearch))) {
+    throw new Error(`Invalid config file at ${path}: workspaceSearch must be an object.`);
+  }
+
+  if (workspaceSearch.enabled !== undefined && typeof workspaceSearch.enabled !== "boolean") {
+    throw new Error(`Invalid config file at ${path}: workspaceSearch.enabled must be a boolean.`);
+  }
+
+  if (
+    workspaceSearch.include !== undefined
+    && (!Array.isArray(workspaceSearch.include) || workspaceSearch.include.some((value) => typeof value !== "string" || value.length === 0))
+  ) {
+    throw new Error(`Invalid config file at ${path}: workspaceSearch.include must be a non-empty array of strings.`);
   }
 
   if (agent.provider !== undefined && typeof agent.provider !== "string") {
@@ -316,6 +344,10 @@ function parseConfig(path: string): ResolvedConfig {
     },
     logging: {
       level: (logging.level as LogLevel | undefined) ?? defaultConfig.logging!.level!,
+    },
+    workspaceSearch: {
+      enabled: (workspaceSearch.enabled as boolean | undefined) ?? defaultConfig.workspaceSearch!.enabled!,
+      include: (workspaceSearch.include as string[] | undefined) ?? defaultConfig.workspaceSearch!.include!,
     },
   };
 }

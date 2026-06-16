@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "vitest";
@@ -30,6 +30,52 @@ test("workspace search indexes the workspace recursively and ranks matches with 
       "notes/nested/a.md",
       "notes/b.md",
     ]);
+  } finally {
+    repository.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workspace search skips generated, cached, binary, sqlite, and oversized files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "miniopenclaw-workspace-search-ignore-"));
+  const repository = createSqliteWorkspaceSearchRepository(join(root, "workspace-search.sqlite"));
+
+  try {
+    await mkdir(join(root, ".pi", "repos", "cached"), { recursive: true });
+    await mkdir(join(root, "repo", ".git", "objects"), { recursive: true });
+    await mkdir(join(root, "repo", "node_modules", "pkg"), { recursive: true });
+    await mkdir(join(root, "notes"), { recursive: true });
+    await writeFile(join(root, ".pi", "repos", "cached", "a.md"), "hidden pi cache sqlite text\n", "utf8");
+    await writeFile(join(root, "repo", ".git", "objects", "pack.md"), "hidden git sqlite text\n", "utf8");
+    await writeFile(join(root, "repo", "node_modules", "pkg", "index.js"), "hidden dependency sqlite text\n", "utf8");
+    await writeFile(join(root, "notes", "image.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeFile(join(root, "notes", "huge.md"), `${"large ".repeat(180_000)}sqlite`, "utf8");
+    await writeFile(join(root, "notes", "keep.md"), "visible sqlite note\n", "utf8");
+
+    await syncWorkspaceSearchIndex(repository, root);
+    const matches = await repository.search("sqlite", 10);
+
+    assert.deepEqual(matches.map((match) => match.path), ["notes/keep.md"]);
+  } finally {
+    repository.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workspace search indexes only configured include patterns", async () => {
+  const root = await mkdtemp(join(tmpdir(), "miniopenclaw-workspace-search-include-"));
+  const repository = createSqliteWorkspaceSearchRepository(join(root, "workspace-search.sqlite"));
+
+  try {
+    await mkdir(join(root, "memory"), { recursive: true });
+    await mkdir(join(root, "scratch"), { recursive: true });
+    await writeFile(join(root, "memory", "keep.md"), "included sqlite note\n", "utf8");
+    await writeFile(join(root, "scratch", "skip.md"), "excluded sqlite note\n", "utf8");
+
+    await syncWorkspaceSearchIndex(repository, root, ["memory/**"]);
+    const matches = await repository.search("sqlite", 10);
+
+    assert.deepEqual(matches.map((match) => match.path), ["memory/keep.md"]);
   } finally {
     repository.close();
     await rm(root, { recursive: true, force: true });
@@ -78,6 +124,23 @@ test("workspace search only refreshes on demand via forceRefresh without a runni
       { workspace: createHostWorkspace(root), sandbox: new HostSandbox(root) },
     );
     assert.equal(refreshedResult.details?.matches[0]?.path, "notes/b.md");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("disabled workspace search indexer does not create the sqlite index", async () => {
+  const root = await mkdtemp(join(tmpdir(), "miniopenclaw-workspace-search-disabled-"));
+  const indexer = createWorkspaceSearchIndexerForWorkspace(root, { enabled: false, include: ["memory/**"] });
+
+  try {
+    await mkdir(join(root, "memory"), { recursive: true });
+    await writeFile(join(root, "memory", "a.md"), "Disabled search should not index this sqlite note.\n", "utf8");
+
+    await indexer.start();
+    await indexer.stop();
+
+    await assert.rejects(() => stat(join(root, "workspace-search.sqlite")), { code: "ENOENT" });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

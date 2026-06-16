@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import type { RuntimeState } from "../core/runtime.js";
 import { createNewSession, ensureCurrentSession, getSessionById, listSessions } from "../core/sessions.js";
 import { createMainSessionAgent } from "./agent-runner.js";
-import { logGatewayError, logGatewayRequest, markGatewayRequestStart } from "./log.js";
+import { logGatewayError, logGatewayRequest, logWorkspaceSearchIndexerFailed, logWorkspaceSearchIndexerStarted, markGatewayRequestStart } from "./log.js";
 import { createGatewayScheduler } from "../jobs/scheduler.js";
 import { createWorkspaceSearchIndexer } from "../core/workspace-search-index.js";
 import { toSessionResponse } from "./session-response.js";
@@ -75,9 +75,11 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
   });
 
   app.addHook("onReady", async () => {
-    await workspaceSearchIndexer.start();
     await telegramApp?.start();
     scheduler.start();
+    void workspaceSearchIndexer.start()
+      .then(logWorkspaceSearchIndexerStarted)
+      .catch((error: unknown) => logWorkspaceSearchIndexerFailed(error instanceof Error ? error : new Error(String(error))));
   });
 
   app.addHook("onClose", async () => {

@@ -49,6 +49,10 @@ MiniOpenClaw creates this file automatically if it does not exist. Relative work
   },
   "logging": {
     "level": "info"
+  },
+  "workspaceSearch": {
+    "enabled": true,
+    "include": ["memory/**", "project/**", "projects/**"]
   }
 }
 ```
@@ -189,6 +193,25 @@ Controls log verbosity.
 - type: `debug`, `info`, `warn`, or `error`
 - default: `info`
 
+## `workspaceSearch`
+Controls the local SQLite full-text workspace search index.
+
+Indexing starts in the background after the gateway is ready; it does not block Telegram startup.
+
+### `workspaceSearch.enabled`
+Enable or disable background indexing.
+
+- type: boolean
+- default: `true`
+
+### `workspaceSearch.include`
+Workspace-relative glob-like paths to index.
+
+- type: array of strings
+- default: `["memory/**", "project/**", "projects/**"]`
+- supported forms include exact paths, `dir/*`, and recursive `dir/**`
+- hard safety excludes still apply, including `.pi`, `.git`, `node_modules`, SQLite files, unknown/binary extensions, and oversized files
+
 ## Validation notes
 
 MiniOpenClaw validates the config file on startup and fails early if values have the wrong type or an invalid combination.
@@ -200,6 +223,8 @@ Examples:
 - `sandbox.engine` must be `auto`, `docker`, or `podman`.
 - `sandbox.network` must be `none` or `default`.
 - `logging.level` must be `debug`, `info`, `warn`, or `error`.
+- `workspaceSearch.enabled` must be a boolean.
+- `workspaceSearch.include` must be an array of non-empty strings.
 - if `agent.availableModels` is set, `agent.provider` must be one of its keys.
 - if both `agent.availableModels` and `agent.modelId` are set, the selected model must be listed under the selected provider.
 
