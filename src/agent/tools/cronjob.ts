@@ -2,9 +2,11 @@ import { Type } from "@earendil-works/pi-ai";
 import { initializeRuntime } from "../../core/runtime.js";
 import {
   createScheduledTask,
+  deleteScheduledTask,
   listScheduledTasks,
-  setScheduledTaskEnabled,
+  updateScheduledTask,
   validateCronExpression,
+  type ScheduledTaskPatch,
 } from "../../jobs/task-store.js";
 import { requireToolContext, textToolResult, type ToolDefinition, type ToolRunResult } from "./types.js";
 
@@ -18,6 +20,16 @@ export type CronjobInput =
       kind?: "prompt" | "notification";
       enabled?: boolean;
     }
+  | {
+      action: "edit";
+      id: string;
+      cron?: string;
+      prompt?: string;
+      target?: "main-session" | "detached";
+      kind?: "prompt" | "notification";
+      enabled?: boolean;
+    }
+  | { action: "delete"; id: string }
   | { action: "enable"; id: string }
   | { action: "disable"; id: string };
 
@@ -27,9 +39,9 @@ function formatResult(value: unknown): string {
 
 export const cronjobTool: ToolDefinition<CronjobInput, ToolRunResult> = {
   name: "cronjob",
-  description: "Manage scheduled Telegram cron jobs for the current chat. Supports listing, creating, enabling, and disabling jobs. Does not execute jobs immediately.",
+  description: "Manage scheduled Telegram cron jobs for the current chat. Supports listing, creating, editing, deleting, enabling, and disabling jobs. Does not execute jobs immediately.",
   parameters: Type.Object({
-    action: Type.String({ enum: ["list", "create", "enable", "disable"] }),
+    action: Type.String({ enum: ["list", "create", "edit", "delete", "enable", "disable"] }),
     id: Type.Optional(Type.String()),
     cron: Type.Optional(Type.String()),
     prompt: Type.Optional(Type.String()),
@@ -63,13 +75,28 @@ export const cronjobTool: ToolDefinition<CronjobInput, ToolRunResult> = {
         return textToolResult(formatResult(created));
       }
 
+      case "edit": {
+        if (!input.id) throw new Error("id is required for edit");
+        const patch: ScheduledTaskPatch = {};
+        if (input.cron !== undefined) patch.cron = input.cron;
+        if (input.prompt !== undefined) patch.prompt = input.prompt;
+        if (input.target !== undefined) patch.target = input.target;
+        if (input.kind !== undefined) patch.kind = input.kind;
+        if (input.enabled !== undefined) patch.enabled = input.enabled;
+        return textToolResult(formatResult(await updateScheduledTask(runtime.paths, input.id, patch)));
+      }
+
+      case "delete":
+        if (!input.id) throw new Error("id is required for delete");
+        return textToolResult(formatResult(await deleteScheduledTask(runtime.paths, input.id)));
+
       case "enable":
         if (!input.id) throw new Error("id is required for enable");
-        return textToolResult(formatResult(await setScheduledTaskEnabled(runtime.paths, input.id, true)));
+        return textToolResult(formatResult(await updateScheduledTask(runtime.paths, input.id, { enabled: true })));
 
       case "disable":
         if (!input.id) throw new Error("id is required for disable");
-        return textToolResult(formatResult(await setScheduledTaskEnabled(runtime.paths, input.id, false)));
+        return textToolResult(formatResult(await updateScheduledTask(runtime.paths, input.id, { enabled: false })));
     }
   },
 };

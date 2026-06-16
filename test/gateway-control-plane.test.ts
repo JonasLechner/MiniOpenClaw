@@ -14,9 +14,11 @@ import {
   DEFAULT_REFLECTION_CRON,
   DEFAULT_REFLECTION_PROMPT,
   getRunnableScheduledTasks,
+  deleteScheduledTask,
   listScheduledTasks,
   markScheduledTaskRan,
   matchesCronExpression,
+  updateScheduledTask,
   validateCronExpression,
 } from "../src/jobs/task-store.js";
 
@@ -186,6 +188,47 @@ describe("gateway control-plane helpers", () => {
     });
 
     expect((await getRunnableScheduledTasks(paths, now)).map((entry) => entry.id)).toEqual([task.id]);
+  });
+
+  it("edits and deletes scheduled tasks", async () => {
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+
+    const task = await createScheduledTask(paths, {
+      channel: "telegram",
+      chatId: "chat-1",
+      target: "main-session",
+      kind: "prompt",
+      prompt: "status check",
+      cron: "15 12 * * *",
+      enabled: true,
+    });
+
+    const edited = await updateScheduledTask(paths, task.id, {
+      cron: "*/5 * * * *",
+      prompt: "new prompt",
+      target: "detached",
+      kind: "notification",
+      enabled: false,
+    });
+
+    expect(edited).toMatchObject({
+      id: task.id,
+      cron: "*/5 * * * *",
+      prompt: "new prompt",
+      target: "detached",
+      kind: "notification",
+      enabled: false,
+      createdAt: task.createdAt,
+    });
+    expect(edited.updatedAt >= task.updatedAt).toBe(true);
+
+    await expect(updateScheduledTask(paths, task.id, { cron: "bad" })).rejects.toThrow("expected 5 fields");
+    expect((await listScheduledTasks(paths))[0]?.cron).toBe("*/5 * * * *");
+
+    const deleted = await deleteScheduledTask(paths, task.id);
+    expect(deleted.id).toBe(task.id);
+    expect(await listScheduledTasks(paths)).toEqual([]);
   });
 
   it("runs cron jobs at most once per minute", async () => {

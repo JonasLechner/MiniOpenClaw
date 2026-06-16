@@ -182,19 +182,25 @@ export async function markScheduledTaskRan(paths: RuntimePaths, taskId: string, 
   });
 }
 
-export async function setScheduledTaskEnabled(
+export type ScheduledTaskPatch = Partial<Pick<ScheduledTask, "target" | "kind" | "prompt" | "cron" | "enabled">>;
+
+export async function updateScheduledTask(
   paths: RuntimePaths,
   taskId: string,
-  enabled: boolean,
+  patch: ScheduledTaskPatch,
 ): Promise<ScheduledTask> {
+  if (Object.keys(patch).length === 0) {
+    throw new Error("At least one scheduled task field is required for edit.");
+  }
+  if (patch.cron !== undefined) validateCronExpression(patch.cron);
+
   return updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], async (tasks) => {
     const task = tasks.find((entry) => entry.id === taskId);
     if (!task) {
       throw new Error(`Unknown scheduled task ${taskId}.`);
     }
 
-    task.enabled = enabled;
-    task.updatedAt = new Date().toISOString();
+    Object.assign(task, patch, { updatedAt: new Date().toISOString() });
     return tasks;
   }).then((tasks) => {
     const task = tasks.find((entry) => entry.id === taskId);
@@ -204,3 +210,21 @@ export async function setScheduledTaskEnabled(
     return task;
   });
 }
+
+export async function deleteScheduledTask(paths: RuntimePaths, taskId: string): Promise<ScheduledTask> {
+  let deleted: ScheduledTask | undefined;
+
+  await updateJsonFile(paths.scheduledTasks, [] as ScheduledTask[], async (tasks) => {
+    deleted = tasks.find((entry) => entry.id === taskId);
+    if (!deleted) {
+      throw new Error(`Unknown scheduled task ${taskId}.`);
+    }
+    return tasks.filter((entry) => entry.id !== taskId);
+  });
+
+  if (!deleted) {
+    throw new Error(`Unknown scheduled task ${taskId}.`);
+  }
+  return deleted;
+}
+
