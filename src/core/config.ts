@@ -122,9 +122,20 @@ export function writeUserConfig(path: string, config: UserConfig): void {
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
+function parseJsonFile(path: string): unknown {
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as unknown;
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(`Invalid config file at ${path}: ${error.message}`, { cause: error });
+    }
+    throw error;
+  }
+}
+
 export function updateUserConfig(path: string, updater: (config: UserConfig) => UserConfig): UserConfig {
   ensureJsonFile(path, defaultConfig);
-  const current = JSON.parse(readFileSync(path, "utf8")) as UserConfig;
+  const current = parseJsonFile(path) as UserConfig;
   const next = updater(current);
   writeUserConfig(path, next);
   return next;
@@ -141,7 +152,7 @@ function isPositiveNumber(value: unknown): value is number {
 function parseConfig(path: string): ResolvedConfig {
   ensureJsonFile(path, defaultConfig);
 
-  const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+  const parsed = parseJsonFile(path);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(`Invalid config file at ${path}: expected a JSON object.`);
   }

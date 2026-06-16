@@ -42,8 +42,8 @@ function getModelIds(runtime: RuntimeState, providerId: string): string[] {
 }
 
 async function selectAuthMethod(): Promise<AuthMethod> {
-  const selected = await promptSelect("Select authentication method:", ["Use a subscription", "Use an API key"]);
-  return selected === "Use an API key" ? "apiKey" : "oauth";
+  const selected = await promptSelect("Select authentication method:", ["Use a subscription", "Use an API key (not officially supported)"]);
+  return selected === "Use an API key (not officially supported)" ? "apiKey" : "oauth";
 }
 
 type OnboardingDraft = {
@@ -181,11 +181,11 @@ export async function runOnboarding(runtime: RuntimeState): Promise<void> {
         contextMarkdown: await readOnboardingFile(runtime.paths.workspace, "context.md"),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("\nI couldn't generate your profile summary.");
-      console.error(message);
-      console.error(`You can try again with \`miniopenclaw onboard\`, use different auth in ${runtime.paths.authFile}, or abort for now.`);
-      throw error;
+      const details = error instanceof Error ? ` Details: ${error.message}` : "";
+      throw new Error(
+        `I couldn't generate your profile summary because the onboarding LLM step failed. This usually means the selected provider or authentication isn't working yet. Please run \`miniopenclaw onboard\` again, or try a different provider/auth setup in ${runtime.paths.authFile}.${details}`,
+        { cause: error },
+      );
     }
   }
 

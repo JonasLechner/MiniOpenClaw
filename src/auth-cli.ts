@@ -106,8 +106,8 @@ async function selectAuthMethod(argv: string[]): Promise<AuthMethod> {
   }
 
   if (process.stdin.isTTY && process.stdout.isTTY) {
-    const selected = await promptSelect("Select authentication method:", ["Use a subscription", "Use an API key"]);
-    return selected === "Use an API key" ? "apiKey" : "oauth";
+    const selected = await promptSelect("Select authentication method:", ["Use a subscription", "Use an API key (not officially supported)"]);
+    return selected === "Use an API key (not officially supported)" ? "apiKey" : "oauth";
   }
 
   return "oauth";

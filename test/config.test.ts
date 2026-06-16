@@ -114,6 +114,19 @@ it("updateUserConfig persists config updates", async () => {
   expect(persisted.agent?.modelId).toBe("gpt-test");
 });
 
+it("wraps malformed JSON errors with the config file path", async () => {
+  await mockHome();
+
+  const configDir = join(home as string, ".mini-openclaw");
+  mkdirSync(configDir, { recursive: true });
+  const configFile = join(configDir, "config.json");
+  writeFileSync(configFile, "{\n  invalid\n", "utf8");
+
+  const { loadRuntimeConfig } = await import("../src/core/config.js");
+
+  expect(() => loadRuntimeConfig()).toThrow(`Invalid config file at ${configFile}:`);
+});
+
 it("rejects logging set to null", async () => {
   await mockHome();
 

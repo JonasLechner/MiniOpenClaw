@@ -13,8 +13,9 @@
       --blue: #5f7293;
       --line: #d9e2f0;
       --red: #ff6d58;
+      --page-no-color: #7f8898;
       --border: #d8e2f0;
-      --muted: #6f7f98;
+      --muted: #566782;
       --badge: #3368c7;
       --page-w: 420mm;
       --page-h: 297mm;
@@ -24,7 +25,11 @@
       --shadow: 0 10px 30px rgba(39, 74, 145, 0.06), 0 0 0 0.5px rgba(39, 74, 145, 0.05);
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     html, body { margin: 0; padding: 0; background: #eef3fb; }
     body {
       font-family: Aptos, "Aptos Display", "Segoe UI", "Helvetica Neue", "TeX Gyre Heros", Arial, sans-serif;
@@ -37,6 +42,7 @@
     .poster {
       width: var(--page-w);
       min-height: var(--page-h);
+      max-height: var(--page-h);
       background: var(--bg);
       margin: 0 auto 12px;
       position: relative;
@@ -74,12 +80,13 @@
     }
 
     .page-no {
-      color: var(--red);
+      color: var(--page-no-color);
       font-size: 15pt;
       font-weight: 700;
       line-height: 1;
       margin-top: 1.5mm;
       flex: 0 0 auto;
+      text-align: right;
     }
 
     .layout {
@@ -170,7 +177,7 @@
 
     .section-subtitle {
       color: var(--navy);
-      font-size: 12pt;
+      font-size: 13pt;
       line-height: 1.35;
       margin-top: 0.7mm;
     }
@@ -187,6 +194,12 @@
       margin-left: calc(6.2mm + 3mm);
     }
 
+    .memory .section-body,
+    .skills .section-body,
+    .proactivity .section-body {
+      margin-left: 0;
+    }
+
     .workspace-figure {
       box-shadow: 0 6px 20px rgba(37, 77, 150, 0.05);
       width: 100%;
@@ -194,7 +207,7 @@
       height: auto;
       border-radius: 2mm;
       display: block;
-      margin: 0.4mm auto 0;
+      margin: 0.4mm 0 0;
     }
 
     .phone-crop {
@@ -215,7 +228,7 @@
     }
 
     .body-copy {
-      font-size: 12pt;
+      font-size: 13pt;
       line-height: 1.45;
       margin: 0;
     }
@@ -261,7 +274,7 @@
     .plain-list li {
       margin: 0;
       color: var(--muted);
-      font-size: 12pt;
+      font-size: 13pt;
       line-height: 1.4;
     }
 
@@ -313,9 +326,41 @@
 
     .arch-caption {
       color: var(--muted);
-      font-size: 12pt;
+      font-size: 13pt;
       line-height: 1.35;
       text-align: center;
+    }
+
+    .arch-inline-section {
+      display: grid;
+      gap: 1.4mm;
+      margin-top: 1mm;
+    }
+
+    .arch-inline-title {
+      margin: 0;
+      color: var(--navy);
+      font-size: 13pt;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .arch-overview-title {
+      font-size: 15pt;
+    }
+
+    .arch-inline-text {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13pt;
+      line-height: 1.4;
+      text-align: justify;
+      text-justify: inter-word;
+    }
+
+    .arch-overview-text {
+      font-size: 15pt;
+      line-height: 1.5;
     }
 
     .arch-notes {
@@ -336,7 +381,7 @@
     .arch-note-title {
       margin: 0;
       color: var(--navy);
-      font-size: 13pt;
+      font-size: 14pt;
       font-weight: 800;
       line-height: 1.15;
     }
@@ -344,8 +389,8 @@
     .arch-note-text {
       margin: 0;
       color: var(--muted);
-      font-size: 12.5pt;
-      line-height: 1.4;
+      font-size: 14pt;
+      line-height: 1.42;
       text-align: justify;
       text-justify: inter-word;
     }
@@ -369,7 +414,7 @@
       height: 100%;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: 67mm 1fr;
+      grid-template-rows: auto 1fr;
       gap: 5mm;
     }
 
@@ -387,7 +432,7 @@
 
     .shot-title {
       color: var(--navy);
-      font-size: 11.6pt;
+      font-size: 14pt;
       font-weight: 800;
       line-height: 1.1;
       margin: 0;
@@ -409,6 +454,17 @@
       object-fit: contain;
       object-position: center;
       display: block;
+    }
+
+    .dashboard-shot {
+      align-self: start;
+      grid-template-rows: auto auto;
+    }
+
+    .dashboard-shot .shot-frame {
+      aspect-ratio: 3 / 2;
+      width: 100%;
+      height: auto;
     }
 
     .daily-card .shot-frame {
@@ -463,8 +519,14 @@
       display: grid;
       gap: 2.2mm;
       color: var(--muted);
-      font-size: 12.4pt;
-      line-height: 1.35;
+      font-size: 14pt;
+      line-height: 1.42;
+      text-align: justify;
+      text-justify: inter-word;
+    }
+
+    .lesson-item {
+      margin: 0;
     }
 
     .problem-card {
@@ -513,7 +575,7 @@
       left: 24mm;
       bottom: 18mm;
       color: var(--muted);
-      font-size: 11.5pt;
+      font-size: 13pt;
     }
 
     strong { font-weight: 800; }
@@ -525,7 +587,8 @@
 
     @media print {
       html, body { background: transparent; padding: 0; }
-      .poster { margin: 0; width: 420mm; min-height: 297mm; }
+      .poster { margin: 0; width: 420mm; min-height: 297mm; max-height: 297mm; }
+      .page-no { color: #7f8898 !important; }
     }
   </style>
 </head>
@@ -533,7 +596,7 @@
   <main class="poster">
     <div class="title-row">
       <h1>What does an AI assistant<br>actually need to be effective?</h1>
-      <div class="page-no">01</div>
+      <div class="page-no">Group 30<br>Jonas Lechner, Simon Niederwolfsgruber</div>
     </div>
 
     <section class="layout">
@@ -541,12 +604,7 @@
         <article class="card abstract">
           <div class="kicker">ABSTRACT</div>
           <p>
-            MiniOpenClaw is a <strong>minimal long-running personal assistant.</strong>
-            The project explores what an assistant actually needs to be helpful.
-            The system combines workspace tools, Telegram-based remote access,
-            durable memory and memory-management, reusable skills, and proactivity
-            through background jobs and daily summaries. To ensure safety, all tools
-            are sandboxed by default using docker containers.
+            MiniOpenClaw is a <strong>minimal long-running personal assistant</strong> built to explore what an assistant actually needs in order to be genuinely useful. The project centers on a set of core capabilities: workspace tools, chat-based remote access, durable memory, reusable skills, and proactive background jobs. Tool use is sandboxed by default to keep the system practical as well as safe.
           </p>
         </article>
 
@@ -555,12 +613,11 @@
             <div class="badge">1</div>
             <div>
               <h2 class="section-title">Workspace tools</h2>
-              <div class="section-subtitle">Operate on your files, terminal and the web.</div>
+              <div class="section-subtitle">MiniOpenClaw can <strong>read, write, and edit files</strong>, <strong>search</strong> past sessions and documents, <strong>run terminal commands</strong> in a sandbox, and use the web.</div>
             </div>
           </div>
           <div class="section-body">
             <img class="workspace-figure" src="./claw.png" alt="MiniOpenClaw tools diagram" />
-            <p class="body-copy">MiniOpenClaw can read, write, edit, and search your workspace, run terminal commands, and use the web.</p>
           </div>
         </article>
       </div>
@@ -570,22 +627,16 @@
           <div class="section-head">
             <div class="badge">2</div>
             <div>
-              <h2 class="section-title">Telegram access</h2>
-              <div class="section-subtitle">Reach the same ongoing assistant session remotely through Telegram.</div>
+              <h2 class="section-title">Chat access</h2>
+              <div class="section-subtitle">Reach the same ongoing assistant session remotely through Telegram, with built-in commands for session and background-agent management.</div>
             </div>
           </div>
           <div class="section-body">
             <div class="phone-crop"><img class="phone" src="./telegram_iphone_transparent_crop.png" alt="Telegram on iPhone" /></div>
-            <div class="plain-list">
-              <div class="plain-entry">
-                <p class="plain-title">Built-in chat actions</p>
-                <p class="plain-desc">Commands like /new, /session, /bg, /bglist and /bgstop let the user create sessions and manage detached work.</p>
-              </div>
-            </div>
           </div>
         </article>
 
-        <article class="card section-card">
+        <article class="card section-card memory">
           <div class="section-head">
             <div class="badge">3</div>
             <div>
@@ -597,29 +648,30 @@
             <div class="plain-list">
               <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M9 13h8"/><path d="M9 17h6"/></svg><div class="plain-content"><p class="plain-title">Daily summaries</p><p class="plain-desc">High-level recap of what happened and why.</p></div></div>
               <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="m4.9 4.9 2.1 2.1"/><path d="m17 17 2.1 2.1"/><path d="m19.1 4.9-2.1 2.1"/><path d="m7 17-2.1 2.1"/></svg><div class="plain-content"><p class="plain-title">User &amp; workspace context</p><p class="plain-desc">Stable facts from onboarding, user notes, and project context files.</p></div></div>
-              <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg><div class="plain-content"><p class="plain-title">Session compaction</p><p class="plain-desc">Reduce context growth by compressing older conversation into smaller carry-forward state.</p></div></div>
+              <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg><div class="plain-content"><p class="plain-title">Session compaction</p><p class="plain-desc">Reduce context growth by compressing older conversation into smaller state.</p></div></div>
               <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><div class="plain-content"><p class="plain-title">Session history</p><p class="plain-desc">Past sessions and key outcomes.</p></div></div>
             </div>
           </div>
         </article>
 
-        <article class="card section-card">
+        <article class="card section-card skills">
           <div class="section-head">
             <div class="badge">4</div>
             <div>
               <h2 class="section-title">Skills</h2>
-              <div class="section-subtitle">Reusable prompt-and-tool workflows for recurring tasks, e.g. note capture, research synthesis, and turning plans into concrete implementation tasks.</div>
+              <div class="section-subtitle">Reusable workflows and instructions for recurring tasks, e.g. note capture or interacting with external APIs.</div>
             </div>
           </div>
           <div class="section-body">
             <div class="plain-list">
-              <div class="plain-entry"><p class="plain-title">obsidian</p><p class="plain-desc">Structured note capture and retrieval workflows for connected personal knowledge bases.</p></div>
-              <div class="plain-entry"><p class="plain-title">deep research</p><p class="plain-desc">Longer research workflows with source gathering, synthesis, and report-style outputs.</p></div>
+              <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5"/><path d="M12 12 4 7.5"/><path d="M12 12v9"/></svg><div class="plain-content"><p class="plain-title">obsidian</p><p class="plain-desc">Structured note capture and retrieval workflows for connected personal knowledge bases.</p></div></div>
+              <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V19h14v-8.5"/><path d="M9 19v-4h6v4"/><path d="M15.5 8.5a2.5 2.5 0 1 1 0 .01"/></svg><div class="plain-content"><p class="plain-title">google places</p><p class="plain-desc">Skill for interacting with the Google Maps API, for example retrieving nearby restaurants with good ratings or public transport information.</p></div></div>
+              <div class="plain-entry"><p class="plain-title">...</p></div>
             </div>
           </div>
         </article>
 
-        <article class="card section-card">
+        <article class="card section-card proactivity">
           <div class="section-head">
             <div class="badge">5</div>
             <div>
@@ -629,9 +681,9 @@
           </div>
           <div class="section-body">
             <div class="plain-list">
-              <div class="plain-entry"><p class="plain-title">Subagents</p><p class="plain-desc">Detached background runs started from Telegram or tool calls, with results fed back into the session.</p></div>
-              <div class="plain-entry"><p class="plain-title">Cron jobs</p><p class="plain-desc">Scheduled prompts and recurring tasks such as daily summaries.</p></div>
-              <div class="plain-entry"><p class="plain-title">Heartbeat checks</p><p class="plain-desc">Regular check-ins can revisit open tasks, pending follow-ups, or stale work, for example every 30 minutes.</p></div>
+              <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="8" width="12" height="9" rx="2"/><path d="M12 4v4"/><path d="M9 4h6"/><circle cx="10" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="12" r="1" fill="currentColor" stroke="none"/><path d="M10 15h4"/><path d="M8 17v3"/><path d="M16 17v3"/></svg><div class="plain-content"><p class="plain-title">Subagents</p><p class="plain-desc">Detached background runs started from Telegram or tool calls, with results fed back into the session.</p></div></div>
+              <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v7l4 2"/><path d="M4 12a8 8 0 1 1 2.3 5.7"/><path d="M4 18v-4h4"/></svg><div class="plain-content"><p class="plain-title">Cron jobs</p><p class="plain-desc">Custom recurring tasks such as daily summaries or nightly reflections.</p></div></div>
+              <div class="plain-entry memory-entry"><svg class="plain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 20-1.3-1.2C5.6 14.2 2.5 11.4 2.5 7.9A4.4 4.4 0 0 1 7 3.5c1.8 0 3.5.8 5 2.4 1.5-1.6 3.2-2.4 5-2.4a4.4 4.4 0 0 1 4.5 4.4c0 3.5-3.1 6.3-8.2 10.9L12 20z"/></svg><div class="plain-content"><p class="plain-title">Heartbeat checks</p><p class="plain-desc">Regular check-ins can revisit open tasks or stale work, for example every 30 minutes.</p></div></div>
             </div>
           </div>
         </article>
@@ -644,7 +696,6 @@
   <main class="poster">
     <div class="title-row">
       <h1>Architecture</h1>
-      <div class="page-no">02</div>
     </div>
 
 
@@ -653,40 +704,43 @@
         <div class="arch-frame">
           <img class="arch-image" src="./architecture.png" alt="MiniOpenClaw architecture diagram" />
         </div>
-        <div class="arch-caption">Architecture overview · chat interface, tool execution, memory layers, reusable skills, and background jobs</div>
+        <section class="arch-inline-section">
+          <h3 class="arch-inline-title arch-overview-title">Architecture overview</h3>
+          <p class="arch-inline-text arch-overview-text">MiniOpenClaw centers on a <strong>runtime that connects user sessions, model inference, tools, memory, and background work</strong>. It runs a sequential tool-calling loop, supports both Telegram and terminal sessions, queues Telegram messages per chat, streams replies back live, and lets detached jobs send results back into the main session.</p>
+        </section>
+        <section class="arch-inline-section">
+          <h3 class="arch-inline-title arch-overview-title">Implementation details</h3>
+          <p class="arch-inline-text arch-overview-text">We used <strong>pi-ai</strong> for model-provider integration, while the surrounding <strong>runtime and agent loop</strong> were built from scratch. Telegram files are stored in the workspace and their paths are passed to the model automatically, while workspace files can also be returned to the user.</p>
+        </section>
       </div>
       <div class="arch-notes">
         <article class="card arch-note-card">
           <section class="arch-section">
-            <h3 class="arch-note-title">Transport &amp; session control</h3>
-            <p class="arch-note-text"><strong>Current sessions</strong> are tracked separately for TUI and gateway surfaces. <strong>Background work</strong> can use its own fresh session and write results back into the parent session.</p>
+            <h3 class="arch-note-title">Workspace boundary</h3>
+            <p class="arch-note-text">All agent sessions are bound to a <strong>workspace</strong> mounted into the <strong>sandbox container</strong>, so <strong>file access</strong>, <strong>search</strong>, and <strong>bash</strong> stay confined to it rather than reaching unrelated parts of the host system.</p>
+          </section>
+
+          <section class="arch-section">
+            <h3 class="arch-note-title">Sessions &amp; transport</h3>
+            <p class="arch-note-text"><strong>Telegram</strong> and <strong>TUI</strong> keep separate current sessions. Each Telegram chat is <strong>bound to one ongoing local session</strong>. <strong>Background work</strong> uses its own fresh detached session and can report results back into the main conversation.</p>
           </section>
 
           <section class="arch-section">
             <h3 class="arch-note-title">Prompt assembly</h3>
-            <p class="arch-note-text">The final <strong>system prompt</strong> is assembled once per agent session. It merges <strong>core behavior rules</strong>, <strong>durable context</strong>, <strong>skills</strong>, and <strong>environment metadata</strong>. <code>USER.md</code> and <code>context.md</code> provide <strong>human-editable persistent context</strong>. <strong>Workspace skills</strong> are discovered dynamically from <code>skills/*/SKILL.md</code> frontmatter.</p>
+            <p class="arch-note-text">The <strong>system prompt</strong> is assembled <strong>once at session start</strong>. It combines <strong>core rules</strong>, <strong>durable context</strong>, <strong>skills</strong>, and <strong>environment metadata</strong>. <code>user.md</code> and <code>context.md</code> provide persistent human-editable context, while workspace skills are discovered dynamically.</p>
           </section>
 
           <section class="arch-section">
-            <h3 class="arch-note-title">Loop, transcript &amp; persistence</h3>
-            <p class="arch-note-text">Each run first <strong>appends the user prompt</strong> to the session transcript. The runtime executes a <strong>sequential tool-calling loop</strong> until the model returns a non-tool stop reason. <strong>Tool execution events</strong> expose arguments, durations, and errors. The result is an <strong>append-only session log</strong> that preserves the full event history.</p>
-          </section>
-
-          <section class="arch-section">
-            <h3 class="arch-note-title">Compaction</h3>
-            <p class="arch-note-text"><strong>Compaction</strong> runs automatically before oversized turns or manually on request. The current <strong>user prompt</strong> is protected from pre-loop compaction. A <strong>safe boundary</strong> is chosen instead of cutting arbitrary messages. Replaced history becomes a <strong>continuation-focused summary</strong> with goals, constraints, progress, decisions, next steps, and critical context.</p>
+            <h3 class="arch-note-title">Persistence &amp; compaction</h3>
+            <p class="arch-note-text">Runs are stored as <strong>append-only session logs</strong>, and <strong>tool events</strong> record arguments, durations, and errors. When history grows too large, <strong>compaction</strong> replaces older messages with a <strong>continuation-focused summary</strong>, using a safe boundary while protecting the current user prompt.</p>
           </section>
 
 
           <section class="arch-section">
-            <h3 class="arch-note-title">Workspace search index</h3>
-            <p class="arch-note-text"><strong>Workspace search</strong> provides cross-session recall through a local full-text index. The workspace is indexed into <strong>SQLite FTS5</strong> with <strong>BM25 ranking</strong> and kept fresh by a file watcher, so the agent can retrieve relevant notes, memory, and project files without carrying everything in prompt context.</p>
+            <h3 class="arch-note-title">Workspace search</h3>
+            <p class="arch-note-text"><strong>Workspace search</strong> provides <strong>cross-session recall</strong> through a local full-text index, so the agent can retrieve relevant notes, memory, and project files without carrying everything in prompt context.</p>
           </section>
 
-          <section class="arch-section">
-            <h3 class="arch-note-title">Telegram media bridge</h3>
-            <p class="arch-note-text">The <strong>Telegram bridge</strong> connects chat with workspace artifacts. Incoming <strong>images/files</strong> can be brought into the workspace for tool use, while replies are streamed back incrementally and can return referenced workspace artifacts to Telegram.</p>
-          </section>
         </article>
       </div>
     </section>
@@ -696,28 +750,27 @@
   <main class="poster evidence">
     <div class="title-row">
       <h1>Implementation snapshots<br>&amp; learnings</h1>
-      <div class="page-no">03</div>
     </div>
 
     <section class="evidence-layout">
       <div class="shot-wall">
-        <article class="card shot-card">
-          <h3 class="shot-title">Gateway Dashboard · logs</h3>
+        <article class="card shot-card dashboard-shot">
+          <h3 class="shot-title">Gateway Dashboard · Logs</h3>
           <div class="shot-frame"><img class="shot-img" src="./gateway1.png" alt="Gateway control logs screenshot" /></div>
         </article>
 
-        <article class="card shot-card">
-          <h3 class="shot-title">Gateway Dashboard · config</h3>
+        <article class="card shot-card dashboard-shot">
+          <h3 class="shot-title">Gateway Dashboard · Config</h3>
           <div class="shot-frame"><img class="shot-img" src="./gateway2.png" alt="Gateway control config screenshot" /></div>
         </article>
 
         <article class="card shot-card">
           <h3 class="shot-title">Onboarding</h3>
-          <div class="shot-frame"><img class="shot-img" src="./onboarding.png" alt="Onboarding terminal screenshot" /></div>
+          <div class="shot-frame" style="padding-right: 5%;"><img class="shot-img" src="./onboarding.png" alt="Onboarding terminal screenshot" /></div>
         </article>
 
         <article class="card shot-card daily-card">
-          <h3 class="shot-title">Daily summaries as compact long-term memory</h3>
+          <h3 class="shot-title">Daily summaries as compact memory</h3>
           <div class="shot-frame"><img class="daily-img" src="./daily-summary.png" alt="Daily summary screenshot" /></div>
         </article>
       </div>
@@ -729,10 +782,10 @@
             <h2 class="lesson-title">Learnings</h2>
           </div>
           <ul class="lesson-list">
-            <li>Define the collaboration workflow before implementation starts.</li>
-            <li>Up-front planning mattered more than expected and reduced rework.</li>
-            <li>The prototype showed how much can be engineered in a short time.</li>
-            <li>Starting with stronger test coverage would have prevented several failures.</li>
+            <li class="lesson-item"><strong>Up-front planning</strong> mattered more than expected and reduced rework.</li>
+            <li class="lesson-item">Because AI-assisted work can <strong>move very quickly in different directions</strong>, we needed <strong>more direct communication</strong> to stay aligned, instead of only interacting through our agents.</li>
+            <li class="lesson-item">The prototype still demonstrated how much can be <strong>engineered in a short time</strong>.</li>
+            <li class="lesson-item"><strong><span style="white-space: nowrap;">/review</span> commands</strong> surfaced many bugs, and we experimented with <strong>CodeRabbit</strong> for AI-assisted code review.</li>
           </ul>
         </article>
 
@@ -742,16 +795,10 @@
             <h2 class="lesson-title">Limitations</h2>
           </div>
           <ul class="lesson-list">
-            <li>The first memory prototype based on <code>index.json</code> was unsuccessful and had to be reworked.</li>
-            <li>As the model backend, only Copilot and Codex could be supported in practice; other providers could not be tested sufficiently.</li>
+            <li class="lesson-item">The first memory prototype based on a simple JSON index was <strong>unsuccessful</strong>.</li>
+            <li class="lesson-item">In practice, only inference via <strong>Copilot and Codex</strong> could be tested extensively.</li>
+            <li class="lesson-item"><strong>AI subscription limits</strong> / not enough tokens.</li>
           </ul>
-        </article>
-
-        <article class="card token-card problem-card">
-          <div class="lesson-title-row">
-            <div class="badge">!</div>
-            <h2 class="lesson-title">Too few tokens</h2>
-          </div>
           <div class="crab-wrap">
             <img class="crab-img" src="./angry_crab.png" alt="Angry crab limitations illustration" />
           </div>

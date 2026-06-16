@@ -54,7 +54,7 @@ vi.mock("../src/onboarding/cli.js", () => ({
 describe("onboarding runner", () => {
   let root: string;
   let runtime: RuntimeState;
-  const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "log").mockImplementation(() => {});
 
   beforeEach(() => {
@@ -105,7 +105,7 @@ describe("onboarding runner", () => {
     promptTextMock.mockResolvedValue("Sepp");
     promptYesNoMock.mockResolvedValue(false);
     promptSelectMock
-      .mockResolvedValueOnce("Use an API key")
+      .mockResolvedValueOnce("Use an API key (not officially supported)")
       .mockResolvedValueOnce("openai")
       .mockResolvedValueOnce("gpt-test");
     promptMultilineTextMock.mockResolvedValue("I like concise answers.");
@@ -145,21 +145,18 @@ describe("onboarding runner", () => {
     });
   });
 
-  it("persists config and logs recovery guidance when profile summarization fails", async () => {
+  it("persists config and surfaces a clearer onboarding LLM failure message", async () => {
     summarizeOnboardingProfileMock.mockRejectedValueOnce(new Error("summary boom"));
 
     const { runOnboarding } = await import("../src/onboarding/runner.js");
 
-    await expect(runOnboarding(runtime)).rejects.toThrow("summary boom");
+    await expect(runOnboarding(runtime)).rejects.toThrow(
+      "I couldn't generate your profile summary because the onboarding LLM step failed.",
+    );
 
     const persisted = JSON.parse(readFileSync(runtime.paths.configFile, "utf8")) as Record<string, unknown>;
     expect(persisted).toMatchObject({
       agent: { provider: "openai", modelId: "gpt-test" },
     });
-    expect(consoleErrorSpy).toHaveBeenCalledWith("\nI couldn't generate your profile summary.");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("summary boom");
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("You can try again with `miniopenclaw onboard`, use different auth"),
-    );
   });
 });
