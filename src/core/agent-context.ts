@@ -3,6 +3,8 @@ import type { Context, Message } from "@earendil-works/pi-ai";
 import { readOptionalFile } from "./config.js";
 import { discoverWorkspaceSkills, renderSkillsPrompt } from "./skills.js";
 
+const WORKSPACE_DOCS_DIRNAME = "miniopenclaw-docs";
+
 export async function buildSystemPrompt(workspacePath: string, appendSystemPrompt?: string): Promise<string> {
   const parts: string[] = [
     `You are an expert assistant. You help users by reading files, executing commands, editing code, and writing new files.
@@ -32,7 +34,13 @@ export async function buildSystemPrompt(workspacePath: string, appendSystemPromp
 - Users can explicitly invoke a workspace skill with /skill:<name> [optional arguments].
 - When a relevant workspace skill exists, prefer using it over reinventing the workflow.
 - Follow explicit skill invocations carefully and use available skill descriptions to choose relevant workflows.
-</workspace_skills>`,
+</workspace_skills>
+
+<workspace_reference_docs>
+- MiniOpenClaw reference docs are available inside the workspace at ./${WORKSPACE_DOCS_DIRNAME}/.
+- Read ./${WORKSPACE_DOCS_DIRNAME}/README.md and the relevant files under ./${WORKSPACE_DOCS_DIRNAME}/docs/ when you need project/runtime context.
+- Treat ./${WORKSPACE_DOCS_DIRNAME}/ as read-only. Do not create, edit, move, or delete files there; update source docs outside the snapshot instead.
+</workspace_reference_docs>`,
   ];
 
   const userMd = await readOptionalFile(join(workspacePath, "USER.md"));

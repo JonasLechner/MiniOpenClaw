@@ -75,11 +75,17 @@ This opens the provider login flow and stores credentials in:
 ~/.mini-openclaw/auth.json
 ```
 
-If you use an API-key provider instead of OAuth, you can create the file manually:
+You can also pass an explicit provider id in non-interactive environments:
+
+```bash
+npm run auth -- openai-codex
+```
+
+If you use an API-key provider instead of OAuth, you can create the file manually. The top-level key must match your configured provider id:
 
 ```json
 {
-  "openai": {
+  "openai-codex": {
     "type": "apiKey",
     "apiKey": "sk-..."
   }
@@ -105,12 +111,6 @@ Create a bot with [@BotFather](https://t.me/BotFather), then add your bot token 
 
 If `allowedUserIds` is empty, any Telegram user who can reach the bot is allowed to use it.
 
-You can also pass an explicit OAuth provider id in non-interactive environments:
-
-```bash
-npm run auth -- openai-codex
-```
-
 ## 6. Start MiniOpenClaw
 
 In one terminal, start the gateway:
@@ -133,7 +133,8 @@ npm run start:agent
 - `/session`
 - `/new`
 - `/bg write me a summary of today's logs`
-- send a normal message
+- `/compact`
+- send a normal message or image
 
 ### In the local agent UI
 
@@ -145,6 +146,7 @@ npm run start:agent
 ## Related pages
 
 - [Configuration](configuration.md)
+- [Runtime layout](runtime-layout.md)
 - [Telegram](telegram.md)
 - [Using MiniOpenClaw](using-miniopenclaw.md)
 - [Slash commands](slash-commands.md)

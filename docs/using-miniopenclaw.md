@@ -17,7 +17,7 @@ If Telegram is enabled, the gateway also polls Telegram and handles incoming mes
 
 MiniOpenClaw is built around persistent sessions.
 
-A session stores conversation history locally and remains available across restarts.
+A session stores conversation history locally and remains available across restarts. Sessions are append-only logs under the runtime home.
 
 Common session actions:
 
@@ -25,6 +25,8 @@ Common session actions:
 - start a new one with `/new`
 - inspect the current one with `/session`
 - compact a long one with `/compact`
+
+See [Sessions and compaction](sessions.md).
 
 ## Shared session behavior
 
@@ -51,9 +53,12 @@ Important paths:
 - `config.json` — main config
 - `auth.json` — saved provider credentials
 - `sessions/` — append-only session logs
+- `current-sessions.json` — current local session pointers
 - `workspace/` — working directory for the agent
 - `conversation-bindings.json` — Telegram chat to session mapping
 - `scheduled-tasks.json` — scheduled job definitions
+
+See [Runtime layout](runtime-layout.md).
 
 ## Workspace
 
@@ -63,7 +68,7 @@ Default workspace:
 ~/.mini-openclaw/workspace/
 ```
 
-This is where the agent reads and writes files. Telegram image attachments are also saved here.
+This is where the agent reads and writes files. Telegram image attachments, workspace skills, durable context files, and the generated `miniopenclaw-docs/` reference snapshot also live here.
 
 You can change the workspace location with `workspacePath` in config.
 
@@ -83,7 +88,7 @@ Default image:
 miniopenclaw-sandbox:local
 ```
 
-The sandbox is session-scoped, so a session can keep reusing its environment across resumed work.
+The sandbox is reused for the workspace, so command-side state may intentionally survive across resumed work. See [Sandbox](sandbox.md).
 
 ## Logging
 
@@ -99,5 +104,7 @@ See [Configuration](configuration.md).
 ## Related pages
 
 - [Telegram](telegram.md)
+- [Sessions and compaction](sessions.md)
+- [Runtime layout](runtime-layout.md)
 - [Background tasks and scheduled jobs](automation.md)
 - [Agent capabilities](agent-capabilities.md)

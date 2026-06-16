@@ -4,9 +4,10 @@ title: Background Tasks and Scheduled Jobs
 
 # Background tasks and scheduled jobs
 
-MiniOpenClaw supports two kinds of automation:
+MiniOpenClaw supports several related forms of detached work:
 
 - **background tasks** — start now, finish later
+- **subagents** — internal detached assistant runs launched by the agent
 - **scheduled jobs** — run automatically on a cron schedule
 
 ## Background tasks
@@ -52,6 +53,8 @@ Completed and failed tasks are kept around for a while so you can still inspect 
 MiniOpenClaw also exposes background work as an internal `subagent` capability.
 
 In practice, this is the same detached-work idea: a secondary assistant run can be launched, listed, and stopped for the current Telegram-bound session.
+
+Use the term **background task** for user-visible Telegram `/bg` work, and **subagent** for detached work started by the assistant through its tool set.
 
 ## Scheduled jobs
 
@@ -126,4 +129,6 @@ Scheduled jobs are stored in:
 
 - [Telegram](telegram.md)
 - [Slash commands](slash-commands.md)
+- [Tool reference](tool-reference.md)
+- [Sessions and compaction](sessions.md)
 - [Everyday usage](using-miniopenclaw.md)

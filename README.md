@@ -7,15 +7,20 @@ Minimal TypeScript repo for a long-running personal agent with two entrypoints:
 
 All runtime files live in `~/.mini-openclaw/`:
 
-- `config.json`
-- `auth.json`
+- `config.json` — user-managed; the agent must not read or edit this file
+- `auth.json` — user-managed credentials; the agent must not read or edit this file
 - `sessions/`
 - `workspace/`
 - `workspace/memory/`
 - `workspace/project/`
+- `workspace/skills/`
 - `workspace/context.md`
+- `workspace/user.md`
+- `workspace/miniopenclaw-docs/` — generated read-only docs snapshot for sandboxed agents
 
 No `.env` file is used.
+
+See `docs/index.md` for the full documentation map.
 
 ## Getting Started
 
@@ -44,9 +49,12 @@ MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the defau
 
 - `workspace/memory/`
 - `workspace/project/`
+- `workspace/skills/`
 - `workspace/context.md`
+- `workspace/user.md`
+- `workspace/miniopenclaw-docs/`
 
-You only need to edit `~/.mini-openclaw/config.json` if you want to change defaults. Example config:
+You only need to edit `~/.mini-openclaw/config.json` yourself if you want to change defaults. For safety, MiniOpenClaw's agent should not read or edit its own `config.json` or `auth.json`; otherwise it could inspect credentials or weaken sandbox settings. Example config:
 
 ```json
 {
@@ -100,12 +108,16 @@ To chat with the agent over Telegram:
 Only users in `allowedUserIds` can interact with the bot. If the list is empty and Telegram is enabled, the bot accepts messages from anyone.
 
 Telegram commands:
+- `/start` — show command help
 - `/new` — start a new bound session
-- `/session` — show the current bound session and model
-- `/bg <prompt>` — run a detached background agent against the shared workspace sandbox; the result is sent back to Telegram and ingested into the current session
+- `/session` — show the current bound session, model, and active run state
+- `/bg <prompt>` — run a detached background agent; the result is sent back to Telegram and ingested into the current session
 - `/bglist` — list background tasks for the current session
 - `/bgstop <taskId>` — stop a queued or running background task for the current session
+- `/compact` — compact the current session
 - `/stop` — abort the current foreground run
+
+Agent skill prompts can also use `/skill:<name> [arguments]`.
 
 ### 4. Set up authentication
 
@@ -117,7 +129,7 @@ miniopenclaw auth
 
 It lists available OAuth providers and requires an explicit selection. In non-interactive environments, pass the provider id explicitly (for example `miniopenclaw auth openai-codex`). After selecting, it opens a browser prompt and saves tokens to `~/.mini-openclaw/auth.json`.
 
-If you prefer an API key, create or edit `~/.mini-openclaw/auth.json` instead:
+If you prefer an API key, create or edit `~/.mini-openclaw/auth.json` yourself instead:
 
 ```json
 {
@@ -157,6 +169,8 @@ miniopenclaw
 Both the gateway and agent will warn or fail early if authentication is missing, pointing you to `miniopenclaw auth`.
 
 When chatting over Telegram, the agent can also use the `subagent` tool to launch detached background work. Those detached runs reply back into Telegram and their results are appended into the main session for follow-up.
+
+For the full docs map, see `docs/index.md`.
 
 ## Commands
 
@@ -214,6 +228,8 @@ Sessions are stored as append-only JSONL files in `~/.mini-openclaw/sessions/`.
 Current sessions are tracked separately for the TUI and gateway in a small JSON map under `~/.mini-openclaw/`.
 This project is intended to keep session state over time rather than behave like a short-lived coding-agent workflow.
 
+See `docs/sessions.md` for the session and compaction model.
+
 ## Agent
 
 `miniopenclaw` launches the local TUI and requires an interactive TTY plus Bun.
@@ -223,7 +239,7 @@ For non-interactive access, use the gateway.
 
 By default, the container sandbox now uses the local image tag `miniopenclaw-sandbox:local`.
 When Docker or Podman starts a sandbox and that image does not exist yet, MiniOpenClaw will build it from `docker/sandbox.Dockerfile`.
-Sandbox containers are shared per workspace by default and may intentionally outlive the CLI process so they can be reused across sessions and resumes.
+Sandbox containers mount the configured workspace at `/workspace`. They are shared per workspace by default and may intentionally outlive the CLI process so they can be reused across sessions and resumes.
 
 The default sandbox image includes common coding tools such as:
 

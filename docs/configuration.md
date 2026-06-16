@@ -10,7 +10,9 @@ Main config file:
 ~/.mini-openclaw/config.json
 ```
 
-MiniOpenClaw creates this file automatically if it does not exist.
+MiniOpenClaw creates this file automatically if it does not exist. Relative workspace paths are resolved relative to the runtime home, not the process current directory.
+
+`config.json` is user-managed. The agent should not read or edit it, because changing it could weaken safety settings such as sandboxing or Telegram access control.
 
 ## Full example
 
@@ -88,20 +90,23 @@ Enable or disable Telegram support.
 Telegram bot token from BotFather.
 
 - type: string
-- required when Telegram is enabled
+- required for the Telegram gateway app to start
+- if `enabled` is true but `token` is missing, the gateway still starts but Telegram polling is not created
 
 #### `gateway.telegram.polling`
 Whether the gateway should poll Telegram for updates.
 
 - type: boolean
 - default: `true`
+- if `false`, the Telegram gateway app is not created
 
 #### `gateway.telegram.allowedUserIds`
 List of Telegram user ids allowed to use the bot.
 
 - type: array of strings
 - default: `[]`
-- when empty, all users are allowed
+- when empty, all Telegram users who can reach the bot are allowed
+- values are strings, for example `"123456789"`
 
 ## `agent`
 Controls model selection.
@@ -140,7 +145,7 @@ Turn sandboxing on or off.
 - type: boolean
 - default: `true`
 
-When disabled, commands run on the host machine.
+When disabled, bash commands run on the host machine in the configured workspace.
 
 ### `sandbox.engine`
 Container engine selection.
@@ -154,7 +159,7 @@ Container image to use.
 - type: string
 - default: `miniopenclaw-sandbox:local`
 
-If the default image does not exist yet, MiniOpenClaw builds it automatically.
+If the default image does not exist yet, MiniOpenClaw builds it automatically for Docker/Podman container sandboxes.
 
 ### `sandbox.network`
 Network mode for the sandbox.
@@ -188,8 +193,30 @@ Controls log verbosity.
 
 MiniOpenClaw validates the config file on startup and fails early if values have the wrong type or an invalid combination.
 
+Examples:
+
+- `gateway.port`, `sandbox.memoryMb`, and `sandbox.pidsLimit` must be positive integers.
+- `sandbox.cpus` must be a positive number.
+- `sandbox.engine` must be `auto`, `docker`, or `podman`.
+- `sandbox.network` must be `none` or `default`.
+- `logging.level` must be `debug`, `info`, `warn`, or `error`.
+- if `agent.availableModels` is set, `agent.provider` must be one of its keys.
+- if both `agent.availableModels` and `agent.modelId` are set, the selected model must be listed under the selected provider.
+
+## Auth file
+
+Provider credentials are stored separately in:
+
+```text
+~/.mini-openclaw/auth.json
+```
+
+This file is also user-managed. The agent should not read or edit it, because it may contain credentials or refresh tokens.
+
 ## Related pages
 
 - [Getting started](getting-started.md)
+- [Runtime layout](runtime-layout.md)
+- [Sandbox](sandbox.md)
 - [Using MiniOpenClaw](using-miniopenclaw.md)
 - [Troubleshooting](troubleshooting.md)

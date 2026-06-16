@@ -1,6 +1,7 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { ensureDir, ensureJsonFile, loadRuntimeConfig, type RuntimeConfig, type RuntimePaths } from "./config.js";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { configureLogging } from "./log.js";
 
 export type RuntimeState = RuntimeConfig;
@@ -12,6 +13,27 @@ function getCurrentSessionsPath(paths: RuntimePaths): string {
 function ensureTextFile(path: string, content: string): void {
   if (existsSync(path)) return;
   writeFileSync(path, content, "utf8");
+}
+
+export const WORKSPACE_DOCS_DIRNAME = "miniopenclaw-docs";
+
+function packageRoot(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+}
+
+function copyIfExists(source: string, destination: string): void {
+  if (!existsSync(source)) return;
+  cpSync(source, destination, { recursive: true });
+}
+
+function ensureWorkspaceDocs(workspacePath: string): void {
+  const docsRoot = join(workspacePath, WORKSPACE_DOCS_DIRNAME);
+  rmSync(docsRoot, { recursive: true, force: true });
+  ensureDir(docsRoot);
+
+  const root = packageRoot();
+  copyIfExists(join(root, "README.md"), join(docsRoot, "README.md"));
+  copyIfExists(join(root, "docs"), join(docsRoot, "docs"));
 }
 
 function ensureInitialSkills(workspacePath: string): void {
@@ -84,6 +106,7 @@ export function ensureRuntimeFiles(paths: RuntimePaths): void {
   ensureDir(join(paths.workspace, "project"));
 
   ensureInitialSkills(paths.workspace);
+  ensureWorkspaceDocs(paths.workspace);
   ensureTextFile(join(paths.workspace, "context.md"), "");
   ensureTextFile(join(paths.workspace, "user.md"), "");
   ensureJsonFile(paths.authFile, {});

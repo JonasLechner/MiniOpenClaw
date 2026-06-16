@@ -14,12 +14,17 @@ This documentation is user-facing. It explains how to install, operate, and use 
 - [Getting started](getting-started.md)
 - [Configuration](configuration.md)
 - [Everyday usage](using-miniopenclaw.md)
+- [Runtime layout](runtime-layout.md)
 
 ### Main features
 - [Telegram](telegram.md)
+- [Sessions and compaction](sessions.md)
 - [Slash commands](slash-commands.md)
 - [Background tasks and scheduled jobs](automation.md)
 - [Agent capabilities](agent-capabilities.md)
+- [Tool reference](tool-reference.md)
+- [Skills](skills.md)
+- [Sandbox](sandbox.md)
 - [Gateway HTTP API](gateway-api.md)
 
 ### Help
@@ -35,8 +40,5 @@ This documentation is user-facing. It explains how to install, operate, and use 
 - scheduled cron-style jobs
 - session compaction for long conversations
 - optional sandboxing for shell commands
+- workspace skills for reusable agent workflows
 - local runtime state under `~/.mini-openclaw/`
-
-## Important note
-
-Memory is intentionally not documented here yet.

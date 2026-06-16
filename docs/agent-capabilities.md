@@ -24,6 +24,7 @@ The agent can:
 
 - search file contents with `grep`
 - find files by pattern with `glob`
+- search the workspace full-text index with `workspace_search`
 
 ## Shell commands
 
@@ -51,6 +52,12 @@ The agent can also manage:
 
 See [Background tasks and scheduled jobs](automation.md).
 
+## Skills
+
+Workspace skills are reusable workflows stored under `workspace/skills/` and can be invoked explicitly with `/skill:<name>`.
+
+See [Skills](skills.md).
+
 ## Image handling
 
 The agent can inspect supported images saved in the workspace, including Telegram image attachments.
@@ -59,10 +66,12 @@ The agent can inspect supported images saved in the workspace, including Telegra
 
 The main file tools are designed around the configured workspace.
 
-That keeps normal read, write, edit, search, and glob activity centered on your MiniOpenClaw working area.
+That keeps normal read, write, edit, search, and glob activity centered on your MiniOpenClaw working area. The generated `workspace/miniopenclaw-docs/` directory is reference material for sandboxed agents and should be treated as read-only.
 
 ## Related pages
 
 - [Everyday usage](using-miniopenclaw.md)
+- [Tool reference](tool-reference.md)
+- [Skills](skills.md)
 - [Background tasks and scheduled jobs](automation.md)
 - [Configuration](configuration.md)
