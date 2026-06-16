@@ -17,6 +17,19 @@ export type TelegramGatewayApp = {
   start(): Promise<void>;
   stop(): Promise<void>;
 };
+
+const TELEGRAM_STARTUP_REQUEST_TIMEOUT_MS = 10_000;
+
+async function withTimeoutSignal<T>(timeoutMs: number, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await task(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function createPromptQueue() {
   const queues = new Map<string, Promise<void>>();
 
@@ -268,14 +281,15 @@ export function buildTelegramGatewayApp(
   return {
     streamer,
     async start() {
-      try {
-        await api.setMyCommands(TELEGRAM_BOT_COMMANDS);
-        logger.info("telegram_command_registration_completed", { commands: TELEGRAM_BOT_COMMANDS.map(({ command }) => `/${command}`) });
-      } catch (error) {
-        const resolvedError = error instanceof Error ? error : new Error(String(error));
-        logger.error("telegram_command_registration_failed", { message: resolvedError.message, error: resolvedError });
-      }
+      logger.info("telegram_starting", { commandRegistrationTimeoutMs: TELEGRAM_STARTUP_REQUEST_TIMEOUT_MS });
       polling?.start();
+      logger.info("telegram_polling_start_invoked");
+      void withTimeoutSignal(TELEGRAM_STARTUP_REQUEST_TIMEOUT_MS, (signal) => api.setMyCommands(TELEGRAM_BOT_COMMANDS, signal))
+        .then(() => logger.info("telegram_command_registration_completed", { commands: TELEGRAM_BOT_COMMANDS.map(({ command }) => `/${command}`) }))
+        .catch((error: unknown) => {
+          const resolvedError = error instanceof Error ? error : new Error(String(error));
+          logger.error("telegram_command_registration_failed", { message: resolvedError.message, error: resolvedError });
+        });
     },
     async stop() {
       mainSessionAgent.setBackgroundTaskLauncher(undefined);

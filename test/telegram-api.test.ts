@@ -38,6 +38,7 @@ describe("TelegramApiClient", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("https://api.telegram.org/bottoken/sendMessage", expect.objectContaining({
       method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         chat_id: "chat-1",
         text: "hello",

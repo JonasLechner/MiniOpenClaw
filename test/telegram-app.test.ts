@@ -10,7 +10,11 @@ const resolveTelegramBindingMock = vi.fn();
 const logConversationMessageMock = vi.fn();
 const handleTelegramCommandMock = vi.fn<(text: string, context: TelegramCommandContext) => Promise<TelegramCommandResult>>(async () => ({ handled: false }));
 const createTelegramPollingMock = vi.fn();
-const setMyCommandsMock = vi.fn(async () => true);
+const setMyCommandsMock = vi.fn(async (commands?: unknown, signal?: AbortSignal) => {
+  void commands;
+  void signal;
+  return true;
+});
 const getFileMock = vi.fn(async () => ({ file_unique_id: "unique-file", file_path: "photos/file.jpg" }));
 const downloadFileMock = vi.fn(async () => Buffer.from("image-bytes"));
 const sendMessageMock = vi.fn(async () => ({ message_id: 1, chat: { id: 1, type: "private" } }));
@@ -115,6 +119,7 @@ describe("telegram app", () => {
       return actual.stat(path);
     });
     Object.defineProperty(process.stdout, "isTTY", { value: originalIsTTY, configurable: true });
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -672,6 +677,48 @@ describe("telegram app", () => {
     expect(sendMessageMock).not.toHaveBeenCalledWith("123", "Done.");
   });
 
+  it("times out Telegram command registration and still starts polling", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    setMyCommandsMock.mockImplementationOnce(async (_commands: unknown, signal?: AbortSignal) => new Promise<boolean>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(new Error("registration aborted")));
+    }));
+    const paths = createRuntimePaths();
+    roots.push(paths.home);
+    const runtime = createRuntime(paths);
+
+    const pollingStart = vi.fn();
+    createTelegramPollingMock.mockImplementation(() => ({ start: pollingStart, async stop() {} }));
+
+    const mainSessionAgent = {
+      runPrompt: vi.fn(async () => ({ text: "unused", stopReason: "stop" })),
+      bindSession: vi.fn(async () => {}),
+      appendUserMessage: vi.fn(async () => {}),
+      setBackgroundTaskLauncher: vi.fn(),
+      stopActiveRun: vi.fn(() => false),
+      getStatus: vi.fn(() => ({ provider: "openai", modelId: "gpt-test" })),
+      dispose: vi.fn(async () => {}),
+    };
+
+    const { buildTelegramGatewayApp } = await import("../src/transports/telegram/app.js");
+    const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
+    await app?.start();
+    expect(pollingStart).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    const failureLog = logSpy.mock.calls
+      .map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
+      .find((payload) => payload.event === "telegram_command_registration_failed");
+    expect(failureLog).toMatchObject({
+      event: "telegram_command_registration_failed",
+      level: "error",
+      message: "registration aborted",
+    });
+    vi.useRealTimers();
+  });
+
   it("keeps polling alive when Telegram command registration fails", async () => {
     Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -696,6 +743,7 @@ describe("telegram app", () => {
     const { buildTelegramGatewayApp } = await import("../src/transports/telegram/app.js");
     const app = buildTelegramGatewayApp(runtime, mainSessionAgent as never);
     await app?.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const failureLog = logSpy.mock.calls
       .map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
