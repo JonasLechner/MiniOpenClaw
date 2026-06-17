@@ -118,6 +118,7 @@ async function runOnboardCommand(): Promise<void> {
   const runtime = initializeRuntime();
   await runOnboarding(runtime);
   console.log("Onboarding complete.");
+  console.log("Please wait...");
 }
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {

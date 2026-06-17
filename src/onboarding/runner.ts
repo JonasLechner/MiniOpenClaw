@@ -185,8 +185,8 @@ export async function runOnboarding(runtime: RuntimeState): Promise<void> {
 
   if (state.data.aboutYou) {
     const setupMessage = state.data.sandboxEnabled && runtime.config.sandbox.engine === "docker"
-      ? "\nThanks — I'm setting up your profile and memory files now. This can take a bit longer when Docker sandboxing is selected."
-      : "\nThanks — I'm setting up your profile and memory files now.";
+      ? "\nThanks — I'm setting up your profile and memory files now. This can take a bit longer when Docker sandboxing is selected.\nPlease wait..."
+      : "\nThanks — I'm setting up your profile and memory files now.\nPlease wait...";
     console.log(setupMessage);
 
     try {
