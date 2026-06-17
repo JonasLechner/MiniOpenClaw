@@ -17,15 +17,14 @@ async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
   try {
     await run(dir);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 
 test("bashTool runs commands in the workspace", async () => {
   await withTempDir(async (dir) => {
-    const node = JSON.stringify(process.execPath);
     const result = await bashTool.run({
-      command: `${node} -e "process.stdout.write(process.cwd())"`,
+      command: `node -e "process.stdout.write(process.cwd())"`,
     }, toolContext(dir));
 
     assert.equal(result.output, dir);
@@ -35,9 +34,8 @@ test("bashTool runs commands in the workspace", async () => {
 
 test("bashTool combines stdout and stderr", async () => {
   await withTempDir(async (dir) => {
-    const node = JSON.stringify(process.execPath);
     const result = await bashTool.run({
-      command: `${node} -e "process.stdout.write('out\\n'); process.stderr.write('err\\n')"`,
+      command: `node -e "process.stdout.write('out\\n'); process.stderr.write('err\\n')"`,
     }, toolContext(dir));
 
     assert.match(result.output, /out/);
@@ -47,11 +45,9 @@ test("bashTool combines stdout and stderr", async () => {
 
 test("bashTool rejects non-zero exit codes and includes output", async () => {
   await withTempDir(async (dir) => {
-    const node = JSON.stringify(process.execPath);
-
     await assert.rejects(
       () => bashTool.run({
-        command: `${node} -e "process.stdout.write('before-fail'); process.exit(7)"`,
+        command: `node -e "process.stdout.write('before-fail'); process.exit(7)"`,
       }, toolContext(dir)),
       (error: unknown) => {
         assert.match(String(error), /before-fail/);
@@ -81,11 +77,9 @@ test("bashTool abort kills host commands that ignore SIGTERM", async () => {
 
 test("bashTool rejects timed out commands", async () => {
   await withTempDir(async (dir) => {
-    const node = JSON.stringify(process.execPath);
-
     await assert.rejects(
       () => bashTool.run({
-        command: `${node} -e "setTimeout(() => {}, 2000)"`,
+        command: `node -e "setTimeout(() => {}, 2000)"`,
         timeout: 1,
       }, toolContext(dir)),
       /Command timed out after 1 seconds/,
@@ -95,9 +89,8 @@ test("bashTool rejects timed out commands", async () => {
 
 test("bashTool allows host execution when given host sandbox", async () => {
   await withTempDir(async (dir) => {
-    const node = JSON.stringify(process.execPath);
     const result = await bashTool.run(
-      { command: `${node} -e "process.stdout.write(process.cwd())"` },
+      { command: `node -e "process.stdout.write(process.cwd())"` },
       { workspace: createHostWorkspace(dir), sandbox: new HostSandbox(dir) },
     );
 
@@ -138,9 +131,8 @@ test("bashTool uses the provided sandbox when available", async () => {
 
 test("bashTool truncates long output and saves full output", async () => {
   await withTempDir(async (dir) => {
-    const node = JSON.stringify(process.execPath);
     const result = await bashTool.run({
-      command: `${node} -e "for (let i = 0; i < 2505; i += 1) console.log('line-' + i)"`,
+      command: `node -e "for (let i = 0; i < 2505; i += 1) console.log('line-' + i)"`,
     }, toolContext(dir));
 
     assert.equal(result.truncated, true);
