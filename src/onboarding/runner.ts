@@ -31,14 +31,28 @@ function getProviderOptions(authMethod: AuthMethod): Array<{ id: string; name: s
     .map((providerId) => ({ id: providerId, name: formatProviderLabel(providerId) }));
 }
 
+function isSupportedCodexModel(modelId: string): boolean {
+  const match = modelId.match(/(?:^|-)gpt-(\d+)(?:\.(\d+))?/);
+  if (!match) return false;
+
+  const major = Number(match[1]);
+  const minor = Number(match[2] ?? "0");
+  return major > 5 || (major === 5 && minor >= 4);
+}
+
+function filterProviderModels(providerId: string, modelIds: string[]): string[] {
+  if (providerId !== "openai-codex") return modelIds;
+  return modelIds.filter(isSupportedCodexModel);
+}
+
 function getModelIds(runtime: RuntimeState, providerId: string): string[] {
   const configured = runtime.config.agent.availableModels?.[providerId];
   if (configured && configured.length > 0) {
-    return configured;
+    return filterProviderModels(providerId, configured);
   }
 
   const models = getModels(providerId as KnownProvider).map((model) => model.id).sort();
-  return [...new Set(models)];
+  return filterProviderModels(providerId, [...new Set(models)]);
 }
 
 async function selectAuthMethod(): Promise<AuthMethod> {

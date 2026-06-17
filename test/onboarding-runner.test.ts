@@ -159,4 +159,29 @@ describe("onboarding runner", () => {
       agent: { provider: "openai", modelId: "gpt-test" },
     });
   });
+
+  it("hides OpenAI Codex models older than GPT 5.4 during onboarding", async () => {
+    getModelsMock.mockReturnValue([
+      { id: "gpt-4.1" },
+      { id: "gpt-5" },
+      { id: "gpt-5.3-mini" },
+      { id: "gpt-5.4" },
+      { id: "gpt-5.4-mini" },
+    ]);
+    promptSelectMock.mockReset();
+    promptSelectMock
+      .mockResolvedValueOnce("Use a subscription")
+      .mockResolvedValueOnce("ChatGPT Plus/Pro (Codex Subscription)")
+      .mockResolvedValueOnce("gpt-5.4-mini");
+
+    const { runOnboarding } = await import("../src/onboarding/runner.js");
+
+    await runOnboarding(runtime);
+
+    expect(promptSelectMock).toHaveBeenNthCalledWith(3, "Select a model:", ["gpt-5.4", "gpt-5.4-mini"]);
+    const persisted = JSON.parse(readFileSync(runtime.paths.configFile, "utf8")) as Record<string, unknown>;
+    expect(persisted).toMatchObject({
+      agent: { provider: "openai-codex", modelId: "gpt-5.4-mini" },
+    });
+  });
 });
