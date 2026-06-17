@@ -82,7 +82,7 @@ describe("miniopenclaw cli", () => {
     const { main } = await import("../src/cli.js");
     await main([]);
     expect(spawnSyncMock).toHaveBeenCalledOnce();
-    expect(spawnSyncMock.mock.calls[0]?.[0]).toBe("bun");
+    expect(String(spawnSyncMock.mock.calls[0]?.[0])).toMatch(/(?:^bun$|bun(?:\.exe)?$)/);
   });
 
   it("routes auth arguments to the auth command", async () => {

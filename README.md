@@ -33,15 +33,17 @@ npm install
 npm run build
 ```
 
-Or install globally from git:
+For a submitted ZIP or local checkout, run commands from the project directory with `npm run ...`.
+
+Optional global install from git:
 
 ```bash
-npm install -g git+https://github.com/you/MiniOpenClaw.git
+npm install -g git+https://github.com/JonasLechner/MiniOpenClaw.git
 ```
 
 The package builds itself during git install via `prepare`.
 
-Note: only the TUI (`miniopenclaw` / `miniopenclaw agent`) requires Bun on your system. Other commands run on Node.
+Note: the TUI (`miniopenclaw` / `miniopenclaw agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
 
 ### 2. Runtime directory and config
 
@@ -119,42 +121,29 @@ Telegram commands:
 
 Agent skill prompts can also use `/skill:<name> [arguments]`.
 
-### 4. Set up authentication
+### 4. First-time onboarding
 
-Authenticate once with the dedicated auth command:
-
-```bash
-miniopenclaw auth
-```
-
-It lists available OAuth providers and requires an explicit selection. In non-interactive environments, pass the provider id explicitly (for example `miniopenclaw auth openai-codex`). After selecting, it opens a browser prompt and saves tokens to `~/.mini-openclaw/auth.json`.
-
-If you prefer an API key, create or edit `~/.mini-openclaw/auth.json` yourself instead:
-
-```json
-{
-  "openai-codex": {
-    "type": "apiKey",
-    "apiKey": "sk-..."
-  }
-}
-```
-
-### 5. Start the system
-
-Authenticate first (if using an OAuth provider):
+Run onboarding on first start. It guides you through provider/model selection, authentication, optional Telegram setup, and initial memory/profile setup:
 
 ```bash
-miniopenclaw auth
+npm run onboard
 ```
 
-Run onboarding if this is your first start:
+If installed globally, use:
 
 ```bash
 miniopenclaw onboard
 ```
 
+### 5. Start the system
+
 Start the gateway in the background (includes Telegram polling if enabled):
+
+```bash
+npm run start:gateway
+```
+
+If installed globally, use:
 
 ```bash
 miniopenclaw gateway
@@ -163,10 +152,16 @@ miniopenclaw gateway
 Open the agent TUI:
 
 ```bash
+npm run start:agent
+```
+
+If installed globally, use:
+
+```bash
 miniopenclaw
 ```
 
-Both the gateway and agent will warn or fail early if authentication is missing, pointing you to `miniopenclaw auth`.
+Both the gateway and agent will warn or fail early if authentication is missing. To switch or refresh authentication later, run `miniopenclaw auth` or `npm run auth`.
 
 When chatting over Telegram, the agent can also use the `subagent` tool to launch detached background work. Those detached runs reply back into Telegram and their results are appended into the main session for follow-up.
 
@@ -174,8 +169,8 @@ For the full docs map, see `docs/index.md`.
 
 ## Commands
 
-- `miniopenclaw` — open the agent TUI (requires Bun)
-- `miniopenclaw agent` — open the agent TUI (requires Bun)
+- `miniopenclaw` — open the agent TUI
+- `miniopenclaw agent` — open the agent TUI
 - `miniopenclaw auth [provider]` — authenticate with a selected OAuth provider
 - `miniopenclaw onboard` — rerun onboarding
 - `miniopenclaw gateway` — start the gateway if needed
@@ -232,7 +227,7 @@ See `docs/sessions.md` for the session and compaction model.
 
 ## Agent
 
-`miniopenclaw` launches the local TUI and requires an interactive TTY plus Bun.
+`miniopenclaw` launches the local TUI and requires an interactive TTY. The Bun runtime used by the TUI is installed automatically by `npm install`.
 For non-interactive access, use the gateway.
 
 ## Sandbox image

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { platform } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { initializeRuntime } from "./core/runtime.js";
@@ -12,10 +14,22 @@ import {
   stopGatewayService,
 } from "./gateway/service.js";
 
+function resolveBunCommand(cliDirectory: string): string {
+  const bundledBun = join(
+    dirname(cliDirectory),
+    "node_modules",
+    "bun",
+    "bin",
+    platform() === "win32" ? "bun.exe" : "bun",
+  );
+
+  return existsSync(bundledBun) ? bundledBun : "bun";
+}
+
 function runAgentViaBun(args: string[]): void {
   const cliDirectory = dirname(fileURLToPath(import.meta.url));
   const agentEntrypoint = join(cliDirectory, "agent", "cli.js");
-  const result = spawnSync("bun", [agentEntrypoint, ...args], {
+  const result = spawnSync(resolveBunCommand(cliDirectory), [agentEntrypoint, ...args], {
     stdio: "inherit",
     cwd: process.cwd(),
     env: process.env,
