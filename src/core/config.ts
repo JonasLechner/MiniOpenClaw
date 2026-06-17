@@ -35,6 +35,7 @@ export type UserConfig = {
   };
   logging?: {
     level?: LogLevel;
+    file?: boolean;
   };
   workspaceSearch?: {
     enabled?: boolean;
@@ -63,6 +64,7 @@ export type ResolvedConfig = {
   sandbox: SandboxConfig;
   logging: {
     level: LogLevel;
+    file?: boolean;
   };
   workspaceSearch?: {
     enabled: boolean;
@@ -111,6 +113,7 @@ const defaultConfig: UserConfig = {
   },
   logging: {
     level: "info",
+    file: true,
   },
   workspaceSearch: {
     enabled: true,
@@ -315,6 +318,10 @@ function parseConfig(path: string): ResolvedConfig {
     throw new Error(`Invalid config file at ${path}: logging.level must be one of debug, info, warn, or error.`);
   }
 
+  if (logging.file !== undefined && typeof logging.file !== "boolean") {
+    throw new Error(`Invalid config file at ${path}: logging.file must be a boolean.`);
+  }
+
   return {
     workspacePath: config.workspacePath as string | undefined,
     gateway: {
@@ -344,6 +351,7 @@ function parseConfig(path: string): ResolvedConfig {
     },
     logging: {
       level: (logging.level as LogLevel | undefined) ?? defaultConfig.logging!.level!,
+      file: (logging.file as boolean | undefined) ?? defaultConfig.logging!.file!,
     },
     workspaceSearch: {
       enabled: (workspaceSearch.enabled as boolean | undefined) ?? defaultConfig.workspaceSearch!.enabled!,

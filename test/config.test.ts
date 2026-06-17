@@ -139,4 +139,28 @@ it("rejects logging set to null", async () => {
   expect(() => loadRuntimeConfig()).toThrow("logging must be an object.");
 });
 
+it("defaults logging.file to true and allows disabling it", async () => {
+  await mockHome();
+
+  const { loadRuntimeConfig } = await import("../src/core/config.js");
+  const runtime = loadRuntimeConfig();
+
+  expect(runtime.config.logging.file).toBe(true);
+
+  writeFileSync(runtime.paths.configFile, `${JSON.stringify({ logging: { file: false } }, null, 2)}\n`, "utf8");
+  expect(loadRuntimeConfig().config.logging.file).toBe(false);
+});
+
+it("rejects non-boolean logging.file", async () => {
+  await mockHome();
+
+  const configDir = join(home as string, ".mini-openclaw");
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, "config.json"), `${JSON.stringify({ logging: { file: "yes" } }, null, 2)}\n`, "utf8");
+
+  const { loadRuntimeConfig } = await import("../src/core/config.js");
+
+  expect(() => loadRuntimeConfig()).toThrow("logging.file must be a boolean.");
+});
+
 

@@ -1,3 +1,5 @@
+import { appendFileSync } from "node:fs";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 type LogRecordValue = unknown;
@@ -24,6 +26,7 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 let configuredLevel: LogLevel = "info";
+let configuredLogFile: string | undefined;
 
 export type Logger = {
   child(fields: LogFields): Logger;
@@ -39,6 +42,10 @@ export function configureLogging(level: LogLevel | undefined): void {
 
 export function getConfiguredLogLevel(): LogLevel {
   return configuredLevel;
+}
+
+export function configureLogFile(path: string | undefined): void {
+  configuredLogFile = path;
 }
 
 function shouldLog(level: LogLevel): boolean {
@@ -177,12 +184,17 @@ function emit(level: LogLevel, event: string, fields: LogFields): void {
     ...pruneUndefined(fields),
   };
 
+  const jsonLine = JSON.stringify(payload);
+
   if (process.stdout.isTTY) {
     console.log(formatPrettyLine(level, event, timestamp, pruneUndefined(fields)));
-    return;
+  } else {
+    console.log(jsonLine);
   }
 
-  console.log(JSON.stringify(payload));
+  if (configuredLogFile !== undefined) {
+    appendFileSync(configuredLogFile, `${jsonLine}\n`, "utf8");
+  }
 }
 
 export function createLogger(baseFields: LogFields = {}): Logger {

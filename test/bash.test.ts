@@ -26,11 +26,12 @@ class MockContainerEngine implements ContainerEngine {
     this.#running = true;
   }
 
-  async startContainer(_containerName: string): Promise<void> {
+  async startContainer(): Promise<void> {
     this.#running = true;
   }
 
-  async execContainer(_containerName: string, options: ContainerExecOptions): Promise<{ output: string }> {
+  async execContainer(containerName: string, options: ContainerExecOptions): Promise<{ output: string }> {
+    void containerName;
     if (!this.#workspacePath) throw new Error("mock container was not started");
     return new HostSandbox(this.#workspacePath).exec(options.command, {
       timeout: options.timeout,
@@ -38,15 +39,15 @@ class MockContainerEngine implements ContainerEngine {
     });
   }
 
-  async inspectContainer(_containerName: string): Promise<ContainerInspectResult> {
+  async inspectContainer(): Promise<ContainerInspectResult> {
     return { exists: this.#workspacePath !== undefined, running: this.#running };
   }
 
-  async stopContainer(_containerName: string): Promise<void> {
+  async stopContainer(): Promise<void> {
     this.#running = false;
   }
 
-  async removeContainer(_containerName: string): Promise<void> {
+  async removeContainer(): Promise<void> {
     this.#workspacePath = undefined;
     this.#running = false;
   }

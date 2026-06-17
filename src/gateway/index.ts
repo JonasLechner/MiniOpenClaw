@@ -1,7 +1,7 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkAuthAvailable } from "../agent/auth.js";
-import { createLogger } from "../core/log.js";
+import { configureLogFile, createLogger } from "../core/log.js";
 import { needsOnboarding } from "../core/onboarding.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
 import { ensureCurrentSession } from "../core/sessions.js";
@@ -49,6 +49,7 @@ export function ensureGatewayOnboardingComplete(runtime: RuntimeState): void {
 
 export async function main(): Promise<void> {
   const runtime = initializeRuntime();
+  configureLogFile(runtime.config.logging.file !== false ? join(runtime.paths.home, "gateway.log") : undefined);
   ensureGatewayOnboardingComplete(runtime);
   await launchGatewaySandbox(runtime);
 
