@@ -21,40 +21,45 @@ export class HostSandbox implements Sandbox {
     }
 
     return new Promise((resolve, reject) => {
+      const detached = process.platform !== "win32";
       const child = spawn("bash", ["-lc", command], {
         cwd: this.#workspacePath,
         stdio: ["ignore", "pipe", "pipe"],
-        detached: true,
+        detached,
       });
 
       let output = "";
       let timedOut = false;
       let aborted = false;
       let settled = false;
+      let processClosed = false;
+      let stdoutEnded = false;
+      let stderrEnded = false;
+      let exitCode: number | null = null;
       let timeoutHandle: NodeJS.Timeout | undefined;
       let timeoutKillHandle: NodeJS.Timeout | undefined;
       let abortRejectHandle: NodeJS.Timeout | undefined;
 
       const cleanup = () => {
-        if (timeoutHandle) {
-          clearTimeout(timeoutHandle);
-        }
-        if (timeoutKillHandle) {
-          clearTimeout(timeoutKillHandle);
-        }
-        if (abortRejectHandle) {
-          clearTimeout(abortRejectHandle);
-        }
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (timeoutKillHandle) clearTimeout(timeoutKillHandle);
+        if (abortRejectHandle) clearTimeout(abortRejectHandle);
         signal?.removeEventListener("abort", abort);
       };
 
       const killChild = (signalName: NodeJS.Signals) => {
         if (child.pid === undefined) return;
-        try {
-          process.kill(-child.pid, signalName);
-        } catch {
-          child.kill(signalName);
+
+        if (detached) {
+          try {
+            process.kill(-child.pid, signalName);
+            return;
+          } catch {
+            // Fall through to killing the direct child.
+          }
         }
+
+        child.kill(signalName);
       };
 
       const settle = (handler: () => void) => {
@@ -64,11 +69,37 @@ export class HostSandbox implements Sandbox {
         handler();
       };
 
+      const maybeSettle = () => {
+        if (!processClosed || !stdoutEnded || !stderrEnded) return;
+
+        settle(() => {
+          if (aborted) {
+            reject(new DOMException("Command aborted", "AbortError"));
+            return;
+          }
+
+          if (timedOut) {
+            reject(new Error(`Command timed out after ${timeout} seconds\n\n${output}`.trimEnd()));
+            return;
+          }
+
+          if (exitCode !== 0) {
+            reject(new Error(`${output}${output ? "\n\n" : ""}Command exited with code ${exitCode}`));
+            return;
+          }
+
+          resolve({ output });
+        });
+      };
+
       const abort = () => {
         aborted = true;
         killChild("SIGKILL");
         abortRejectHandle = setTimeout(() => {
-          settle(() => reject(new DOMException("Command aborted", "AbortError")));
+          processClosed = true;
+          stdoutEnded = true;
+          stderrEnded = true;
+          maybeSettle();
         }, 250);
       };
 
@@ -78,6 +109,16 @@ export class HostSandbox implements Sandbox {
 
       child.stderr.on("data", (chunk: Buffer | string) => {
         output += chunk.toString();
+      });
+
+      child.stdout.on("end", () => {
+        stdoutEnded = true;
+        maybeSettle();
+      });
+
+      child.stderr.on("end", () => {
+        stderrEnded = true;
+        maybeSettle();
       });
 
       child.on("error", (error) => {
@@ -97,24 +138,9 @@ export class HostSandbox implements Sandbox {
       signal?.addEventListener("abort", abort, { once: true });
 
       child.on("close", (code) => {
-        settle(() => {
-          if (aborted) {
-            reject(new DOMException("Command aborted", "AbortError"));
-            return;
-          }
-
-          if (timedOut) {
-            reject(new Error(`Command timed out after ${timeout} seconds\n\n${output}`.trimEnd()));
-            return;
-          }
-
-          if (code !== 0) {
-            reject(new Error(`${output}${output ? "\n\n" : ""}Command exited with code ${code}`));
-            return;
-          }
-
-          resolve({ output });
-        });
+        processClosed = true;
+        exitCode = code;
+        maybeSettle();
       });
     });
   }
