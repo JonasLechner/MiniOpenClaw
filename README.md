@@ -33,17 +33,9 @@ npm install
 npm run build
 ```
 
-For a submitted ZIP or local checkout, run commands from the project directory with `npm run ...`.
+For a submitted ZIP or local checkout, run all commands from the project directory with `npm run ...`.
 
-Optional global install from git:
-
-```bash
-npm install -g git+https://github.com/JonasLechner/MiniOpenClaw.git
-```
-
-The package builds itself during git install via `prepare`.
-
-Note: the TUI (`miniopenclaw` / `miniopenclaw agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
+Note: the TUI (`npm run start:agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
 
 ### 2. Runtime directory and config
 
@@ -129,24 +121,20 @@ Run onboarding on first start. It guides you through provider/model selection, a
 npm run onboard
 ```
 
-If installed globally, use:
-
-```bash
-miniopenclaw onboard
-```
-
 ### 5. Start the system
 
-Start the gateway in the background (includes Telegram polling if enabled):
+Start the gateway in the foreground (includes Telegram polling if enabled):
 
 ```bash
 npm run start:gateway
 ```
 
-If installed globally, use:
+Alternatively, start and manage the gateway in the background:
 
 ```bash
-miniopenclaw gateway
+npm run gateway
+npm run gateway:status
+npm run gateway:stop
 ```
 
 Open the agent TUI:
@@ -155,13 +143,7 @@ Open the agent TUI:
 npm run start:agent
 ```
 
-If installed globally, use:
-
-```bash
-miniopenclaw
-```
-
-Both the gateway and agent will warn or fail early if authentication is missing. To switch or refresh authentication later, run `miniopenclaw auth` or `npm run auth`.
+Both the gateway and agent will warn or fail early if authentication is missing. To switch or refresh authentication later, run `npm run auth`.
 
 When chatting over Telegram, the agent can also use the `subagent` tool to launch detached background work. Those detached runs reply back into Telegram and their results are appended into the main session for follow-up.
 
@@ -169,12 +151,12 @@ For the full docs map, see `docs/index.md`.
 
 ## Commands
 
-- `miniopenclaw` — open the agent TUI
-- `miniopenclaw agent` — open the agent TUI
-- `miniopenclaw auth [provider]` — authenticate with a selected OAuth provider
-- `miniopenclaw onboard` — rerun onboarding
-- `miniopenclaw gateway` — start the gateway if needed
-- `miniopenclaw gateway restart|stop|status` — manage the gateway background process
+- `npm run start:agent` — open the agent TUI
+- `npm run auth -- [provider]` — authenticate with a selected OAuth provider
+- `npm run onboard` — rerun onboarding
+- `npm run start:gateway` — start the gateway in the foreground
+- `npm run gateway` — start the gateway in the background
+- `npm run gateway:restart|gateway:stop|gateway:status` — manage the background gateway
 - `npm run build` — compile to `dist/`
 - `npm run dev` — TypeScript watch mode
 - `npm run lint` — run ESLint
@@ -227,7 +209,7 @@ See `docs/sessions.md` for the session and compaction model.
 
 ## Agent
 
-`miniopenclaw` launches the local TUI and requires an interactive TTY. The Bun runtime used by the TUI is installed automatically by `npm install`.
+`npm run start:agent` launches the local TUI and requires an interactive TTY. The Bun runtime used by the TUI is installed automatically by `npm install`.
 For non-interactive access, use the gateway.
 
 ## Sandbox image

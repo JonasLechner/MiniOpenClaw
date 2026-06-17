@@ -44,7 +44,7 @@ export function ensureGatewayOnboardingComplete(runtime: RuntimeState): void {
     return;
   }
 
-  throw new Error("Onboarding is incomplete. Run miniopenclaw onboard to finish first-time setup before starting the gateway.");
+  throw new Error("Onboarding is incomplete. Run npm run onboard to finish first-time setup before starting the gateway.");
 }
 
 export async function main(): Promise<void> {

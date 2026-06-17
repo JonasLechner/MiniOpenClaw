@@ -36,7 +36,7 @@ test("gateway refuses startup when onboarding is incomplete", async () => {
   const runtime = { paths: {} } as never;
 
   needsOnboardingMock.mockReturnValue(true);
-  expect(() => ensureGatewayOnboardingComplete(runtime)).toThrow(/Run miniopenclaw onboard/);
+  expect(() => ensureGatewayOnboardingComplete(runtime)).toThrow(/Run npm run onboard/);
 });
 
 test("gateway allows startup when onboarding is complete", async () => {

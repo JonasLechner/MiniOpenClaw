@@ -21,15 +21,21 @@ MiniOpenClaw uses this directory for all runtime state:
 
 You usually do not need to create it yourself. It is created automatically on first start.
 
-## 3. Configure the agent
+## 3. Run first-time onboarding
 
-Edit:
+Run:
+
+```bash
+npm run onboard
+```
+
+Onboarding guides provider/model selection, authentication, optional Telegram setup, and initial memory/profile setup. It writes runtime config to:
 
 ```text
 ~/.mini-openclaw/config.json
 ```
 
-A minimal example:
+You can edit that file later if you want to change defaults. A minimal example:
 
 ```json
 {
@@ -61,38 +67,7 @@ A minimal example:
 
 See [Configuration](configuration.md) for the full reference.
 
-## 4. Authenticate
-
-Run:
-
-```bash
-npm run auth
-```
-
-This opens the provider login flow and stores credentials in:
-
-```text
-~/.mini-openclaw/auth.json
-```
-
-You can also pass an explicit provider id in non-interactive environments:
-
-```bash
-npm run auth -- openai-codex
-```
-
-If you use an API-key provider instead of OAuth, you can create the file manually. The top-level key must match your configured provider id:
-
-```json
-{
-  "openai-codex": {
-    "type": "apiKey",
-    "apiKey": "sk-..."
-  }
-}
-```
-
-## 5. Optional: connect Telegram
+## 4. Optional: connect Telegram
 
 Create a bot with [@BotFather](https://t.me/BotFather), then add your bot token and Telegram user id to `config.json`:
 
@@ -111,7 +86,7 @@ Create a bot with [@BotFather](https://t.me/BotFather), then add your bot token 
 
 If `allowedUserIds` is empty, any Telegram user who can reach the bot is allowed to use it.
 
-## 6. Start MiniOpenClaw
+## 5. Start MiniOpenClaw
 
 In one terminal, start the gateway:
 

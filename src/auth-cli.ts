@@ -96,7 +96,7 @@ async function selectProvider(argv: string[], authMethod: AuthMethod): Promise<s
     return selectedProviderId;
   }
 
-  throw new Error("Authentication requires an interactive TTY; no provider default is chosen. Re-run `miniopenclaw auth` in a terminal and select a provider, or pass a provider id explicitly.");
+  throw new Error("Authentication requires an interactive TTY; no provider default is chosen. Re-run `npm run auth` in a terminal and select a provider, or pass a provider id explicitly.");
 }
 
 async function selectAuthMethod(argv: string[]): Promise<AuthMethod> {
@@ -135,7 +135,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     }
 
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      throw new Error("API-key authentication requires an interactive TTY, or pass the key explicitly as `miniopenclaw auth <provider> api-key <key>`. ");
+      throw new Error("API-key authentication requires an interactive TTY, or pass the key explicitly as `npm run auth -- <provider> api-key <key>`. ");
     }
 
     const apiKey = await promptText(`Enter API key for ${formatProviderLabel(selectedProvider)}:`);

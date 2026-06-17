@@ -182,7 +182,7 @@ export async function resolveAgentAuth(runtime: RuntimeState): Promise<AgentAuth
   if (!apiKey) {
     if (getOAuthProvider(provider)) {
       throw new AgentAuthError(
-        `No auth found for provider "${provider}". Run "miniopenclaw auth" to authenticate interactively, or add OAuth credentials or { "type": "apiKey", "apiKey": "..." } to ${runtime.paths.authFile}.`,
+        `No auth found for provider "${provider}". Run "npm run auth" to authenticate interactively, or add OAuth credentials or { "type": "apiKey", "apiKey": "..." } to ${runtime.paths.authFile}.`,
       );
     }
     throw new AgentAuthError(

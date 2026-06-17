@@ -168,6 +168,6 @@ describe("agent auth internals", () => {
     };
 
     const { resolveAgentAuth } = await import("../src/agent/auth.js");
-    await expect(resolveAgentAuth(runtime)).rejects.toThrow('Run "miniopenclaw auth"');
+    await expect(resolveAgentAuth(runtime)).rejects.toThrow('Run "npm run auth"');
   });
 });

@@ -197,7 +197,7 @@ export async function runOnboarding(runtime: RuntimeState): Promise<void> {
     } catch (error) {
       const details = error instanceof Error ? ` Details: ${error.message}` : "";
       throw new Error(
-        `I couldn't generate your profile summary because the onboarding LLM step failed. This usually means the selected provider or authentication isn't working yet. Please run \`miniopenclaw onboard\` again, or try a different provider/auth setup in ${runtime.paths.authFile}.${details}`,
+        `I couldn't generate your profile summary because the onboarding LLM step failed. This usually means the selected provider or authentication isn't working yet. Please run \`npm run onboard\` again, or try a different provider/auth setup in ${runtime.paths.authFile}.${details}`,
         { cause: error },
       );
     }

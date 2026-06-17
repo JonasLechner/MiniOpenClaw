@@ -38,7 +38,7 @@ function runAgentViaBun(args: string[]): void {
   const spawnError = result.error as NodeJS.ErrnoException | undefined;
   if (spawnError) {
     if (spawnError.code === "ENOENT") {
-      throw new Error("The agent TUI requires Bun. Install Bun and re-run `miniopenclaw` or `miniopenclaw agent`.");
+      throw new Error("The agent TUI requires Bun. Run `npm install`, then re-run `npm run start:agent`.");
     }
     throw spawnError;
   }
@@ -54,14 +54,14 @@ function runAgentViaBun(args: string[]): void {
 
 function printUsage(): void {
   console.log(`Usage:
-  miniopenclaw                Open the agent TUI
-  miniopenclaw agent          Open the agent TUI
-  miniopenclaw auth [provider]
-  miniopenclaw onboard
-  miniopenclaw gateway
-  miniopenclaw gateway restart
-  miniopenclaw gateway stop
-  miniopenclaw gateway status`);
+  npm run start:agent         Open the agent TUI
+  npm run auth -- [provider]
+  npm run onboard
+  npm run start:gateway       Start the gateway in the foreground
+  npm run gateway             Start the gateway in the background
+  npm run gateway:restart
+  npm run gateway:stop
+  npm run gateway:status`);
 }
 
 function printGatewayStatus(status: Awaited<ReturnType<typeof getGatewayServiceStatus>>): void {
