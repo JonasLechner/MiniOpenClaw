@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { initializeRuntime } from "../core/runtime.js";
 import { needsOnboarding } from "../core/onboarding.js";
 import { runOnboarding } from "../onboarding/runner.js";
+import { launchStartupSandbox } from "../sandbox/startup.js";
 import { Agent } from "./agent.js";
 import { tuiToolRegistry } from "./tools/tui-tool-registry.js";
 import { TuiApp } from "./tui/app.js";
@@ -24,6 +25,7 @@ export async function main(): Promise<void> {
     runtime = initializeRuntime();
   }
 
+  await launchStartupSandbox(runtime, "agent");
   const agent = await Agent.createForSession(runtime, undefined, { toolRegistry: tuiToolRegistry });
 
   try {

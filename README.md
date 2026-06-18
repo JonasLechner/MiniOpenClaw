@@ -159,7 +159,7 @@ For the full docs map, see `docs/index.md`.
     "enabled": true,
     "engine": "auto",
     "image": "miniopenclaw-sandbox:local",
-    "network": "none",
+    "network": "default",
     "memoryMb": 2048,
     "cpus": 2,
     "pidsLimit": 256

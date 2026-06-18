@@ -34,11 +34,13 @@ it("defaults sandboxing to enabled for new config files", async () => {
   expect(runtime.config.sandbox.enabled).toBe(true);
   expect(runtime.config.sandbox.engine).toBe("auto");
   expect(runtime.config.sandbox.image).toBe("miniopenclaw-sandbox:local");
+  expect(runtime.config.sandbox.network).toBe("default");
   const persisted = JSON.parse(readFileSync(runtime.paths.configFile, "utf8")) as {
-    sandbox?: { enabled?: boolean; image?: string };
+    sandbox?: { enabled?: boolean; image?: string; network?: string };
   };
   expect(persisted.sandbox?.enabled).toBe(true);
   expect(persisted.sandbox?.image).toBe("miniopenclaw-sandbox:local");
+  expect(persisted.sandbox?.network).toBe("default");
 });
 
 it("accepts agent.availableModels and exposes it in resolved config", async () => {

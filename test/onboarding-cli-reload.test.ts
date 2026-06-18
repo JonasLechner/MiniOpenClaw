@@ -8,6 +8,7 @@ const initializeRuntimeMock = vi.fn<() => RuntimeState>();
 const needsOnboardingMock = vi.fn<(paths: RuntimeState["paths"]) => boolean>();
 const runOnboardingMock = vi.fn<(runtime: RuntimeState) => Promise<void>>();
 const agentCreateForSessionMock = vi.fn();
+const launchStartupSandboxMock = vi.fn(async () => {});
 const tuiStartMock = vi.fn(async () => {});
 
 vi.mock("../src/core/runtime.js", () => ({
@@ -26,6 +27,10 @@ vi.mock("../src/agent/agent.js", () => ({
   Agent: {
     createForSession: agentCreateForSessionMock,
   },
+}));
+
+vi.mock("../src/sandbox/startup.js", () => ({
+  launchStartupSandbox: launchStartupSandboxMock,
 }));
 
 vi.mock("../src/agent/tui/app.js", () => ({
@@ -83,6 +88,7 @@ test("agent CLI reloads runtime after onboarding before creating the agent", asy
 
   expect(initializeRuntimeMock).toHaveBeenCalledTimes(2);
   expect(runOnboardingMock).toHaveBeenCalledWith(firstRuntime);
+  expect(launchStartupSandboxMock).toHaveBeenCalledWith(secondRuntime, "agent");
   expect(agentCreateForSessionMock).toHaveBeenCalledWith(secondRuntime, undefined, { toolRegistry: tuiToolRegistry });
   expect(tuiStartMock).toHaveBeenCalledTimes(1);
 });

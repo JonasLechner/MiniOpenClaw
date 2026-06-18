@@ -42,7 +42,7 @@ MiniOpenClaw creates this file automatically if it does not exist. Relative work
     "enabled": true,
     "engine": "auto",
     "image": "miniopenclaw-sandbox:local",
-    "network": "none",
+    "network": "default",
     "memoryMb": 2048,
     "cpus": 2,
     "pidsLimit": 256
@@ -167,10 +167,10 @@ Container image to use.
 If the default image does not exist yet, MiniOpenClaw builds it automatically for Docker container sandboxes.
 
 ### `sandbox.network`
-Network mode for the sandbox.
+Network mode for the sandbox. The default Docker sandbox has network access enabled; set this to `none` to disable container networking.
 
 - type: `none` or `default`
-- default: `none`
+- default: `default`
 
 ### `sandbox.memoryMb`
 Optional memory limit for sandbox containers.

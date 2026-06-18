@@ -4,36 +4,12 @@ import { checkAuthAvailable } from "../agent/auth.js";
 import { configureLogFile, createLogger } from "../core/log.js";
 import { needsOnboarding } from "../core/onboarding.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
-import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
-import { getSharedSandboxId } from "../sandbox/sandbox.js";
+import { launchStartupSandbox } from "../sandbox/startup.js";
 import { buildGateway } from "./app.js";
 import {
   logGatewayAuthWarning,
   logGatewayListening,
-  logGatewaySandboxError,
-  logGatewaySandboxReady,
-  logGatewaySandboxStart,
 } from "./log.js";
-
-async function launchGatewaySandbox(runtime: RuntimeState): Promise<void> {
-  const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
-  const engineLabel = resolvedEngineKind ?? "host";
-  const image = runtime.config.sandbox.enabled ? runtime.config.sandbox.image : undefined;
-  const startedAt = Date.now();
-
-  logGatewaySandboxStart("gateway", engineLabel, image);
-
-  try {
-    const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
-    const sandbox = sandboxFactory.create(getSharedSandboxId(runtime.paths.workspace), runtime.paths.workspace);
-    await sandbox.ensure();
-    logGatewaySandboxReady("gateway", engineLabel, Date.now() - startedAt, image);
-  } catch (error) {
-    const resolvedError = error instanceof Error ? error : new Error(String(error));
-    logGatewaySandboxError("gateway", engineLabel, Date.now() - startedAt, resolvedError, image);
-    throw resolvedError;
-  }
-}
 
 const logger = createLogger({ component: "gateway" });
 
@@ -49,7 +25,7 @@ export async function main(): Promise<void> {
   const runtime = initializeRuntime();
   configureLogFile(runtime.config.logging.file !== false ? join(runtime.paths.home, "gateway.log") : undefined);
   ensureGatewayOnboardingComplete(runtime);
-  await launchGatewaySandbox(runtime);
+  await launchStartupSandbox(runtime, "gateway");
 
   if (!checkAuthAvailable(runtime)) {
     const provider = runtime.config.agent.provider;

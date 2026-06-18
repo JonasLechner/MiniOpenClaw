@@ -109,7 +109,7 @@ const defaultConfig: UserConfig = {
     enabled: true,
     engine: "auto",
     image: DEFAULT_SANDBOX_IMAGE,
-    network: "none",
+    network: "default",
   },
   logging: {
     level: "info",
