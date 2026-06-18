@@ -9,7 +9,7 @@ export const DEFAULT_REFLECTION_PROMPT = [
   "Look for durable user preferences, recurring constraints, corrections, project conventions, mistakes worth learning from, reusable workflows, and opportunities to create or improve workspace skills.",
   "Summarize only genuinely useful findings.",
   "If nothing interesting or durable stands out, say so briefly and do nothing else.",
-  "If you find something worth preserving, send a short summary and ask whether it should be saved to USER.md, context.md, or a workspace skill.",
+  "If you find something worth preserving, send a short summary and ask whether it should be saved to user.md, context.md, or a workspace skill.",
   "Do not save anything automatically; ask first.",
 ].join(" ");
 

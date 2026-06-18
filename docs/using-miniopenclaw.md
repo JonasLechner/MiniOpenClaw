@@ -50,13 +50,19 @@ MiniOpenClaw stores runtime state under:
 
 Important paths:
 
-- `config.json` — main config
-- `auth.json` — saved provider credentials
+- `config.json` — main config; user-managed and not for the agent to read or edit
+- `auth.json` — saved provider credentials; user-managed and not for the agent to read or edit
 - `sessions/` — append-only session logs
-- `current-sessions.json` — current local session pointers
-- `workspace/` — working directory for the agent
-- `conversation-bindings.json` — Telegram chat to session mapping
+- `current-sessions.json` — current session pointers for local interfaces (`tui`, `gateway`)
+- `conversation-bindings.json` — Telegram chat-to-session bindings
 - `scheduled-tasks.json` — scheduled job definitions
+- `gateway.pid` — process id for the managed background gateway service
+- `gateway.log` — JSONL gateway/runtime log output when `logging.file` is enabled; also stdout for the managed background gateway service
+- `gateway.err.log` — stderr from the managed background gateway service
+- `workspace/` — working directory for the agent
+- `workspace/telegram-attachments/` — Telegram attachments saved for agent inspection
+- `workspace/workspace-search.sqlite` — local workspace search index
+- `workspace/miniopenclaw-docs/` — generated read-only docs snapshot for sandboxed agents
 
 See [Runtime layout](runtime-layout.md).
 
@@ -69,6 +75,8 @@ Default workspace:
 ```
 
 This is where the agent reads and writes files. Telegram image attachments, workspace skills, durable context files, and the generated `miniopenclaw-docs/` reference snapshot also live here.
+
+Onboarding/profile setup maintains `user.md`; the agent system prompt injects that same file, and also reads `context.md`.
 
 You can change the workspace location with `workspacePath` in config.
 
@@ -99,7 +107,7 @@ MiniOpenClaw supports configurable log levels:
 - `warn`
 - `error`
 
-See [Configuration](configuration.md).
+It can also write runtime log files when `logging.file` is enabled (the default). See [Configuration](configuration.md).
 
 ## Related pages
 

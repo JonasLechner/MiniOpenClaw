@@ -13,13 +13,13 @@ npm run build
 
 ## 2. Create the runtime home
 
-MiniOpenClaw uses this directory for all runtime state:
+MiniOpenClaw uses this directory for config, credentials, sessions, service state, logs, and the default workspace:
 
 ```text
 ~/.mini-openclaw/
 ```
 
-You usually do not need to create it yourself. It is created automatically on first start.
+You usually do not need to create it yourself. It is created automatically on first start. The agent workspace defaults to `~/.mini-openclaw/workspace/`, but can be moved with `workspacePath` in config.
 
 ## 3. Run first-time onboarding
 
@@ -35,7 +35,7 @@ Onboarding guides provider/model selection, authentication, optional Telegram se
 ~/.mini-openclaw/config.json
 ```
 
-You can edit that file later if you want to change defaults. A minimal example:
+You can edit that file later if you want to change defaults. A representative example:
 
 ```json
 {
@@ -51,6 +51,7 @@ You can edit that file later if you want to change defaults. A minimal example:
   "agent": {
     "provider": "openai-codex",
     "modelId": "gpt-5.4-mini",
+    "reasoning": "medium",
     "availableModels": {
       "github-copilot": ["gpt-5.4-mini"],
       "openai-codex": ["gpt-5.4", "gpt-5.4-mini"]
@@ -60,7 +61,18 @@ You can edit that file later if you want to change defaults. A minimal example:
     "enabled": true,
     "engine": "auto",
     "image": "miniopenclaw-sandbox:local",
-    "network": "none"
+    "network": "none",
+    "memoryMb": 2048,
+    "cpus": 2,
+    "pidsLimit": 256
+  },
+  "logging": {
+    "level": "info",
+    "file": true
+  },
+  "workspaceSearch": {
+    "enabled": true,
+    "include": ["memory/**", "project/**", "projects/**"]
   }
 }
 ```
@@ -88,10 +100,20 @@ If `allowedUserIds` is empty, any Telegram user who can reach the bot is allowed
 
 ## 5. Start MiniOpenClaw
 
-In one terminal, start the gateway:
+In one terminal, start the gateway in the foreground:
 
 ```bash
 npm start
+# equivalent: npm run gateway
+```
+
+Or start and manage the gateway in the background:
+
+```bash
+npm run gateway-service
+npm run gateway-service:status
+npm run gateway-service:restart
+npm run gateway-service:stop
 ```
 
 In another terminal, start the local agent UI:

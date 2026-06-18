@@ -22,6 +22,9 @@ Important files and directories:
 - `current-sessions.json` — current session pointers for local interfaces (`tui` and `gateway`). The dashboard/API displays the gateway current session. These are not Telegram chat bindings.
 - `conversation-bindings.json` — Telegram chat to session bindings. Once a Telegram chat has a binding, Telegram continues that bound session rather than reading `current-sessions.json.gateway`.
 - `scheduled-tasks.json` — scheduled job definitions.
+- `gateway.pid` — process id for the managed background gateway service.
+- `gateway.log` — JSONL gateway/runtime log output when `logging.file` is enabled; also stdout for the managed background gateway service.
+- `gateway.err.log` — stderr from the managed background gateway service.
 - `workspace/` — default workspace exposed to the agent.
 
 ## Workspace
@@ -36,7 +39,7 @@ The workspace is the agent's normal working directory. Workspace-bounded tools r
 
 Common workspace paths:
 
-- `user.md` / `USER.md` — durable user preferences and stable personal context.
+- `user.md` — durable user preferences and stable personal context maintained by onboarding/profile setup and injected into the agent system prompt.
 - `context.md` — durable project/workspace context and conventions.
 - `memory/` — human-readable memory and reflection material.
 - `skills/` — workspace skills loaded into the agent prompt.
@@ -60,7 +63,7 @@ It is managed by MiniOpenClaw. Do not store personal files there; it may be dele
 
 For normal use:
 
-- edit runtime context in `workspace/user.md`, `workspace/USER.md`, or `workspace/context.md` when appropriate;
+- edit runtime context in `workspace/user.md` or `workspace/context.md` when appropriate; `user.md` is the single durable user-context file and is injected into the agent prompt;
 - edit skills under `workspace/skills/`;
 - treat `workspace/miniopenclaw-docs/` as read-only generated reference material;
 - keep `~/.mini-openclaw/config.json` and `~/.mini-openclaw/auth.json` user-managed. The agent should not read or edit them.

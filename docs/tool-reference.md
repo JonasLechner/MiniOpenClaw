@@ -27,8 +27,8 @@ When sandboxing is enabled, `bash` runs through the configured sandbox. Output i
 
 ## Web
 
-- `web_search` — search the web.
-- `web_fetch` — fetch/extract a web page.
+- `websearch` — search the web.
+- `webfetch` — fetch/extract a web page.
 
 These require configured provider/tool support and may be unavailable in restricted environments.
 

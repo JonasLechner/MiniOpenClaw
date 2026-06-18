@@ -55,7 +55,7 @@ function runAgentViaBun(args: string[]): void {
 function printUsage(): void {
   console.log(`Usage:
   npm run agent               Open the agent TUI
-  npm run auth -- [provider]
+  npm run auth -- [provider] [oauth|api-key] [key]
   npm run onboard
   npm run gateway             Start the gateway in the foreground
   npm run gateway-service     Start the gateway in the background

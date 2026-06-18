@@ -48,7 +48,8 @@ MiniOpenClaw creates this file automatically if it does not exist. Relative work
     "pidsLimit": 256
   },
   "logging": {
-    "level": "info"
+    "level": "info",
+    "file": true
   },
   "workspaceSearch": {
     "enabled": true,
@@ -193,6 +194,11 @@ Controls log verbosity.
 - type: `debug`, `info`, `warn`, or `error`
 - default: `info`
 
+### `logging.file`
+- type: boolean
+- default: `true`
+- when enabled, write runtime log files in addition to console output
+
 ## `workspaceSearch`
 Controls the local SQLite full-text workspace search index.
 
@@ -223,6 +229,7 @@ Examples:
 - `sandbox.engine` must be `auto`, `docker`, or `podman`.
 - `sandbox.network` must be `none` or `default`.
 - `logging.level` must be `debug`, `info`, `warn`, or `error`.
+- `logging.file` must be a boolean.
 - `workspaceSearch.enabled` must be a boolean.
 - `workspaceSearch.include` must be an array of non-empty strings.
 - if `agent.availableModels` is set, `agent.provider` must be one of its keys.

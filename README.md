@@ -5,16 +5,24 @@ Minimal TypeScript repo for a long-running personal agent with two entrypoints:
 - `src/gateway/index.ts` — Fastify gateway daemon
 - `src/agent/cli.ts` — local TUI agent
 
-All runtime files live in `~/.mini-openclaw/`:
+The default runtime home is `~/.mini-openclaw/`. It contains config, credentials, sessions, service state, logs, and the default workspace (unless `workspacePath` moves the workspace elsewhere):
 
 - `config.json` — user-managed; the agent must not read or edit this file
 - `auth.json` — user-managed credentials; the agent must not read or edit this file
-- `sessions/`
-- `workspace/`
+- `sessions/` — append-only JSONL session logs
+- `current-sessions.json` — current session pointers for local interfaces (`tui`, `gateway`)
+- `conversation-bindings.json` — Telegram chat-to-session bindings
+- `scheduled-tasks.json` — scheduled job definitions
+- `gateway.pid` — process id for the managed background gateway service
+- `gateway.log` — JSONL gateway/runtime log output when `logging.file` is enabled; also stdout for the managed background gateway service
+- `gateway.err.log` — stderr from the managed background gateway service
+- `workspace/` — agent workspace
 - `workspace/memory/`
 - `workspace/skills/`
 - `workspace/context.md`
-- `workspace/user.md`
+- `workspace/user.md` — durable user context maintained by onboarding/profile setup and injected into the agent prompt
+- `workspace/telegram-attachments/` — files received from Telegram
+- `workspace/workspace-search.sqlite` — local workspace search index
 - `workspace/miniopenclaw-docs/` — generated read-only docs snapshot for sandboxed agents
 
 No `.env` file is used.
@@ -58,13 +66,15 @@ The `bash` tool requires `bash` to be available on `PATH`. On Windows, install G
 
 ### 2. Runtime directory and config
 
-MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. On startup it also ensures these workspace paths exist:
+MiniOpenClaw stores runtime state in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. The agent workspace defaults to `~/.mini-openclaw/workspace/`, but can be moved with `workspacePath`; on startup MiniOpenClaw ensures these workspace paths exist:
 
 - `workspace/memory/`
 - `workspace/skills/`
 - `workspace/context.md`
 - `workspace/user.md`
 - `workspace/miniopenclaw-docs/`
+
+Onboarding/profile setup maintains `workspace/user.md`; the agent system prompt injects that same file.
 
 You only need to edit `~/.mini-openclaw/config.json` yourself if you want to change defaults. For safety, MiniOpenClaw's agent should not read or edit its own `config.json` or `auth.json`; otherwise it could inspect credentials or weaken sandbox settings. Example config:
 
@@ -82,6 +92,7 @@ You only need to edit `~/.mini-openclaw/config.json` yourself if you want to cha
   "agent": {
     "provider": "openai-codex",
     "modelId": "gpt-5.4-mini",
+    "reasoning": "medium",
     "availableModels": {
       "github-copilot": ["gpt-5.4-mini"],
       "openai-codex": ["gpt-5.4", "gpt-5.4-mini"]
@@ -91,7 +102,18 @@ You only need to edit `~/.mini-openclaw/config.json` yourself if you want to cha
     "enabled": true,
     "engine": "auto",
     "image": "miniopenclaw-sandbox:local",
-    "network": "none"
+    "network": "none",
+    "memoryMb": 2048,
+    "cpus": 2,
+    "pidsLimit": 256
+  },
+  "logging": {
+    "level": "info",
+    "file": true
+  },
+  "workspaceSearch": {
+    "enabled": true,
+    "include": ["memory/**", "project/**", "projects/**"]
   }
 }
 ```
@@ -152,6 +174,7 @@ Alternatively, start and manage the gateway in the background:
 ```bash
 npm run gateway-service
 npm run gateway-service:status
+npm run gateway-service:restart
 npm run gateway-service:stop
 ```
 
@@ -170,7 +193,7 @@ For the full docs map, see `docs/index.md`.
 ## Commands
 
 - `npm run agent` — open the agent TUI
-- `npm run auth -- [provider]` — authenticate with a selected OAuth provider
+- `npm run auth -- [provider] [oauth|api-key] [key]` — authenticate with a selected provider
 - `npm run onboard` — rerun onboarding
 - `npm run gateway` — start the gateway in the foreground
 - `npm run gateway-service` — start the gateway in the background
@@ -195,6 +218,7 @@ For the full docs map, see `docs/index.md`.
   "agent": {
     "provider": "openai-codex",
     "modelId": "gpt-5.4-mini",
+    "reasoning": "medium",
     "availableModels": {
       "github-copilot": ["gpt-5.4-mini"],
       "openai-codex": ["gpt-5.4", "gpt-5.4-mini"]
@@ -204,7 +228,18 @@ For the full docs map, see `docs/index.md`.
     "enabled": true,
     "engine": "auto",
     "image": "miniopenclaw-sandbox:local",
-    "network": "none"
+    "network": "none",
+    "memoryMb": 2048,
+    "cpus": 2,
+    "pidsLimit": 256
+  },
+  "logging": {
+    "level": "info",
+    "file": true
+  },
+  "workspaceSearch": {
+    "enabled": true,
+    "include": ["memory/**", "project/**", "projects/**"]
   }
 }
 ```

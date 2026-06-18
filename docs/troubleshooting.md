@@ -22,7 +22,7 @@ Check:
 - `gateway.telegram.token` is set
 - `gateway.telegram.polling` is `true`
 - your Telegram user id is included in `allowedUserIds`, if that list is not empty
-- the gateway is running with `npm start`
+- the gateway is running with `npm start`, `npm run gateway`, or `npm run gateway-service`
 - you are messaging the bot in a private chat
 
 ## Startup fails because provider or model is missing
@@ -71,7 +71,7 @@ Scheduled jobs are checked roughly once per minute, so they are not second-preci
 
 ## I changed config but the system still behaves the same
 
-Restart the gateway and the local agent UI after changing config.
+Restart the gateway and the local agent UI after changing config. For the managed background gateway, use `npm run gateway-service:restart`.
 
 ## Where is my data stored?
 
