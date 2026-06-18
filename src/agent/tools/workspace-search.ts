@@ -19,7 +19,7 @@ export interface WorkspaceSearchDetails {
 
 export const workspaceSearchTool: ToolDefinition<WorkspaceSearchInput, ToolRunResult<WorkspaceSearchDetails>> = {
   name: "workspace_search",
-  description: "Search the workspace recursively with SQLite FTS5 BM25 ranking.",
+  description: "Document search for indexed text/JSON files in the workspace using SQLite FTS5 BM25 ranking. For code or other file types, use other file tools instead.",
   parameters: Type.Object({
     query: Type.String(),
     k: Type.Optional(Type.Number()),

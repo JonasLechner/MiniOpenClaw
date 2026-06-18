@@ -55,6 +55,8 @@ Credentials are configured during onboarding and stored locally in `~/.mini-open
 
 Note: the TUI (`npm run start:agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
 
+The `bash` tool requires `bash` to be available on `PATH`. On Windows, install Git Bash and ensure it is on `PATH`.
+
 ### 2. Runtime directory and config
 
 MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. On startup it also ensures these workspace paths exist:

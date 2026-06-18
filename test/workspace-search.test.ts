@@ -48,14 +48,16 @@ test("workspace search skips generated, cached, binary, sqlite, and oversized fi
     await writeFile(join(root, ".pi", "repos", "cached", "a.md"), "hidden pi cache sqlite text\n", "utf8");
     await writeFile(join(root, "repo", ".git", "objects", "pack.md"), "hidden git sqlite text\n", "utf8");
     await writeFile(join(root, "repo", "node_modules", "pkg", "index.js"), "hidden dependency sqlite text\n", "utf8");
+    await writeFile(join(root, "notes", "script.ts"), "const skipped = 'sqlite code';\n", "utf8");
     await writeFile(join(root, "notes", "image.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     await writeFile(join(root, "notes", "huge.md"), `${"large ".repeat(180_000)}sqlite`, "utf8");
     await writeFile(join(root, "notes", "keep.md"), "visible sqlite note\n", "utf8");
+    await writeFile(join(root, "notes", "keep.json"), "{\"text\":\"visible sqlite json\"}\n", "utf8");
 
     await syncWorkspaceSearchIndex(repository, root);
     const matches = await repository.search("sqlite", 10);
 
-    assert.deepEqual(matches.map((match) => match.path), ["notes/keep.md"]);
+    assert.deepEqual(matches.map((match) => match.path).sort(), ["notes/keep.json", "notes/keep.md"]);
   } finally {
     repository.close();
     await rm(root, { recursive: true, force: true });
