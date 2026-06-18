@@ -173,7 +173,11 @@ export async function runOnboarding(runtime: RuntimeState): Promise<void> {
       throw new Error(`Provider ${state.data.provider} is not available for OAuth onboarding.`);
     }
     process.stdin.resume();
-    await runOAuthLogin(oauthProvider, runtime.paths.authFile);
+    try {
+      await runOAuthLogin(oauthProvider, runtime.paths.authFile);
+    } finally {
+      process.stdin.pause();
+    }
   }
 
   console.log("\nNext I'll ask a few questions for your profile and memory context.");

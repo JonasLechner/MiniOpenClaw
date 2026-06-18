@@ -118,7 +118,6 @@ async function runOnboardCommand(): Promise<void> {
   const runtime = initializeRuntime();
   await runOnboarding(runtime);
   console.log("Onboarding complete.");
-  console.log("Please wait...");
 }
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
@@ -160,8 +159,14 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 const isEntrypoint = basename(process.argv[1] ?? "") === basename(fileURLToPath(import.meta.url));
 
 if (isEntrypoint) {
-  main().catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
-  });
+  main()
+    .then(() => {
+      if (process.argv[2] === "onboard") {
+        process.exit(0);
+      }
+    })
+    .catch((error) => {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    });
 }
