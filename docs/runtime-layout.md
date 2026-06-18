@@ -39,7 +39,6 @@ Common workspace paths:
 - `user.md` / `USER.md` — durable user preferences and stable personal context.
 - `context.md` — durable project/workspace context and conventions.
 - `memory/` — human-readable memory and reflection material.
-- `project/` — project-oriented workspace files.
 - `skills/` — workspace skills loaded into the agent prompt.
 - `telegram-attachments/` — files received from Telegram.
 - `miniopenclaw-docs/` — generated read-only MiniOpenClaw documentation snapshot for sandboxed agents.

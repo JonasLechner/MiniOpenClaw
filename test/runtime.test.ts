@@ -19,7 +19,7 @@ function createRuntimePaths(root: string): RuntimePaths {
   };
 }
 
-test("ensureRuntimeFiles creates skills, memory, project, and workspace profile files", () => {
+test("ensureRuntimeFiles creates skills, memory, and workspace profile files", () => {
   const root = mkdtempSync(join(tmpdir(), "miniopenclaw-runtime-test-"));
 
   try {
@@ -30,7 +30,7 @@ test("ensureRuntimeFiles creates skills, memory, project, and workspace profile 
     assert.equal(existsSync(join(paths.workspace, "skills", "skill-create-new-skill", "SKILL.md")), true);
     assert.match(readFileSync(join(paths.workspace, "skills", "skill-create-new-skill", "SKILL.md"), "utf8"), /name: skill-create-new-skill/);
     assert.equal(existsSync(join(paths.workspace, "memory")), true);
-    assert.equal(existsSync(join(paths.workspace, "project")), true);
+    assert.equal(existsSync(join(paths.workspace, "project")), false);
     assert.equal(existsSync(join(paths.workspace, "context.md")), true);
     assert.equal(existsSync(join(paths.workspace, "user.md")), true);
     assert.equal(existsSync(join(paths.home, "current-sessions.json")), true);

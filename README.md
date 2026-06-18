@@ -12,7 +12,6 @@ All runtime files live in `~/.mini-openclaw/`:
 - `sessions/`
 - `workspace/`
 - `workspace/memory/`
-- `workspace/project/`
 - `workspace/skills/`
 - `workspace/context.md`
 - `workspace/user.md`
@@ -62,7 +61,6 @@ The `bash` tool requires `bash` to be available on `PATH`. On Windows, install G
 MiniOpenClaw stores everything in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. On startup it also ensures these workspace paths exist:
 
 - `workspace/memory/`
-- `workspace/project/`
 - `workspace/skills/`
 - `workspace/context.md`
 - `workspace/user.md`

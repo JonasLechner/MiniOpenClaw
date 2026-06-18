@@ -103,7 +103,6 @@ export function ensureRuntimeFiles(paths: RuntimePaths): void {
   ensureDir(paths.workspace);
   ensureDir(join(paths.workspace, "skills"));
   ensureDir(join(paths.workspace, "memory"));
-  ensureDir(join(paths.workspace, "project"));
 
   ensureInitialSkills(paths.workspace);
   ensureWorkspaceDocs(paths.workspace);
