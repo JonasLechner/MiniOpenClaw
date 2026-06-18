@@ -24,16 +24,34 @@ See `docs/index.md` for the full documentation map.
 
 ## Getting Started
 
-### 1. Install
+### Quick setup from the submitted ZIP
 
-From the repo during development:
+Requirements:
+- Node.js 20 or newer
+- npm
+- Optional: Docker or Podman if container sandboxing is enabled
+
+Run all commands from the extracted project directory:
 
 ```bash
 npm install
 npm run build
+npm run onboard
 ```
 
-For a submitted ZIP or local checkout, run all commands from the project directory with `npm run ...`.
+Start the gateway:
+
+```bash
+npm run start:gateway
+```
+
+Open the local TUI agent:
+
+```bash
+npm run start:agent
+```
+
+Credentials are configured during onboarding and stored locally in `~/.mini-openclaw/auth.json`. Do not commit or submit this file.
 
 Note: the TUI (`npm run start:agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
 

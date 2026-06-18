@@ -5,6 +5,15 @@ import { join } from "node:path";
 import { test } from "vitest";
 import { buildSystemPrompt } from "../src/core/agent-context.js";
 
+function yesterdayLocalDate(): string {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const year = yesterday.getFullYear();
+  const month = String(yesterday.getMonth() + 1).padStart(2, "0");
+  const day = String(yesterday.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 test("buildSystemPrompt includes durable workspace context", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "miniopenclaw-agent-context-"));
 
@@ -13,6 +22,22 @@ test("buildSystemPrompt includes durable workspace context", async () => {
     const prompt = await buildSystemPrompt(workspace);
     assert.match(prompt, /<context>/);
     assert.match(prompt, /keep answers concise/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("buildSystemPrompt includes yesterday's memory file when present", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "miniopenclaw-agent-context-memory-"));
+
+  try {
+    const yesterday = yesterdayLocalDate();
+    await mkdir(join(workspace, "memory"), { recursive: true });
+    await writeFile(join(workspace, "memory", `${yesterday}.md`), "# Yesterday\n\nResolved setup issues.", "utf8");
+
+    const prompt = await buildSystemPrompt(workspace);
+    assert.match(prompt, new RegExp(`<yesterday_memory date="${yesterday}" path="memory/${yesterday}\\.md">`));
+    assert.match(prompt, /Resolved setup issues/);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

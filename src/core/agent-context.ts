@@ -5,6 +5,19 @@ import { discoverWorkspaceSkills, renderSkillsPrompt } from "./skills.js";
 
 const WORKSPACE_DOCS_DIRNAME = "miniopenclaw-docs";
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getYesterdayLocalDate(): string {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return formatLocalDate(yesterday);
+}
+
 export async function buildSystemPrompt(workspacePath: string, appendSystemPrompt?: string): Promise<string> {
   const parts: string[] = [
     `You are an expert assistant. You help users by reading files, executing commands, editing code, and writing new files.
@@ -51,6 +64,12 @@ export async function buildSystemPrompt(workspacePath: string, appendSystemPromp
   const contextMd = await readOptionalFile(join(workspacePath, "context.md"));
   if (contextMd?.trim()) {
     parts.push(`\n\n<context>\n${contextMd.trim()}\n</context>`);
+  }
+
+  const yesterday = getYesterdayLocalDate();
+  const yesterdayMemory = await readOptionalFile(join(workspacePath, "memory", `${yesterday}.md`));
+  if (yesterdayMemory?.trim()) {
+    parts.push(`\n\n<yesterday_memory date="${yesterday}" path="memory/${yesterday}.md">\n${yesterdayMemory.trim()}\n</yesterday_memory>`);
   }
 
   const skillsPrompt = renderSkillsPrompt(await discoverWorkspaceSkills(workspacePath));
