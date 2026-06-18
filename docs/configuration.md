@@ -155,7 +155,7 @@ When disabled, bash commands run on the host machine in the configured workspace
 ### `sandbox.engine`
 Container engine selection.
 
-- type: `auto`, `docker`, or `podman`
+- type: `auto` or `docker`
 - default: `auto`
 
 ### `sandbox.image`
@@ -164,7 +164,7 @@ Container image to use.
 - type: string
 - default: `miniopenclaw-sandbox:local`
 
-If the default image does not exist yet, MiniOpenClaw builds it automatically for Docker/Podman container sandboxes.
+If the default image does not exist yet, MiniOpenClaw builds it automatically for Docker container sandboxes.
 
 ### `sandbox.network`
 Network mode for the sandbox.
@@ -226,7 +226,7 @@ Examples:
 
 - `gateway.port`, `sandbox.memoryMb`, and `sandbox.pidsLimit` must be positive integers.
 - `sandbox.cpus` must be a positive number.
-- `sandbox.engine` must be `auto`, `docker`, or `podman`.
+- `sandbox.engine` must be `auto` or `docker`.
 - `sandbox.network` must be `none` or `default`.
 - `logging.level` must be `debug`, `info`, `warn`, or `error`.
 - `logging.file` must be a boolean.

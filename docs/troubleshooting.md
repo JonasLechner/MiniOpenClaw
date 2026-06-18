@@ -41,14 +41,14 @@ If you use `agent.availableModels`, make sure:
 
 Common causes:
 
-- Docker or Podman is not installed
+- Docker is not installed
 - the selected engine is unavailable
 - the sandbox image cannot be built or pulled
 
 Things to try:
 
-- install Docker or Podman
-- set `sandbox.engine` explicitly to `docker` or `podman`
+- install Docker
+- set `sandbox.engine` explicitly to `docker`
 - temporarily disable sandboxing with `sandbox.enabled: false`
 
 ## Telegram user is rejected

@@ -1,33 +1,6 @@
 # MiniOpenClaw
 
-Minimal TypeScript repo for a long-running personal agent with two entrypoints:
-
-- `src/gateway/index.ts` — Fastify gateway daemon
-- `src/agent/cli.ts` — local TUI agent
-
-The default runtime home is `~/.mini-openclaw/`. It contains config, credentials, sessions, service state, logs, and the default workspace (unless `workspacePath` moves the workspace elsewhere):
-
-- `config.json` — user-managed; the agent must not read or edit this file
-- `auth.json` — user-managed credentials; the agent must not read or edit this file
-- `sessions/` — append-only JSONL session logs
-- `current-sessions.json` — current session pointers for local interfaces (`tui`, `gateway`)
-- `conversation-bindings.json` — Telegram chat-to-session bindings
-- `scheduled-tasks.json` — scheduled job definitions
-- `gateway.pid` — process id for the managed background gateway service
-- `gateway.log` — JSONL gateway/runtime log output when `logging.file` is enabled; also stdout for the managed background gateway service
-- `gateway.err.log` — stderr from the managed background gateway service
-- `workspace/` — agent workspace
-- `workspace/memory/`
-- `workspace/skills/`
-- `workspace/context.md`
-- `workspace/user.md` — durable user context maintained by onboarding/profile setup and injected into the agent prompt
-- `workspace/telegram-attachments/` — files received from Telegram
-- `workspace/workspace-search.sqlite` — local workspace search index
-- `workspace/miniopenclaw-docs/` — generated read-only docs snapshot for sandboxed agents
-
-No `.env` file is used.
-
-See `docs/index.md` for the full documentation map.
+Minimal TypeScript repo for a long-running personal agent.
 
 ## Getting Started
 
@@ -36,7 +9,7 @@ See `docs/index.md` for the full documentation map.
 Requirements:
 - Node.js 20 or newer
 - npm
-- Optional: Docker or Podman if container sandboxing is enabled
+- Optional: Docker if container sandboxing is enabled
 
 Run all commands from the extracted project directory:
 
@@ -52,13 +25,15 @@ Start the gateway:
 npm run gateway
 ```
 
+The dashboard is available at `http://localhost:3000/` by default.
+
 Open the local TUI agent:
 
 ```bash
 npm run agent
 ```
 
-Credentials are configured during onboarding and stored locally in `~/.mini-openclaw/auth.json`. Do not commit or submit this file.
+Credentials are configured during onboarding and stored locally in `~/.mini-openclaw/auth.json`.
 
 Note: the TUI (`npm run agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
 
@@ -66,57 +41,11 @@ The `bash` tool requires `bash` to be available on `PATH`. On Windows, install G
 
 ### 2. Runtime directory and config
 
-MiniOpenClaw stores runtime state in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. The agent workspace defaults to `~/.mini-openclaw/workspace/`, but can be moved with `workspacePath`; on startup MiniOpenClaw ensures these workspace paths exist:
+MiniOpenClaw stores runtime state in `~/.mini-openclaw/`. This directory, the default `config.json`, and other runtime files are created automatically on first start. The agent workspace defaults to `~/.mini-openclaw/workspace/`, but can be moved with `workspacePath`.
 
-- `workspace/memory/`
-- `workspace/skills/`
-- `workspace/context.md`
-- `workspace/user.md`
-- `workspace/miniopenclaw-docs/`
+Onboarding/profile setup maintains `workspace/user.md`; the agent system prompt injects that same file. See `docs/runtime-layout.md` for the full file layout.
 
-Onboarding/profile setup maintains `workspace/user.md`; the agent system prompt injects that same file.
-
-You only need to edit `~/.mini-openclaw/config.json` yourself if you want to change defaults. For safety, MiniOpenClaw's agent should not read or edit its own `config.json` or `auth.json`; otherwise it could inspect credentials or weaken sandbox settings. Example config:
-
-```json
-{
-  "gateway": {
-    "host": "127.0.0.1",
-    "port": 3000,
-    "telegram": {
-      "enabled": false,
-      "polling": true,
-      "allowedUserIds": []
-    }
-  },
-  "agent": {
-    "provider": "openai-codex",
-    "modelId": "gpt-5.4-mini",
-    "reasoning": "medium",
-    "availableModels": {
-      "github-copilot": ["gpt-5.4-mini"],
-      "openai-codex": ["gpt-5.4", "gpt-5.4-mini"]
-    }
-  },
-  "sandbox": {
-    "enabled": true,
-    "engine": "auto",
-    "image": "miniopenclaw-sandbox:local",
-    "network": "none",
-    "memoryMb": 2048,
-    "cpus": 2,
-    "pidsLimit": 256
-  },
-  "logging": {
-    "level": "info",
-    "file": true
-  },
-  "workspaceSearch": {
-    "enabled": true,
-    "include": ["memory/**", "project/**", "projects/**"]
-  }
-}
-```
+You only need to edit `~/.mini-openclaw/config.json` yourself if you want to change defaults. For safety, MiniOpenClaw's agent should not read or edit its own `config.json` or `auth.json`; otherwise it could inspect credentials or weaken sandbox settings. See [Config](#config) for an example.
 
 ### 3. Set up Telegram (optional)
 
@@ -184,6 +113,8 @@ Open the agent TUI:
 npm run agent
 ```
 
+The dashboard is available at `http://localhost:3000/` by default.
+
 Both the gateway and agent will warn or fail early if authentication is missing. To switch or refresh authentication later, run `npm run auth`.
 
 When chatting over Telegram, the agent can also use the `subagent` tool to launch detached background work. Those detached runs reply back into Telegram and their results are appended into the main session for follow-up.
@@ -244,19 +175,6 @@ For the full docs map, see `docs/index.md`.
 }
 ```
 
-## Gateway
-
-Endpoints:
-
-- `GET /health`
-- `GET /sessions`
-
-Sessions are stored as append-only JSONL files in `~/.mini-openclaw/sessions/`.
-Current sessions are tracked separately for local interfaces (`tui`, `gateway`) in `current-sessions.json`; the dashboard/API shows the gateway current session. Telegram chats use `conversation-bindings.json` once bound.
-This project is intended to keep session state over time rather than behave like a short-lived coding-agent workflow.
-
-See `docs/sessions.md` for the session and compaction model.
-
 ## Agent
 
 `npm run agent` launches the local TUI and requires an interactive TTY. The Bun runtime used by the TUI is installed automatically by `npm install`.
@@ -265,7 +183,7 @@ For non-interactive access, use the gateway.
 ## Sandbox image
 
 By default, the container sandbox now uses the local image tag `miniopenclaw-sandbox:local`.
-When Docker or Podman starts a sandbox and that image does not exist yet, MiniOpenClaw will build it from `docker/sandbox.Dockerfile`.
+When Docker starts a sandbox and that image does not exist yet, MiniOpenClaw will build it from `docker/sandbox.Dockerfile`.
 Sandbox containers mount the configured workspace at `/workspace`. They are shared per workspace by default and may intentionally outlive the CLI process so they can be reused across sessions and resumes.
 
 The default sandbox image includes common coding tools such as:
