@@ -4,7 +4,6 @@ import { checkAuthAvailable } from "../agent/auth.js";
 import { configureLogFile, createLogger } from "../core/log.js";
 import { needsOnboarding } from "../core/onboarding.js";
 import { initializeRuntime, type RuntimeState } from "../core/runtime.js";
-import { ensureCurrentSession } from "../core/sessions.js";
 import { createSandboxFactory, resolveSandboxEngineKind } from "../sandbox/factory.js";
 import { getSharedSandboxId } from "../sandbox/sandbox.js";
 import { buildGateway } from "./app.js";
@@ -17,22 +16,21 @@ import {
 } from "./log.js";
 
 async function launchGatewaySandbox(runtime: RuntimeState): Promise<void> {
-  const session = await ensureCurrentSession(runtime.paths, "gateway");
   const resolvedEngineKind = await resolveSandboxEngineKind(runtime.config.sandbox);
   const engineLabel = resolvedEngineKind ?? "host";
   const image = runtime.config.sandbox.enabled ? runtime.config.sandbox.image : undefined;
   const startedAt = Date.now();
 
-  logGatewaySandboxStart(session.sessionId, engineLabel, image);
+  logGatewaySandboxStart("gateway", engineLabel, image);
 
   try {
     const sandboxFactory = await createSandboxFactory(runtime.config.sandbox, resolvedEngineKind);
     const sandbox = sandboxFactory.create(getSharedSandboxId(runtime.paths.workspace), runtime.paths.workspace);
     await sandbox.ensure();
-    logGatewaySandboxReady(session.sessionId, engineLabel, Date.now() - startedAt, image);
+    logGatewaySandboxReady("gateway", engineLabel, Date.now() - startedAt, image);
   } catch (error) {
     const resolvedError = error instanceof Error ? error : new Error(String(error));
-    logGatewaySandboxError(session.sessionId, engineLabel, Date.now() - startedAt, resolvedError, image);
+    logGatewaySandboxError("gateway", engineLabel, Date.now() - startedAt, resolvedError, image);
     throw resolvedError;
   }
 }

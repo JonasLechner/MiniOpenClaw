@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { readFile, writeFile } from "node:fs/promises";
 import type { RuntimeState } from "../core/runtime.js";
-import { ensureCurrentSession, listSessions } from "../core/sessions.js";
+import { listSessions } from "../core/sessions.js";
 import { createMainSessionAgent } from "./agent-runner.js";
 import { logGatewayError, logGatewayRequest, logWorkspaceSearchIndexerFailed, logWorkspaceSearchIndexerStarted, markGatewayRequestStart } from "./log.js";
 import { createGatewayScheduler } from "../jobs/scheduler.js";
@@ -10,6 +10,7 @@ import { buildTelegramGatewayApp } from "../transports/telegram/app.js";
 import { renderDashboardPage } from "./dashboard.js";
 import { listScheduledTasks } from "../jobs/task-store.js";
 import { getGatewayServicePaths } from "./service.js";
+import { listConversationBindings } from "../core/conversation-bindings.js";
 
 async function readTextOrEmpty(path: string): Promise<string> {
   try {
@@ -37,14 +38,14 @@ async function readRecentLogs(path: string): Promise<Array<Record<string, unknow
 
 async function renderDashboard(runtime: RuntimeState, activeScreen: "sessions" | "tasks" | "config" | "logs", notice?: string): Promise<string> {
   const servicePaths = getGatewayServicePaths(runtime);
-  const currentSession = await ensureCurrentSession(runtime.paths, "gateway");
+  const telegramBindings = (await listConversationBindings(runtime.paths)).filter((binding) => binding.channel === "telegram");
   return renderDashboardPage({
     activeScreen,
     configPath: runtime.paths.configFile,
     sessionsPath: runtime.paths.sessions,
     tasksPath: runtime.paths.scheduledTasks,
     logsPath: servicePaths.stdoutLog,
-    currentSessionId: currentSession.sessionId,
+    telegramSessionIds: telegramBindings.map((binding) => binding.sessionId),
     sessions: activeScreen === "sessions" ? await listSessions(runtime.paths) : undefined,
     scheduledTasks: activeScreen === "tasks" ? await listScheduledTasks(runtime.paths) : undefined,
     detachedTasks: [],

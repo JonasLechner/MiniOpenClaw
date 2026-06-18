@@ -131,6 +131,13 @@ export async function startGatewayService(runtime: RuntimeState): Promise<{ stat
     return { status: current, started: false };
   }
 
+  if (await probeGatewayHealth(runtime)) {
+    throw new Error(
+      `Gateway is already reachable at ${getGatewayHealthUrl(runtime)}, but it is not managed by gateway-service. `
+      + "A foreground gateway may be running. Stop it before starting gateway-service.",
+    );
+  }
+
   const paths = current.paths;
   const stdoutFd = openSync(paths.stdoutLog, "a");
   const stderrFd = openSync(paths.stderrLog, "a");
@@ -161,8 +168,16 @@ export async function startGatewayService(runtime: RuntimeState): Promise<{ stat
   child.unref();
 
   const status = await getGatewayServiceStatus(runtime);
-  if (!ready && status.state !== "running") {
-    throw new Error(`Gateway failed to start. See ${paths.stderrLog}`);
+  if (!ready) {
+    if (!isProcessRunning(child.pid)) {
+      rmSync(paths.pidFile, { force: true });
+      throw new Error(`Gateway failed to start. See ${paths.stderrLog}`);
+    }
+
+    throw new Error(
+      `Gateway process ${child.pid} started but did not become healthy within ${START_TIMEOUT_MS}ms. `
+      + `Leaving ${paths.pidFile} in place so gateway-service can stop or inspect it. See ${paths.stderrLog}`,
+    );
   }
 
   return { status, started: true };

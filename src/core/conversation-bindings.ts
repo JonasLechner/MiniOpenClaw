@@ -36,8 +36,12 @@ function assertNoDuplicateBindings(bindings: ConversationBinding[]): Conversatio
   return bindings;
 }
 
-async function loadBindings(paths: RuntimePaths): Promise<ConversationBinding[]> {
+export async function listConversationBindings(paths: RuntimePaths): Promise<ConversationBinding[]> {
   return assertNoDuplicateBindings(await readJsonFile(paths.conversationBindings, [] as ConversationBinding[]));
+}
+
+async function loadBindings(paths: RuntimePaths): Promise<ConversationBinding[]> {
+  return listConversationBindings(paths);
 }
 
 async function saveBindings(paths: RuntimePaths, bindings: ConversationBinding[]): Promise<void> {

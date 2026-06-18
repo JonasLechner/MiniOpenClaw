@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimePaths } from "../src/core/config.js";
 import type { RuntimeState } from "../src/core/runtime.js";
+import { bindTelegramChatToSession } from "../src/core/conversation-bindings.js";
 import { appendUserMessageEvent, createNewSession, ensureCurrentSession } from "../src/core/sessions.js";
 
 const runtimeStateMock = vi.fn<() => RuntimeState>();
@@ -38,6 +39,7 @@ function createRuntimePaths(): RuntimePaths {
     workspace: join(root, "workspace"),
     memory: join(root, "workspace", "memory"),
     conversationBindings: join(root, "conversation-bindings.json"),
+    currentSessions: join(root, "current-sessions.json"),
     scheduledTasks: join(root, "scheduled-tasks.json"),
   };
 }
@@ -75,8 +77,10 @@ beforeEach(() => {
 });
 
 describe("gateway session endpoints", () => {
-  it("renders the dashboard with the gateway current session and saves config via /api/config", async () => {
+  it("renders the dashboard with Telegram-bound current sessions and saves config via /api/config", async () => {
     const tuiSession = await ensureCurrentSession(paths, "tui");
+    const telegramSession = await createNewSession(paths);
+    await bindTelegramChatToSession(paths, "chat-1", telegramSession.sessionId, "user-1");
     writeFileSync(paths.configFile, '{"gateway":{"port":3000}}\n', "utf8");
 
     const { buildGateway } = await import("../src/gateway/app.js");
@@ -86,9 +90,10 @@ describe("gateway session endpoints", () => {
     expect(dashboardResponse.statusCode).toBe(200);
     expect(dashboardResponse.headers["content-type"]).toContain("text/html");
     expect(dashboardResponse.body).toContain("MiniOpenClaw dashboard");
-    const gatewaySession = await ensureCurrentSession(paths, "gateway");
-    expect(gatewaySession.sessionId).not.toBe(tuiSession.sessionId);
-    expect(dashboardResponse.body).toContain(gatewaySession.sessionId);
+    expect(dashboardResponse.body).toContain(telegramSession.sessionId);
+    expect(dashboardResponse.body).toContain("current telegram");
+    expect(readFileSync(paths.currentSessions!, "utf8")).toContain(tuiSession.sessionId);
+    expect(readFileSync(paths.currentSessions!, "utf8")).not.toContain("gateway");
 
     const saveResponse = await app.inject({
       method: "PUT",
@@ -102,6 +107,19 @@ describe("gateway session endpoints", () => {
 
     const restartResponse = await app.inject({ method: "POST", url: "/api/restart" });
     expect(restartResponse.statusCode).toBe(501);
+
+    await app.close();
+  });
+
+  it("does not create a current session when rendering the dashboard", async () => {
+    writeFileSync(paths.configFile, '{"gateway":{"port":3000}}\n', "utf8");
+
+    const { buildGateway } = await import("../src/gateway/app.js");
+    const app = buildGateway(runtimeStateMock());
+
+    const dashboardResponse = await app.inject({ method: "GET", url: "/" });
+    expect(dashboardResponse.statusCode).toBe(200);
+    expect(existsSync(paths.currentSessions!)).toBe(false);
 
     await app.close();
   });

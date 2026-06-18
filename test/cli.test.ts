@@ -97,9 +97,14 @@ describe("miniopenclaw cli", () => {
     expect(runOnboardingMock).toHaveBeenCalledWith(runtime);
   });
 
-  it("starts the gateway when requested", async () => {
+  it("starts the gateway service when requested", async () => {
     const { main } = await import("../src/cli.js");
-    await main(["gateway"]);
+    await main(["gateway-service"]);
     expect(startGatewayServiceMock).toHaveBeenCalledWith(runtime);
+  });
+
+  it("does not expose the old background gateway command", async () => {
+    const { main } = await import("../src/cli.js");
+    await expect(main(["gateway"])).rejects.toThrow("Unknown command: gateway");
   });
 });

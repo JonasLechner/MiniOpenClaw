@@ -42,18 +42,18 @@ npm run onboard
 Start the gateway:
 
 ```bash
-npm run start:gateway
+npm run gateway
 ```
 
 Open the local TUI agent:
 
 ```bash
-npm run start:agent
+npm run agent
 ```
 
 Credentials are configured during onboarding and stored locally in `~/.mini-openclaw/auth.json`. Do not commit or submit this file.
 
-Note: the TUI (`npm run start:agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
+Note: the TUI (`npm run agent`) runs through Bun, which is installed automatically by `npm install`. Other commands run on Node.
 
 The `bash` tool requires `bash` to be available on `PATH`. On Windows, install Git Bash and ensure it is on `PATH`.
 
@@ -146,21 +146,21 @@ npm run onboard
 Start the gateway in the foreground (includes Telegram polling if enabled):
 
 ```bash
-npm run start:gateway
+npm run gateway
 ```
 
 Alternatively, start and manage the gateway in the background:
 
 ```bash
-npm run gateway
-npm run gateway:status
-npm run gateway:stop
+npm run gateway-service
+npm run gateway-service:status
+npm run gateway-service:stop
 ```
 
 Open the agent TUI:
 
 ```bash
-npm run start:agent
+npm run agent
 ```
 
 Both the gateway and agent will warn or fail early if authentication is missing. To switch or refresh authentication later, run `npm run auth`.
@@ -171,12 +171,12 @@ For the full docs map, see `docs/index.md`.
 
 ## Commands
 
-- `npm run start:agent` — open the agent TUI
+- `npm run agent` — open the agent TUI
 - `npm run auth -- [provider]` — authenticate with a selected OAuth provider
 - `npm run onboard` — rerun onboarding
-- `npm run start:gateway` — start the gateway in the foreground
-- `npm run gateway` — start the gateway in the background
-- `npm run gateway:restart|gateway:stop|gateway:status` — manage the background gateway
+- `npm run gateway` — start the gateway in the foreground
+- `npm run gateway-service` — start the gateway in the background
+- `npm run gateway-service:restart|gateway-service:stop|gateway-service:status` — manage the background gateway
 - `npm run build` — compile to `dist/`
 - `npm run dev` — TypeScript watch mode
 - `npm run lint` — run ESLint
@@ -226,7 +226,7 @@ See `docs/sessions.md` for the session and compaction model.
 
 ## Agent
 
-`npm run start:agent` launches the local TUI and requires an interactive TTY. The Bun runtime used by the TUI is installed automatically by `npm install`.
+`npm run agent` launches the local TUI and requires an interactive TTY. The Bun runtime used by the TUI is installed automatically by `npm install`.
 For non-interactive access, use the gateway.
 
 ## Sandbox image

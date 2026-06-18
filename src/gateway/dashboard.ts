@@ -43,7 +43,7 @@ type DashboardRenderInput = {
   sessionsPath: string;
   tasksPath: string;
   logsPath: string;
-  currentSessionId?: string;
+  telegramSessionIds?: string[];
   sessions?: SessionSummary[];
   detachedTasks?: DetachedTask[];
   scheduledTasks?: ScheduledTask[];
@@ -94,8 +94,9 @@ function renderSessions(input: DashboardRenderInput): string {
   const sessions = input.sessions ?? [];
   if (sessions.length === 0) return '<div class="empty">No sessions yet.</div>';
 
+  const telegramSessionIds = new Set(input.telegramSessionIds ?? []);
   return `<ul class="list">${sessions.map((session) => {
-    const current = session.sessionId === input.currentSessionId ? '<span class="badge current">current</span>' : "";
+    const current = telegramSessionIds.has(session.sessionId) ? '<span class="badge current">current telegram</span>' : "";
     return `<li class="list-item">
       <div class="row-head">
         <span class="mono">${escapeHtml(session.sessionId)}</span>
@@ -226,19 +227,6 @@ function renderContent(input: DashboardRenderInput): { title: string; subtitle: 
 function renderClientScript(input: DashboardRenderInput): string {
   if (input.activeScreen === "logs") {
     return `<script>
-      async function restartGateway() {
-        const status = document.getElementById('topStatus');
-        status.textContent = 'Restart requested…';
-        try {
-          const response = await fetch('/api/restart', { method: 'POST' });
-          const payload = await response.json();
-          if (!response.ok) throw new Error(payload.error || 'Restart failed.');
-          status.textContent = payload.message;
-        } catch (error) {
-          status.textContent = error instanceof Error ? error.message : String(error);
-        }
-      }
-      document.getElementById('restartButton')?.addEventListener('click', restartGateway);
       history.scrollRestoration = 'manual';
       requestAnimationFrame(() => {
         window.scrollTo(0, 0);
@@ -254,37 +242,10 @@ function renderClientScript(input: DashboardRenderInput): string {
   }
 
   if (input.activeScreen !== "config") {
-    return `<script>
-      async function restartGateway() {
-        const status = document.getElementById('topStatus');
-        status.textContent = 'Restart requested…';
-        try {
-          const response = await fetch('/api/restart', { method: 'POST' });
-          const payload = await response.json();
-          if (!response.ok) throw new Error(payload.error || 'Restart failed.');
-          status.textContent = payload.message;
-        } catch (error) {
-          status.textContent = error instanceof Error ? error.message : String(error);
-        }
-      }
-      document.getElementById('restartButton')?.addEventListener('click', restartGateway);
-    </script>`;
+    return "";
   }
 
   return `<script>
-    async function restartGateway() {
-      const topStatus = document.getElementById('topStatus');
-      topStatus.textContent = 'Restart requested…';
-      try {
-        const response = await fetch('/api/restart', { method: 'POST' });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || 'Restart failed.');
-        topStatus.textContent = payload.message;
-      } catch (error) {
-        topStatus.textContent = error instanceof Error ? error.message : String(error);
-      }
-    }
-
     async function saveConfig() {
       const status = document.getElementById('configStatus');
       const editor = document.getElementById('configEditor');
@@ -303,7 +264,6 @@ function renderClientScript(input: DashboardRenderInput): string {
       }
     }
 
-    document.getElementById('restartButton')?.addEventListener('click', restartGateway);
     document.getElementById('saveConfigButton')?.addEventListener('click', saveConfig);
   </script>`;
 }
@@ -432,6 +392,15 @@ export function renderDashboardPage(input: DashboardRenderInput): string {
         background: var(--blue);
         border-color: var(--blue);
         color: white;
+      }
+      .icon-button {
+        width: 42px;
+        height: 42px;
+        display: inline-grid;
+        place-items: center;
+        padding: 0;
+        font-size: 1.1rem;
+        line-height: 1;
       }
       .status {
         color: var(--muted);
@@ -578,7 +547,7 @@ export function renderDashboardPage(input: DashboardRenderInput): string {
     <div class="app">
       <aside class="sidebar">
         <h1>Gateway control</h1>
-        <p>Sessions, tasks, logs, config, restart.</p>
+        <p>Sessions, tasks, logs, and config.</p>
         <nav class="nav">
           ${navLink("sessions", input.activeScreen, "Sessions")}
           ${navLink("tasks", input.activeScreen, "Background tasks")}
@@ -594,8 +563,7 @@ export function renderDashboardPage(input: DashboardRenderInput): string {
             <p class="subtitle">${escapeHtml(content.subtitle)}</p>
           </div>
           <div class="toolbar">
-            <button class="button" type="button" onclick="location.reload()">Reload screen</button>
-            <button class="button primary" id="restartButton" type="button">Restart gateway</button>
+            <button class="button icon-button" type="button" onclick="location.reload()" aria-label="Refresh screen" title="Refresh screen">↻</button>
             <span class="status" id="topStatus">${escapeHtml(input.notice ?? "")}</span>
           </div>
         </div>

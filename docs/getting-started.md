@@ -97,7 +97,7 @@ npm start
 In another terminal, start the local agent UI:
 
 ```bash
-npm run start:agent
+npm run agent
 ```
 
 ## First things to try

@@ -38,7 +38,7 @@ function runAgentViaBun(args: string[]): void {
   const spawnError = result.error as NodeJS.ErrnoException | undefined;
   if (spawnError) {
     if (spawnError.code === "ENOENT") {
-      throw new Error("The agent TUI requires Bun. Run `npm install`, then re-run `npm run start:agent`.");
+      throw new Error("The agent TUI requires Bun. Run `npm install`, then re-run `npm run agent`.");
     }
     throw spawnError;
   }
@@ -54,14 +54,14 @@ function runAgentViaBun(args: string[]): void {
 
 function printUsage(): void {
   console.log(`Usage:
-  npm run start:agent         Open the agent TUI
+  npm run agent               Open the agent TUI
   npm run auth -- [provider]
   npm run onboard
-  npm run start:gateway       Start the gateway in the foreground
-  npm run gateway             Start the gateway in the background
-  npm run gateway:restart
-  npm run gateway:stop
-  npm run gateway:status`);
+  npm run gateway             Start the gateway in the foreground
+  npm run gateway-service     Start the gateway in the background
+  npm run gateway-service:restart
+  npm run gateway-service:stop
+  npm run gateway-service:status`);
 }
 
 function printGatewayStatus(status: Awaited<ReturnType<typeof getGatewayServiceStatus>>): void {
@@ -81,7 +81,7 @@ function printGatewayStatus(status: Awaited<ReturnType<typeof getGatewayServiceS
   console.log(`Logs: ${status.paths.stdoutLog}`);
 }
 
-async function runGatewayCommand(args: string[]): Promise<void> {
+async function runGatewayServiceCommand(args: string[]): Promise<void> {
   const runtime = initializeRuntime();
   const subcommand = args[0] ?? "start";
 
@@ -111,7 +111,7 @@ async function runGatewayCommand(args: string[]): Promise<void> {
     return;
   }
 
-  throw new Error(`Unknown gateway subcommand: ${subcommand}`);
+  throw new Error(`Unknown gateway-service subcommand: ${subcommand}`);
 }
 
 async function runOnboardCommand(): Promise<void> {
@@ -144,8 +144,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     return;
   }
 
-  if (command === "gateway") {
-    await runGatewayCommand(args);
+  if (command === "gateway-service") {
+    await runGatewayServiceCommand(args);
     return;
   }
 
