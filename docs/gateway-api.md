@@ -12,8 +12,6 @@ The gateway API is mainly useful for:
 
 - health checks
 - inspecting sessions
-- creating a new session
-- reading session event history
 
 ## Base address
 
@@ -36,16 +34,6 @@ Returns basic health status.
 ### `GET /sessions`
 Returns the known sessions.
 
-### `GET /sessions/current`
-Returns the current session.
-
-### `POST /sessions/new`
-Creates a new session.
-
-### `GET /sessions/:sessionId/events`
-Returns the event history for a specific session.
-
-If the session does not exist, the gateway returns `404`.
 
 ## Notes
 

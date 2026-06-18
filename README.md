@@ -215,12 +215,9 @@ Endpoints:
 
 - `GET /health`
 - `GET /sessions`
-- `GET /sessions/current`
-- `POST /sessions/new`
-- `GET /sessions/:sessionId/events`
 
 Sessions are stored as append-only JSONL files in `~/.mini-openclaw/sessions/`.
-Current sessions are tracked separately for the TUI and gateway in a small JSON map under `~/.mini-openclaw/`.
+Current sessions are tracked separately for local interfaces (`tui`, `gateway`) in `current-sessions.json`; the dashboard/API shows the gateway current session. Telegram chats use `conversation-bindings.json` once bound.
 This project is intended to keep session state over time rather than behave like a short-lived coding-agent workflow.
 
 See `docs/sessions.md` for the session and compaction model.

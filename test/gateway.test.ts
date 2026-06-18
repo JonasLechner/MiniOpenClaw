@@ -75,29 +75,8 @@ beforeEach(() => {
 });
 
 describe("gateway session endpoints", () => {
-  it("creates and returns a gateway-specific current session on first use", async () => {
+  it("renders the dashboard with the gateway current session and saves config via /api/config", async () => {
     const tuiSession = await ensureCurrentSession(paths, "tui");
-
-    const { buildGateway } = await import("../src/gateway/app.js");
-    const app = buildGateway(runtimeStateMock());
-
-    const response = await app.inject({ method: "GET", url: "/sessions/current" });
-    expect(response.statusCode).toBe(200);
-
-    const payload = response.json();
-    expect(payload.sessionId).toBeTypeOf("string");
-    expect(payload.sessionId).not.toBe(tuiSession.sessionId);
-    expect(payload.events).toHaveLength(1);
-    expect(payload.events[0]).toMatchObject({
-      type: "system",
-      name: "session_created",
-      details: { reason: "first_use", surface: "gateway" },
-    });
-
-    await app.close();
-  });
-
-  it("renders the dashboard on / and saves config via /api/config", async () => {
     writeFileSync(paths.configFile, '{"gateway":{"port":3000}}\n', "utf8");
 
     const { buildGateway } = await import("../src/gateway/app.js");
@@ -107,6 +86,9 @@ describe("gateway session endpoints", () => {
     expect(dashboardResponse.statusCode).toBe(200);
     expect(dashboardResponse.headers["content-type"]).toContain("text/html");
     expect(dashboardResponse.body).toContain("MiniOpenClaw dashboard");
+    const gatewaySession = await ensureCurrentSession(paths, "gateway");
+    expect(gatewaySession.sessionId).not.toBe(tuiSession.sessionId);
+    expect(dashboardResponse.body).toContain(gatewaySession.sessionId);
 
     const saveResponse = await app.inject({
       method: "PUT",
@@ -124,7 +106,7 @@ describe("gateway session endpoints", () => {
     await app.close();
   });
 
-  it("lists sessions and returns events for a selected session", async () => {
+  it("lists sessions", async () => {
     const first = await createNewSession(paths);
     await appendUserMessageEvent(first, "hello");
 
@@ -139,14 +121,6 @@ describe("gateway session endpoints", () => {
     const listPayload = listResponse.json();
     expect(listPayload.sessions).toHaveLength(2);
 
-    const eventsResponse = await app.inject({ method: "GET", url: `/sessions/${first.sessionId}/events` });
-    expect(eventsResponse.statusCode).toBe(200);
-    const eventsPayload = eventsResponse.json();
-    expect(eventsPayload.sessionId).toBe(first.sessionId);
-    expect(eventsPayload.events.some((event: { type: string }) => event.type === "user_message")).toBe(true);
-
-    const missingResponse = await app.inject({ method: "GET", url: "/sessions/missing/events" });
-    expect(missingResponse.statusCode).toBe(404);
 
     await app.close();
   });

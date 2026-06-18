@@ -1,12 +1,11 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { readFile, writeFile } from "node:fs/promises";
 import type { RuntimeState } from "../core/runtime.js";
-import { createNewSession, ensureCurrentSession, getSessionById, listSessions } from "../core/sessions.js";
+import { ensureCurrentSession, listSessions } from "../core/sessions.js";
 import { createMainSessionAgent } from "./agent-runner.js";
 import { logGatewayError, logGatewayRequest, logWorkspaceSearchIndexerFailed, logWorkspaceSearchIndexerStarted, markGatewayRequestStart } from "./log.js";
 import { createGatewayScheduler } from "../jobs/scheduler.js";
 import { createWorkspaceSearchIndexer } from "../core/workspace-search-index.js";
-import { toSessionResponse } from "./session-response.js";
 import { buildTelegramGatewayApp } from "../transports/telegram/app.js";
 import { renderDashboardPage } from "./dashboard.js";
 import { listScheduledTasks } from "../jobs/task-store.js";
@@ -140,26 +139,6 @@ export function buildGateway(runtime: RuntimeState): FastifyInstance {
     return { sessions: await listSessions(runtime.paths) };
   });
 
-  app.get("/sessions/current", async () => {
-    const session = await ensureCurrentSession(runtime.paths, "gateway");
-    return toSessionResponse(session);
-  });
-
-  app.post("/sessions/new", async () => {
-    const session = await createNewSession(runtime.paths, "gateway");
-    return toSessionResponse(session);
-  });
-
-  app.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/events", async (request, reply) => {
-    const session = await getSessionById(runtime.paths, request.params.sessionId);
-
-    if (!session) {
-      reply.code(404);
-      return { error: `Unknown session ${request.params.sessionId}` };
-    }
-
-    return toSessionResponse(session);
-  });
 
   return app;
 }

@@ -22,7 +22,7 @@ This makes sessions resumable across process restarts and inspectable with norma
 
 MiniOpenClaw tracks current session pointers separately from the session logs.
 
-The local agent UI can continue its current session, while Telegram chats are bound through `conversation-bindings.json`.
+The TUI and gateway can continue their own current sessions; the dashboard/API displays the gateway current session. Telegram chats are bound through `conversation-bindings.json` and do not read `current-sessions.json.gateway` after a chat binding exists.
 
 Useful distinction:
 

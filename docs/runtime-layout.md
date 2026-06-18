@@ -19,8 +19,8 @@ Important files and directories:
 - `config.json` — main runtime configuration; user-managed and not for the agent to read or edit.
 - `auth.json` — saved provider credentials and tokens; user-managed and not for the agent to read or edit.
 - `sessions/` — append-only JSONL session logs.
-- `current-sessions.json` — current session pointers for local interfaces.
-- `conversation-bindings.json` — Telegram chat to session bindings.
+- `current-sessions.json` — current session pointers for local interfaces (`tui` and `gateway`). The dashboard/API displays the gateway current session. These are not Telegram chat bindings.
+- `conversation-bindings.json` — Telegram chat to session bindings. Once a Telegram chat has a binding, Telegram continues that bound session rather than reading `current-sessions.json.gateway`.
 - `scheduled-tasks.json` — scheduled job definitions.
 - `workspace/` — default workspace exposed to the agent.
 
