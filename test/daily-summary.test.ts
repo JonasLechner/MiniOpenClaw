@@ -72,6 +72,12 @@ test("shouldEnsurePreviousDailySummary ensures yesterday exists", async () => {
     const now = new Date("2026-06-04T08:00:00");
     const yesterday = getPreviousLocalDayDate(now);
 
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T12:00:00"));
+    const session = await createNewSession(paths);
+    await appendUserMessageEvent(session, "yesterday activity");
+    vi.useRealTimers();
+
     assert.equal(await shouldEnsurePreviousDailySummary(runtime, now), true);
     await mkdir(paths.memory, { recursive: true });
     await writeFile(join(paths.memory, "2026-06-03.md"), "", "utf8");
@@ -81,6 +87,21 @@ test("shouldEnsurePreviousDailySummary ensures yesterday exists", async () => {
     assert.equal(await dailySummaryExists(runtime, yesterday), true);
     assert.equal(await shouldEnsurePreviousDailySummary(runtime, now), false);
     assert.equal(await shouldEnsurePreviousDailySummary(runtime, now, "2026-06-03"), false);
+  } finally {
+    vi.useRealTimers();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("shouldEnsurePreviousDailySummary skips days with no session activity", async () => {
+  const root = await mkdtemp(join(tmpdir(), "miniopenclaw-daily-summary-empty-"));
+
+  try {
+    const paths = createRuntimePaths(root);
+    const runtime = createRuntime(paths);
+    const now = new Date("2026-06-04T08:00:00");
+
+    assert.equal(await shouldEnsurePreviousDailySummary(runtime, now), false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

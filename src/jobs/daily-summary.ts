@@ -134,11 +134,27 @@ export async function createDailySummary(runtime: RuntimeState, date = new Date(
   return outputPath;
 }
 
+async function hasSessionActivityForDay(runtime: RuntimeState, day: string): Promise<boolean> {
+  const sessionSummaries = await listSessions(runtime.paths);
+  for (const sessionSummary of sessionSummaries) {
+    const session = await getSessionById(runtime.paths, sessionSummary.sessionId);
+    if (session?.events.some((event) => isSameDay(event.timestamp, day))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function shouldEnsurePreviousDailySummary(runtime: RuntimeState, now: Date, lastRunDate?: string): Promise<boolean> {
-  const previousDay = formatLocalDay(getPreviousLocalDayDate(now));
+  const previousDate = getPreviousLocalDayDate(now);
+  const previousDay = formatLocalDay(previousDate);
   if (lastRunDate === previousDay) {
     return false;
   }
 
-  return !(await dailySummaryExists(runtime, getPreviousLocalDayDate(now)));
+  if (await dailySummaryExists(runtime, previousDate)) {
+    return false;
+  }
+
+  return hasSessionActivityForDay(runtime, previousDay);
 }
